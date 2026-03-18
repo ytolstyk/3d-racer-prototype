@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh repo:*)",
+      "Bash(gh api:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(npm install:*)",
+      "Bash(rtk tsc:*)",
+      "Bash(./node_modules/.bin/vite build:*)",
+      "Bash(rtk lint:*)",
+      "Bash(./node_modules/.bin/eslint src/game/scene/KitchenItems.ts 2>&1)",
+      "Bash(node:*)"
+    ]
+  }
+}
