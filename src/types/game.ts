@@ -26,6 +26,7 @@ export interface CarState {
   steeringAngle: number;
   currentT: number; // spline parameter 0-1
   previousT: number;
+  hasPassedHalfway: boolean; // guard to prevent false lap on race start
   completedLaps: number;
   bestLapTime: number;
   currentLapStart: number;
@@ -36,7 +37,7 @@ export interface CarState {
 }
 
 export interface HazardZone {
-  type: 'juice' | 'oil' | 'food';
+  type: 'juice' | 'oil' | 'food' | 'milk' | 'butter';
   tStart: number;
   tEnd: number;
   lateralOffset: number;

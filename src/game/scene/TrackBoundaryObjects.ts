@@ -42,9 +42,9 @@ export class TrackBoundaryObjects {
     const total = boundaries.length;
 
     // Spacing constants
-    const clusterInterval = 18;   // cheerio cluster every N samples (denser)
-    const treeInterval = 40;
-    const spectatorInterval = 20;
+    const clusterInterval = 6;    // cheerio cluster every N samples (denser)
+    const treeInterval = 18;
+    const spectatorInterval = 10;
 
     for (let i = 0; i < total; i++) {
       const bp = boundaries[i];
@@ -59,16 +59,16 @@ export class TrackBoundaryObjects {
           const base = side === -1 ? bp.left : bp.right;
           const dir  = side === -1 ? outward : outward.clone().negate();
 
-          // Cluster of 2-4 cheerios right at track edge
-          const clusterDist = 0.5 + Math.random() * 2.5;
+          // Cluster of cheerios right at track edge
+          const clusterDist = 1 + Math.random() * 4;
           const clusterCenter = base.clone().add(dir.clone().multiplyScalar(clusterDist));
-          const cheerioCount = 2 + Math.floor(Math.random() * 3);
+          const cheerioCount = 5 + Math.floor(Math.random() * 5);
 
           for (let c = 0; c < cheerioCount; c++) {
             const scatter = new THREE.Vector3(
-              (Math.random() - 0.5) * 6,
+              (Math.random() - 0.5) * 12,
               0,
-              (Math.random() - 0.5) * 6,
+              (Math.random() - 0.5) * 12,
             );
             const pos = clusterCenter.clone().add(scatter);
             pos.y = 0;
@@ -123,7 +123,8 @@ export class TrackBoundaryObjects {
   private makeSingleCheerio(trackAngle: number): THREE.Group {
     const g = new THREE.Group();
     const mesh = new THREE.Mesh(CHEERIO_GEO, CHEERIO_MAT);
-    // Flat — no rotation needed (torus lies in XZ by default), bottom of tube touches table
+    // Flat — rotate X by PI/2 so hole faces up (torus lies in XZ plane)
+    mesh.rotation.x = Math.PI / 2;
     mesh.rotation.y = trackAngle;
     mesh.position.y = 0.48; // tube radius, so bottom sits on table
     mesh.castShadow = true;
@@ -140,8 +141,8 @@ export class TrackBoundaryObjects {
 
     for (let k = 0; k < 3; k++) {
       const mesh = new THREE.Mesh(CHEERIO_GEO, mats[k]);
-      // Flat orientation with slight random tilt for character
-      const tiltX = (Math.random() - 0.5) * 0.18;
+      // Flat orientation: rotate X by PI/2 so hole faces up, slight random tilt for character
+      const tiltX = Math.PI / 2 + (Math.random() - 0.5) * 0.18;
       const tiltZ = (Math.random() - 0.5) * 0.18;
       mesh.rotation.set(tiltX, trackAngle + (Math.random() - 0.5) * JITTER, tiltZ);
       mesh.position.y = heights[k];

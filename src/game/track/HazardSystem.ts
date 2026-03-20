@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { TrackDefinition } from './TrackDefinition.js';
 import type { HazardZone, HazardEffect } from '../../types/game.js';
 import { HAZARD_EFFECTS } from '../../constants/physics.js';
-import { makeOilSplatTexture, makeJuiceSplatTexture, makeFoodSplatTexture } from '../scene/ProceduralTextures.js';
+import { makeOilSplatTexture, makeJuiceSplatTexture, makeFoodSplatTexture, makeMilkSplatTexture, makeButterSplatTexture } from '../scene/ProceduralTextures.js';
 
 export interface HazardEffectWithZone extends HazardEffect {
   zoneType: string;
@@ -56,6 +56,14 @@ export class HazardSystem {
       case 'food':
         texture = makeFoodSplatTexture();
         color = 0x88cc44;
+        break;
+      case 'milk':
+        texture = makeMilkSplatTexture();
+        color = 0xdde8ff;
+        break;
+      case 'butter':
+        texture = makeButterSplatTexture();
+        color = 0xf5d020;
         break;
     }
 

@@ -5,6 +5,7 @@ interface ScoreboardProps {
   raceFinished: boolean;
   onMainMenu: () => void;
   onRaceAgain: () => void;
+  onBackToEditor?: () => void;
 }
 
 function formatTime(ms: number): string {
@@ -15,7 +16,7 @@ function formatTime(ms: number): string {
   return `${minutes}:${seconds.toFixed(3).padStart(6, '0')}`;
 }
 
-export function Scoreboard({ results, raceFinished, onMainMenu, onRaceAgain }: ScoreboardProps) {
+export function Scoreboard({ results, raceFinished, onMainMenu, onRaceAgain, onBackToEditor }: ScoreboardProps) {
   return (
     <div className="scoreboard-overlay">
       <div className="scoreboard">
@@ -54,6 +55,11 @@ export function Scoreboard({ results, raceFinished, onMainMenu, onRaceAgain }: S
           <button className="btn btn-secondary" onClick={onMainMenu}>
             Main Menu
           </button>
+          {onBackToEditor && (
+            <button className="btn btn-secondary" onClick={onBackToEditor}>
+              ← Back to Editor
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -72,7 +72,7 @@ export class GameEngine {
     // Scene
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x87c1e8);
-    this.scene.fog = new THREE.Fog(0x87c1e8, 200, 380);
+    this.scene.fog = new THREE.Fog(0x87c1e8, 400, 750);
 
     // Camera
     const aspect = canvas.clientWidth / canvas.clientHeight;
@@ -86,7 +86,11 @@ export class GameEngine {
     this.scene.add(tableScene.build());
 
     // Track — look up config by ID, fallback to first track
-    const trackConfig = TRACKS.find(t => t.id === selectedTrackId) ?? TRACKS[0];
+    let trackConfig = TRACKS.find(t => t.id === selectedTrackId) ?? TRACKS[0];
+    if (selectedTrackId === '__editor__') {
+      const stored = sessionStorage.getItem('editor_track');
+      if (stored) trackConfig = JSON.parse(stored) as typeof TRACKS[0];
+    }
     this.track = new TrackDefinition(trackConfig);
     const trackBuilder = new TrackBuilder();
     this.scene.add(trackBuilder.build(this.track));
@@ -170,9 +174,9 @@ export class GameEngine {
     allDefs.splice(slot, 0, { def: playerDef, isPlayer: true });
 
     // Staggered grid like real racing: left column at front, right column half a row behind
-    const rowSpacing = 12;
-    const staggerOffset = 6; // right-side cars are this far behind their left-side pair
-    const lateralSpacing = 9;
+    const rowSpacing = 22;
+    const staggerOffset = 11; // right-side cars are this far behind their left-side pair
+    const lateralSpacing = 16;
 
     for (let i = 0; i < allDefs.length; i++) {
       const { def, isPlayer } = allDefs[i];
@@ -211,6 +215,7 @@ export class GameEngine {
         steeringAngle: 0,
         currentT: 0,
         previousT: 0,
+        hasPassedHalfway: false,
         completedLaps: 0,
         bestLapTime: 0,
         currentLapStart: 0,

@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 
-const BASE_HEIGHT = 60;
-const BASE_BACK = -30;
-const MAX_ZOOM_HEIGHT = 95;
-const MAX_ZOOM_BACK = -50;
+const BASE_HEIGHT = 110;
+const BASE_BACK = -55;
+const MAX_ZOOM_HEIGHT = 175;
+const MAX_ZOOM_BACK = -85;
 
 export class TopDownCamera {
   readonly camera: THREE.PerspectiveCamera;
@@ -13,7 +13,7 @@ export class TopDownCamera {
   private currentBack = BASE_BACK;
 
   constructor(aspect: number) {
-    this.camera = new THREE.PerspectiveCamera(50, aspect, 0.1, 500);
+    this.camera = new THREE.PerspectiveCamera(50, aspect, 0.1, 1200);
     this.camera.position.set(0, BASE_HEIGHT, BASE_BACK);
     this.camera.lookAt(0, 0, 0);
   }

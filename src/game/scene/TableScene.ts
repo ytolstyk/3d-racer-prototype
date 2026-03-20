@@ -21,7 +21,7 @@ export class TableScene {
     colorMap.colorSpace = THREE.SRGBColorSpace;
 
     // Wooden table surface
-    const tableGeo = new THREE.PlaneGeometry(600, 450);
+    const tableGeo = new THREE.PlaneGeometry(1200, 900);
     const tableMat = new THREE.MeshStandardMaterial({
       map: colorMap,
       normalMap,

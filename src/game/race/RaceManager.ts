@@ -39,8 +39,14 @@ export class RaceManager {
 
       if (car.finished) continue;
 
+      // Track halfway point so race-start crossing doesn't count as a lap
+      if (car.currentT > 0.5) {
+        car.hasPassedHalfway = true;
+      }
+
       // Lap detection: crossed start/finish from high T to low T
-      if (car.previousT > 0.95 && car.currentT < 0.05) {
+      if (car.previousT > 0.95 && car.currentT < 0.05 && car.hasPassedHalfway) {
+        car.hasPassedHalfway = false;
         car.completedLaps++;
 
         // Record lap time

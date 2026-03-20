@@ -15,8 +15,10 @@ export const PHYSICS = {
 
 export const HAZARD_EFFECTS: Record<string, HazardEffect> = {
   juice: { speedMultiplier: 0.5, steeringMultiplier: 1.0, lateralDrift: 0 },
-  oil: { speedMultiplier: 1.0, steeringMultiplier: 0.3, lateralDrift: 0.5 },
-  food: { speedMultiplier: 0.7, steeringMultiplier: 1.0, lateralDrift: 0 },
+  oil:   { speedMultiplier: 1.0, steeringMultiplier: 0.3, lateralDrift: 0.5 },
+  food:  { speedMultiplier: 0.7, steeringMultiplier: 1.0, lateralDrift: 0 },
+  milk:  { speedMultiplier: 0.65, steeringMultiplier: 0.8, lateralDrift: 0.2 },
+  butter: { speedMultiplier: 0.9, steeringMultiplier: 0.15, lateralDrift: 1.2 },
 };
 
 export const AI_CONFIG = {

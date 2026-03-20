@@ -10,7 +10,14 @@
       "Bash(./node_modules/.bin/vite build:*)",
       "Bash(rtk lint:*)",
       "Bash(./node_modules/.bin/eslint src/game/scene/KitchenItems.ts 2>&1)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__list_pages",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__navigate_page",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__take_screenshot",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__take_snapshot",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__click",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__evaluate_script",
+      "Bash(rtk err:*)"
     ]
   }
 }

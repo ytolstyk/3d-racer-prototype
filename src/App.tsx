@@ -1,17 +1,24 @@
 import { useState } from 'react';
+import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import type { RacePhase } from './types/game.js';
 import { MainMenu } from './components/screens/MainMenu.js';
 import { TrackSelect } from './components/screens/TrackSelect.js';
 import { CarSelect } from './components/screens/CarSelect.js';
 import { LapSelect } from './components/screens/LapSelect.js';
 import { RaceScreen } from './components/screens/RaceScreen.js';
+import { TrackEditor } from './components/screens/TrackEditor.js';
 import './App.css';
 
-function App() {
-  const [phase, setPhase] = useState<RacePhase>('menu');
-  const [selectedTrackId, setSelectedTrackId] = useState('');
-  const [selectedCarId, setSelectedCarId] = useState('');
+function GameApp() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const fromEditor = !!(location.state as { fromEditor?: boolean } | null)?.fromEditor;
+
+  const [phase, setPhase] = useState<RacePhase>(fromEditor ? 'racing' : 'menu');
+  const [selectedTrackId, setSelectedTrackId] = useState(fromEditor ? '__editor__' : '');
+  const [selectedCarId, setSelectedCarId] = useState(fromEditor ? 'racer-red' : '');
   const [totalLaps, setTotalLaps] = useState(3);
+  const [isEditorTest] = useState(fromEditor);
 
   const handleTrackSelect = (trackId: string) => {
     setSelectedTrackId(trackId);
@@ -41,9 +48,16 @@ function App() {
     setTimeout(() => setPhase('racing'), 0);
   };
 
+  const handleBackToEditor = () => navigate('/track-editor');
+
   switch (phase) {
     case 'menu':
-      return <MainMenu onStart={() => setPhase('trackSelect')} />;
+      return (
+        <MainMenu
+          onStart={() => setPhase('trackSelect')}
+          onBackToEditor={isEditorTest ? handleBackToEditor : undefined}
+        />
+      );
     case 'trackSelect':
       return <TrackSelect onSelect={handleTrackSelect} onBack={handleMainMenu} />;
     case 'carSelect':
@@ -58,11 +72,21 @@ function App() {
           totalLaps={totalLaps}
           onMainMenu={handleMainMenu}
           onRaceAgain={handleRaceAgain}
+          onBackToEditor={isEditorTest ? handleBackToEditor : undefined}
         />
       );
     default:
       return <MainMenu onStart={() => setPhase('trackSelect')} />;
   }
+}
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/track-editor" element={<TrackEditor />} />
+      <Route path="/*" element={<GameApp />} />
+    </Routes>
+  );
 }
 
 export default App;

@@ -272,6 +272,14 @@ export function makeFoodSplatTexture(size = 512): THREE.CanvasTexture {
   return makeSplatTexture(size, '#6a9930', '#88cc44', 203);
 }
 
+export function makeMilkSplatTexture(size = 512): THREE.CanvasTexture {
+  return makeSplatTexture(size, '#dde8ff', '#f0f5ff', 204);
+}
+
+export function makeButterSplatTexture(size = 512): THREE.CanvasTexture {
+  return makeSplatTexture(size, '#f5d020', '#ffe55a', 205);
+}
+
 /** Ceramic texture for kitchen items — white/cream with subtle speckles. */
 export function makeCeramicTexture(size = 256): THREE.CanvasTexture {
   const [canvas, ctx] = makeCanvas(size);

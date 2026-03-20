@@ -15,9 +15,10 @@ interface RaceScreenProps {
   totalLaps: number;
   onMainMenu: () => void;
   onRaceAgain: () => void;
+  onBackToEditor?: () => void;
 }
 
-export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, onMainMenu, onRaceAgain }: RaceScreenProps) {
+export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, onMainMenu, onRaceAgain, onBackToEditor }: RaceScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const emitter = useMemo(() => new GameStateEmitter(), []);
 
@@ -27,6 +28,12 @@ export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, onMainMe
   return (
     <div className="race-screen">
       <canvas ref={canvasRef} className="game-canvas" />
+
+      {onBackToEditor && !state.playerFinished && (
+        <button className="btn-back-to-editor" onClick={onBackToEditor}>
+          ← Editor
+        </button>
+      )}
 
       {state.countdownActive && <Countdown value={state.countdown} />}
 
@@ -59,6 +66,7 @@ export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, onMainMe
           raceFinished={state.raceFinished}
           onMainMenu={onMainMenu}
           onRaceAgain={onRaceAgain}
+          onBackToEditor={onBackToEditor}
         />
       )}
     </div>

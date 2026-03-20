@@ -25,7 +25,7 @@ export class TrackDefinition {
     const points = cfg.controlPoints.map(
       ([x, y, z]) => new THREE.Vector3(x, y, z)
     );
-    this.curve = new THREE.CatmullRomCurve3(points, true, 'centripetal', 0.5);
+    this.curve = new THREE.CatmullRomCurve3(points, true, 'catmullrom', 0.3);
     this.computeBoundaries();
   }
 
