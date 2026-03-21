@@ -244,6 +244,7 @@ export class GameEngine {
         lastCheckpointSegmentTime: 0,
         lastCheckpointBestTime: 0,
         lastCheckpointCrossedAt: 0,
+        hazardSteerFactor: 1.0,
       };
 
       this.cars.push(car);
@@ -322,7 +323,7 @@ export class GameEngine {
 
     // Camera follows player
     if (this.playerCar) {
-      this.cameraController.update(this.playerCar.position, this.playerCar.speed, this.playerCar.definition.maxSpeed);
+      this.cameraController.update(this.playerCar.position, this.playerCar.speed, this.playerCar.definition.maxSpeed, this.playerCar.rotation);
     }
 
     // Render

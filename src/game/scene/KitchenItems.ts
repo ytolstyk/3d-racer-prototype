@@ -34,6 +34,9 @@ export class KitchenItems {
       [120, -100],
       [-120, -100],
       [0, 120],
+      [0, -120],
+      [-60, 80],
+      [60, 80],
     ];
 
     for (const [cx, cz] of clusters) {
@@ -75,6 +78,10 @@ export class KitchenItems {
       this.makeApple,
       this.makeBerryCluster,
       this.makeCauliflower,
+      this.makeNotepad,
+      this.makePen,
+      this.makePencil,
+      this.makeStickyNote,
     ];
     for (let i = makers.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -287,6 +294,82 @@ export class KitchenItems {
       berry.castShadow = true;
       g.add(berry);
     }
+    return g;
+  }
+
+  private makeNotepad(_mats: Materials): THREE.Group {
+    const g = new THREE.Group();
+    const canvas = document.createElement('canvas');
+    canvas.width = 128; canvas.height = 96;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#f5f0e8';
+    ctx.fillRect(0, 0, 128, 96);
+    ctx.strokeStyle = '#c0c8d8';
+    ctx.lineWidth = 1;
+    for (let y = 12; y < 96; y += 10) {
+      ctx.beginPath(); ctx.moveTo(4, y); ctx.lineTo(124, y); ctx.stroke();
+    }
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const padMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7 });
+    const pad = new THREE.Mesh(new THREE.BoxGeometry(12, 0.8, 9), padMat);
+    pad.position.y = 0.4;
+    pad.castShadow = true;
+    pad.receiveShadow = true;
+    g.add(pad);
+    return g;
+  }
+
+  private makePen(_mats: Materials): THREE.Group {
+    const g = new THREE.Group();
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1a1a6e, roughness: 0.5, metalness: 0.2 });
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 12, 8), bodyMat);
+    body.rotation.z = Math.PI / 2;
+    body.position.y = 0.25;
+    body.castShadow = true;
+    g.add(body);
+    const capMat = new THREE.MeshStandardMaterial({ color: 0xc0c0c0, roughness: 0.2, metalness: 0.8 });
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 1.2, 8), capMat);
+    cap.rotation.z = Math.PI / 2;
+    cap.position.set(6.1, 0.25, 0);
+    cap.castShadow = true;
+    g.add(cap);
+    return g;
+  }
+
+  private makePencil(_mats: Materials): THREE.Group {
+    const g = new THREE.Group();
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xffd700, roughness: 0.6 });
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 13, 6), bodyMat);
+    body.rotation.z = Math.PI / 2;
+    body.position.y = 0.25;
+    body.castShadow = true;
+    g.add(body);
+    const eraserMat = new THREE.MeshStandardMaterial({ color: 0xff99bb, roughness: 0.8 });
+    const eraser = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.8, 6), eraserMat);
+    eraser.rotation.z = Math.PI / 2;
+    eraser.position.set(-6.4, 0.25, 0);
+    g.add(eraser);
+    const tipMat = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.5 });
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.25, 1.5, 6), tipMat);
+    tip.rotation.z = Math.PI / 2;
+    tip.position.set(7.25, 0.25, 0);
+    tip.castShadow = true;
+    g.add(tip);
+    return g;
+  }
+
+  private makeStickyNote(_mats: Materials): THREE.Group {
+    const g = new THREE.Group();
+    const colors = [0xffee44, 0xffaa22, 0xff88bb];
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    const noteMat = new THREE.MeshStandardMaterial({ color, roughness: 0.8 });
+    const note = new THREE.Mesh(new THREE.BoxGeometry(8, 0.15, 8), noteMat);
+    note.position.y = 0.075;
+    note.rotation.y = (Math.random() - 0.5) * 0.3;
+    note.castShadow = true;
+    note.receiveShadow = true;
+    g.add(note);
     return g;
   }
 

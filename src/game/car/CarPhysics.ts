@@ -44,7 +44,9 @@ export class CarPhysics {
   applyHazardEffect(car: CarState, effect: HazardEffect, dt: number): void {
     car.speed *=
       effect.speedMultiplier + (1 - effect.speedMultiplier) * (1 - dt * 5);
-    car.steeringAngle *= effect.steeringMultiplier;
+
+    // Suppress centripetal grip (slide physics) without killing steering rotation
+    car.hazardSteerFactor = Math.min(car.hazardSteerFactor, effect.steeringMultiplier);
 
     if (effect.lateralDrift > 0) {
       const driftAngle = car.rotation + Math.PI / 2;
@@ -63,7 +65,11 @@ export class CarPhysics {
     const normalizedSteer = car.steeringAngle / PHYSICS.maxSteeringAngle;
 
     // Centripetal force — sqrt scaling suppresses low-speed slide without amplifying high-speed
-    car.lateralVelocity += normalizedSteer * car.speed * 0.45 * Math.pow(speedRatio, 0.5) * dt;
+    // hazardSteerFactor suppresses grip on oil/butter so car slides mostly straight
+    car.lateralVelocity += normalizedSteer * car.speed * 0.45 * Math.pow(speedRatio, 0.5) * dt * car.hazardSteerFactor;
+
+    // Recover hazard steer factor toward 1.0 over ~0.4s
+    car.hazardSteerFactor = Math.min(1.0, car.hazardSteerFactor + dt * 2.5);
 
     // Grip band tightened — car stays planted, slight looseness only at top speed
     const grip = handbrake ? 0.6 : 10 - speedRatio * 2;

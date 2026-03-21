@@ -13,6 +13,13 @@ export class TrackBuilder {
     group.add(this.buildCurb(track, 'left'));
     group.add(this.buildCurb(track, 'right'));
 
+    // Build jersey barriers on both sides
+    group.add(this.buildBarriers(track, 'left'));
+    group.add(this.buildBarriers(track, 'right'));
+
+    // Build rumble strips at tight corners
+    group.add(this.buildRumbleStrips(track));
+
     // Build start/finish line
     const startLine = this.buildStartLine(track);
     group.add(startLine);
@@ -248,6 +255,125 @@ export class TrackBuilder {
     return tex;
   }
 
+  private buildBarriers(track: TrackDefinition, side: 'left' | 'right'): THREE.Group {
+    const group = new THREE.Group();
+    const boundaries = track.getBoundaryPoints();
+    const total = boundaries.length;
+
+    const barrierMat = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.6, metalness: 0.0 });
+    const stripeMat = new THREE.MeshStandardMaterial({ color: 0xcc1111, roughness: 0.7, metalness: 0.0 });
+
+    const barrierOutset = 2.0; // distance beyond curb edge
+    const segLen = 6.0;
+
+    // Group boundary points into segments by arc length
+    let accumulated = 0;
+    let segStart = 0;
+
+    for (let i = 1; i <= total; i++) {
+      const prev = boundaries[(i - 1) % total];
+      const curr = boundaries[i % total];
+      const step = prev.center.distanceTo(curr.center);
+      accumulated += step;
+
+      if (accumulated >= segLen || i === total) {
+        const midIdx = Math.floor((segStart + (i - 1)) / 2) % total;
+        const bp = boundaries[midIdx];
+        const base = side === 'left' ? bp.left : bp.right;
+        const normal = new THREE.Vector3().crossVectors(bp.tangent, new THREE.Vector3(0, 1, 0)).normalize();
+        const outward = side === 'left' ? normal : normal.clone().negate();
+
+        const pos = base.clone().add(outward.clone().multiplyScalar(barrierOutset + 1.25));
+        const tAngle = Math.atan2(bp.tangent.x, bp.tangent.z);
+        const jitter = (Math.random() - 0.5) * 0.04;
+
+        // Trapezoidal jersey barrier body
+        const bodyLen = accumulated * 0.95;
+        const bodyGeo = new THREE.BoxGeometry(2.0, 3.5, bodyLen);
+        const body = new THREE.Mesh(bodyGeo, barrierMat);
+        body.position.set(pos.x, 1.75, pos.z);
+        body.rotation.y = tAngle + jitter;
+        body.castShadow = true;
+        body.receiveShadow = true;
+        group.add(body);
+
+        // Red stripe band around mid-height
+        const stripeGeo = new THREE.BoxGeometry(2.1, 0.8, bodyLen + 0.05);
+        const stripe = new THREE.Mesh(stripeGeo, stripeMat);
+        stripe.position.set(pos.x, 1.2, pos.z);
+        stripe.rotation.y = tAngle + jitter;
+        group.add(stripe);
+
+        // Reset for next segment
+        accumulated = 0;
+        segStart = i;
+      }
+    }
+
+    return group;
+  }
+
+  private buildRumbleStrips(track: TrackDefinition): THREE.Group {
+    const group = new THREE.Group();
+    const boundaries = track.getBoundaryPoints();
+    const total = boundaries.length;
+    const curbTex = this.makeCurbTexture();
+
+    const rumbleMat = new THREE.MeshStandardMaterial({
+      map: curbTex,
+      roughness: 0.6,
+      side: THREE.DoubleSide,
+    });
+
+    const stripWidth = 3.0;
+
+    for (let i = 0; i < total - 1; i++) {
+      const iPrev = (i - 1 + total) % total;
+      const iNext = (i + 1) % total;
+      const tPrev = boundaries[iPrev].tangent;
+      const tNext = boundaries[iNext].tangent;
+      const curvature = Math.max(0, 1 - tPrev.dot(tNext));
+
+      if (curvature < 0.012) continue;
+
+      // Determine which side is the inside of the curve
+      const cross = tPrev.clone().cross(tNext);
+      const insideSide = cross.y > 0 ? 'left' : 'right';
+
+      const bp = boundaries[i];
+      const bpNext = boundaries[iNext];
+      const base = insideSide === 'left' ? bp.left : bp.right;
+      const baseNext = insideSide === 'left' ? bpNext.left : bpNext.right;
+      const normal = new THREE.Vector3().crossVectors(bp.tangent, new THREE.Vector3(0, 1, 0)).normalize();
+      const inward = insideSide === 'left' ? normal.clone().negate() : normal.clone();
+
+      // Inner edge of rumble strip (into track)
+      const innerA = base.clone().add(inward.clone().multiplyScalar(stripWidth));
+      const innerB = baseNext.clone().add(inward.clone().multiplyScalar(stripWidth));
+      const outerA = base.clone();
+      const outerB = baseNext.clone();
+
+      const verts = new Float32Array([
+        outerA.x, 0.065, outerA.z,
+        outerB.x, 0.065, outerB.z,
+        innerA.x, 0.065, innerA.z,
+        innerB.x, 0.065, innerB.z,
+      ]);
+      const uvArr = new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]);
+      const idx = new Uint16Array([0, 1, 2, 1, 3, 2]);
+
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
+      geo.setIndex(new THREE.BufferAttribute(idx, 1));
+      geo.computeVertexNormals();
+
+      group.add(new THREE.Mesh(geo, rumbleMat));
+    }
+
+    return group;
+  }
+
   private buildStartLine(track: TrackDefinition): THREE.Mesh {
     const point = track.getPointAt(0);
     const tangent = track.getTangentAt(0);
@@ -260,7 +386,7 @@ export class TrackBuilder {
 
     const mesh = new THREE.Mesh(geometry, material);
     const tAngle = Math.atan2(tangent.x, tangent.z);
-    mesh.setRotationFromAxisAngle(new THREE.Vector3(0, 1, 0), -tAngle);
+    mesh.setRotationFromAxisAngle(new THREE.Vector3(0, 1, 0), tAngle);
     mesh.rotateX(-Math.PI / 2);
     mesh.position.set(point.x, 0.06, point.z);
 

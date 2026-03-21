@@ -22,40 +22,92 @@ function makeSplatTexture(size: number, baseColor: string, blobColor: string, se
   const [canvas, ctx] = makeCanvas(size);
   const rng = seededRng(seed);
 
-  // Transparent background
   ctx.clearRect(0, 0, size, size);
 
-  // Draw irregular blob clusters
   const center = size / 2;
-  ctx.globalAlpha = 0.7;
-  ctx.fillStyle = baseColor;
+  const baseRadius = center * 0.42;
 
-  // Main blob
+  // Main organic blob via bezier curves
+  ctx.globalAlpha = 0.75;
+  ctx.fillStyle = baseColor;
+  const blobPts = 10;
+  const angles: number[] = [];
+  const radii: number[] = [];
+  for (let i = 0; i < blobPts; i++) {
+    angles.push((i / blobPts) * Math.PI * 2);
+    radii.push(baseRadius * (0.7 + rng() * 0.6));
+  }
   ctx.beginPath();
-  const points = 12;
-  for (let i = 0; i <= points; i++) {
-    const angle = (i / points) * Math.PI * 2;
-    const r = center * (0.5 + rng() * 0.35);
-    const x = center + Math.cos(angle) * r;
-    const y = center + Math.sin(angle) * r;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
+  for (let i = 0; i < blobPts; i++) {
+    const a0 = angles[i];
+    const a1 = angles[(i + 1) % blobPts];
+    const r0 = radii[i];
+    const r1 = radii[(i + 1) % blobPts];
+    const x0 = center + Math.cos(a0) * r0;
+    const y0 = center + Math.sin(a0) * r0;
+    const x1 = center + Math.cos(a1) * r1;
+    const y1 = center + Math.sin(a1) * r1;
+    const aMid = (a0 + a1) / 2;
+    const rCtrl = baseRadius * (0.55 + rng() * 0.9);
+    const cx1 = center + Math.cos(aMid) * rCtrl;
+    const cy1 = center + Math.sin(aMid) * rCtrl;
+    if (i === 0) ctx.moveTo(x0, y0);
+    ctx.bezierCurveTo(cx1, cy1, cx1, cy1, x1, y1);
   }
   ctx.closePath();
   ctx.fill();
 
-  // Smaller satellite blobs
-  for (let i = 0; i < 8; i++) {
+  // Arms/tendrils radiating outward
+  const numArms = 4 + Math.floor(rng() * 4);
+  for (let i = 0; i < numArms; i++) {
     const angle = rng() * Math.PI * 2;
-    const dist = center * (0.3 + rng() * 0.5);
-    const bx = center + Math.cos(angle) * dist;
-    const by = center + Math.sin(angle) * dist;
-    const br = 15 + rng() * 40;
-    ctx.globalAlpha = 0.3 + rng() * 0.4;
+    const len = baseRadius * (0.15 + rng() * 0.4);
+    const ax = center + Math.cos(angle) * (baseRadius * 0.6);
+    const ay = center + Math.sin(angle) * (baseRadius * 0.6);
+    const ex = ax + Math.cos(angle) * len;
+    const ey = ay + Math.sin(angle) * len;
+    ctx.save();
+    ctx.translate(ex, ey);
+    ctx.rotate(angle);
+    ctx.globalAlpha = 0.45 + rng() * 0.3;
     ctx.fillStyle = rng() > 0.5 ? baseColor : blobColor;
     ctx.beginPath();
-    ctx.arc(bx, by, br, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, len * 0.35, 4 + rng() * 6, 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
+  }
+
+  // Peripheral droplets
+  const numDrops = 10 + Math.floor(rng() * 7);
+  for (let i = 0; i < numDrops; i++) {
+    const angle = rng() * Math.PI * 2;
+    const dist = baseRadius * (0.6 + rng() * 0.35);
+    const dx = center + Math.cos(angle) * dist;
+    const dy = center + Math.sin(angle) * dist;
+    const dr = 4 + rng() * 8;
+    ctx.globalAlpha = 0.4 + rng() * 0.5;
+    ctx.fillStyle = rng() > 0.5 ? baseColor : blobColor;
+    ctx.beginPath();
+    ctx.arc(dx, dy, dr, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Tail streaks
+  const numStreaks = 2 + Math.floor(rng() * 2);
+  for (let i = 0; i < numStreaks; i++) {
+    const angle = rng() * Math.PI * 2;
+    const len = baseRadius * (0.5 + rng() * 0.6);
+    const sx = center + Math.cos(angle) * (baseRadius * 0.3);
+    const sy = center + Math.sin(angle) * (baseRadius * 0.3);
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(angle);
+    ctx.globalAlpha = 0.3 + rng() * 0.25;
+    ctx.fillStyle = baseColor;
+    ctx.beginPath();
+    ctx.ellipse(len * 0.5, 0, len, 3 + rng() * 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   }
 
   ctx.globalAlpha = 1;
