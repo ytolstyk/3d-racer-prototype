@@ -62,6 +62,7 @@ type EditorAction =
   | { type: 'INSERT_POINT'; afterIndex: number; point: [number, number] }
   | { type: 'ADD_HAZARD'; hazard: HazardDef }
   | { type: 'DELETE_HAZARD'; index: number }
+  | { type: 'MOVE_HAZARD'; index: number; centerX: number; centerZ: number }
   | { type: 'SET_HAZARD_TYPE'; hazardType: HazardType }
   | { type: 'CLOSE_LOOP' }
   | { type: 'OPEN_LOOP' }
@@ -223,6 +224,12 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case 'DELETE_HAZARD':
       return { ...state, hazards: state.hazards.filter((_, i) => i !== action.index) };
 
+    case 'MOVE_HAZARD': {
+      const hazards = [...state.hazards];
+      hazards[action.index] = { ...hazards[action.index], centerX: action.centerX, centerZ: action.centerZ };
+      return { ...state, hazards };
+    }
+
     case 'SET_HAZARD_TYPE':
       return { ...state, activeHazardType: action.hazardType };
 
@@ -311,6 +318,8 @@ export function TrackEditor() {
 
   // Transient interaction state
   const dragIndexRef = useRef<number>(-1);
+  const dragHazardIndexRef = useRef<number>(-1);
+  const dragHazardOffsetRef = useRef<[number, number]>([0, 0]);
   const lineStartRef = useRef<[number, number] | null>(null);
   const hoverPointRef = useRef<[number, number] | null>(null);
   const isDraggingRef = useRef(false);
@@ -758,6 +767,22 @@ export function TrackEditor() {
     return best;
   };
 
+  // Hit-test hazard circles; returns index or -1
+  const findNearestHazard = (pos: [number, number]): number => {
+    const canvas = canvasRef.current;
+    if (!canvas) return -1;
+    const originX = canvas.width / 2;
+    const originY = canvas.height / 2;
+    const hazards = stateRef.current.hazards;
+    for (let i = 0; i < hazards.length; i++) {
+      const hz = hazards[i];
+      if (hz.centerX === undefined || hz.centerZ === undefined || hz.radius === undefined) continue;
+      const [hx, hy] = gameToCanvas(hz.centerX, hz.centerZ, originX, originY);
+      if (Math.hypot(pos[0] - hx, pos[1] - hy) <= hz.radius) return i;
+    }
+    return -1;
+  };
+
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (isSpaceDownRef.current) {
       isPanningRef.current = true;
@@ -795,6 +820,17 @@ export function TrackEditor() {
       if (idx !== -1) {
         dispatch({ type: 'PUSH_HISTORY' });
         dragIndexRef.current = idx;
+      } else {
+        const hIdx = findNearestHazard(pos);
+        if (hIdx !== -1) {
+          const canvas = canvasRef.current!;
+          const originX = canvas.width / 2;
+          const originY = canvas.height / 2;
+          const hz = stateRef.current.hazards[hIdx];
+          const [hx, hy] = gameToCanvas(hz.centerX!, hz.centerZ!, originX, originY);
+          dragHazardOffsetRef.current = [hx - pos[0], hy - pos[1]];
+          dragHazardIndexRef.current = hIdx;
+        }
       }
     } else if (activeTool === 'startPoint') {
       const idx = findNearestPoint(pos, 12);
@@ -828,6 +864,17 @@ export function TrackEditor() {
         dispatch({ type: 'MOVE_POINT', index: dragIndexRef.current, point: pos });
         return;
       }
+      if (activeTool === 'move' && dragHazardIndexRef.current !== -1) {
+        const canvas = canvasRef.current!;
+        const originX = canvas.width / 2;
+        const originY = canvas.height / 2;
+        const offset = dragHazardOffsetRef.current;
+        const cx = pos[0] + offset[0];
+        const cy = pos[1] + offset[1];
+        const [gx, , gz] = canvasToGame(cx, cy, originX, originY);
+        dispatch({ type: 'MOVE_HAZARD', index: dragHazardIndexRef.current, centerX: gx, centerZ: gz });
+        return;
+      }
       if (activeTool === 'hazard' && hazardCenterRef.current !== null) {
         const center = hazardCenterRef.current;
         hazardRadiusRef.current = Math.hypot(pos[0] - center[0], pos[1] - center[1]);
@@ -857,6 +904,7 @@ export function TrackEditor() {
       lineStartRef.current = null;
     } else if (activeTool === 'move') {
       dragIndexRef.current = -1;
+      dragHazardIndexRef.current = -1;
     } else if (activeTool === 'hazard' && hazardCenterRef.current !== null) {
       const radius = hazardRadiusRef.current;
       if (radius > 3) {
@@ -890,6 +938,7 @@ export function TrackEditor() {
     panLastRef.current = null;
     hazardCenterRef.current = null;
     hazardRadiusRef.current = 0;
+    dragHazardIndexRef.current = -1;
     draw();
   };
 
