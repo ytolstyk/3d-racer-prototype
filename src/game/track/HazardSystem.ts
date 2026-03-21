@@ -21,26 +21,41 @@ export class HazardSystem {
     const group = new THREE.Group();
 
     for (const zone of this.zones) {
-      const mesh = this.createHazardMesh(zone);
-      if (mesh) {
-        group.add(mesh);
-        zone.mesh = mesh;
+      const zoneGroup = this.createHazardGroup(zone);
+      if (zoneGroup) {
+        group.add(zoneGroup);
+        zone.mesh = zoneGroup;
       }
     }
 
     return group;
   }
 
-  private createHazardMesh(zone: HazardZone): THREE.Mesh {
-    const tMid = (zone.tStart + zone.tEnd) / 2;
-    const center = this.track.getPointAt(tMid);
-    const normal = this.track.getNormalAt(tMid);
-    const offset = normal.clone().multiplyScalar(zone.lateralOffset);
-    const position = center.clone().add(offset);
+  private createHazardGroup(zone: HazardZone): THREE.Group | null {
+    let position: THREE.Vector3;
+    let splatSize: number;
+    let rotationZ = 0;
 
-    const length = this.track.getLength() * (zone.tEnd - zone.tStart);
-    const splatSize = Math.max(zone.width, length) * 1.2;
-    const geometry = new THREE.PlaneGeometry(splatSize, splatSize);
+    if (zone.centerX !== undefined && zone.centerZ !== undefined) {
+      // Circle format — absolute position
+      position = new THREE.Vector3(zone.centerX, 0, zone.centerZ);
+      splatSize = (zone.radius ?? 10) * 2;
+    } else if (zone.tStart !== undefined && zone.tEnd !== undefined) {
+      // Legacy t-range format
+      const tMid = (zone.tStart + zone.tEnd) / 2;
+      const center = this.track.getPointAt(tMid);
+      const normal = this.track.getNormalAt(tMid);
+      const offset = normal.clone().multiplyScalar(zone.lateralOffset ?? 0);
+      position = center.clone().add(offset);
+
+      const length = this.track.getLength() * (zone.tEnd - zone.tStart);
+      splatSize = Math.max(zone.width ?? 10, length) * 1.2;
+
+      const tangent = this.track.getTangentAt(tMid);
+      rotationZ = -Math.atan2(tangent.x, tangent.z);
+    } else {
+      return null;
+    }
 
     let texture: THREE.CanvasTexture;
     let color: number;
@@ -67,29 +82,67 @@ export class HazardSystem {
         break;
     }
 
-    const material = new THREE.MeshStandardMaterial({
+    const group = new THREE.Group();
+    group.position.set(position.x, 0, position.z);
+
+    // Primary splat
+    const primaryMat = new THREE.MeshStandardMaterial({
       map: texture,
       color,
       transparent: true,
       alphaTest: 0.01,
       depthWrite: false,
-      roughness: 1.0,
+      roughness: 0.7,
+      emissive: color,
+      emissiveIntensity: 0.12,
     });
+    const primaryMesh = new THREE.Mesh(new THREE.PlaneGeometry(splatSize, splatSize), primaryMat);
+    primaryMesh.rotation.x = -Math.PI / 2;
+    primaryMesh.rotation.z = rotationZ;
+    primaryMesh.position.y = 0.07;
+    group.add(primaryMesh);
 
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.rotation.x = -Math.PI / 2;
-    mesh.position.set(position.x, 0.07, position.z);
+    // Secondary splat layer — smaller, slightly offset, 30° rotation
+    const secondaryMat = new THREE.MeshStandardMaterial({
+      map: texture,
+      color,
+      transparent: true,
+      alphaTest: 0.01,
+      depthWrite: false,
+      roughness: 0.7,
+      opacity: 0.4,
+    });
+    const secondaryMesh = new THREE.Mesh(new THREE.PlaneGeometry(splatSize * 0.7, splatSize * 0.7), secondaryMat);
+    secondaryMesh.rotation.x = -Math.PI / 2;
+    secondaryMesh.rotation.z = rotationZ + Math.PI / 6;
+    secondaryMesh.position.y = 0.08;
+    group.add(secondaryMesh);
 
-    const tangent = this.track.getTangentAt(tMid);
-    const angle = Math.atan2(tangent.x, tangent.z);
-    mesh.rotation.z = -angle;
+    // Point light above hazard for glow effect
+    const light = new THREE.PointLight(color, 0.6, 25);
+    light.position.y = 5;
+    group.add(light);
 
-    return mesh;
+    return group;
   }
 
   getEffect(carPosition: THREE.Vector3, carT: number): HazardEffectWithZone | null {
     for (const zone of this.zones) {
-      // Check t range (handle wrapping)
+      const base = HAZARD_EFFECTS[zone.type];
+
+      // Circle format
+      if (zone.centerX !== undefined && zone.centerZ !== undefined && zone.radius !== undefined) {
+        const dx = carPosition.x - zone.centerX;
+        const dz = carPosition.z - zone.centerZ;
+        if (Math.sqrt(dx * dx + dz * dz) <= zone.radius) {
+          return { ...base, zoneType: zone.type };
+        }
+        continue;
+      }
+
+      // Legacy t-range format
+      if (zone.tStart === undefined || zone.tEnd === undefined) continue;
+
       let inRange = false;
       if (zone.tStart <= zone.tEnd) {
         inRange = carT >= zone.tStart && carT <= zone.tEnd;
@@ -104,11 +157,10 @@ export class HazardSystem {
       const normal = this.track.getNormalAt(carT);
       const tocar = new THREE.Vector3().subVectors(carPosition, center);
       const lateralDist = tocar.dot(normal);
-      const hazardCenter = zone.lateralOffset;
-      const halfWidth = zone.width / 2;
+      const hazardCenter = zone.lateralOffset ?? 0;
+      const halfWidth = (zone.width ?? 10) / 2;
 
       if (Math.abs(lateralDist - hazardCenter) <= halfWidth) {
-        const base = HAZARD_EFFECTS[zone.type];
         return { ...base, zoneType: zone.type };
       }
     }

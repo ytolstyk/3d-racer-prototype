@@ -36,6 +36,14 @@ export class TableScene {
     table.receiveShadow = true;
     group.add(table);
 
+    // Floor below table — neutral surface that catches shadows and hides the void
+    const floorGeo = new THREE.PlaneGeometry(8000, 8000);
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0x8a7060, roughness: 0.9 });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(0, -5, 0);
+    floor.receiveShadow = true;
+    group.add(floor);
 
     return group;
   }

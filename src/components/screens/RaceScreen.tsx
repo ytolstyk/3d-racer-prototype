@@ -7,6 +7,7 @@ import { Speedometer } from '../hud/Speedometer.js';
 import { LapTimer } from '../hud/LapTimer.js';
 import { MinimapDisplay } from '../hud/MinimapDisplay.js';
 import { PositionIndicator } from '../hud/PositionIndicator.js';
+import { CheckpointTimer } from '../hud/CheckpointTimer.js';
 import { Scoreboard } from './Scoreboard.js';
 
 interface RaceScreenProps {
@@ -56,6 +57,11 @@ export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, onMainMe
           <MinimapDisplay
             trackPoints={state.trackPoints}
             carPositions={state.carPositions}
+          />
+          <CheckpointTimer
+            segmentTime={state.checkpointSegmentTime}
+            bestTime={state.checkpointBestTime}
+            flashAge={state.checkpointFlashAge}
           />
         </>
       )}

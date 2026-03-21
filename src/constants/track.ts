@@ -6,6 +6,7 @@ export interface TrackConfig {
   controlPoints: [number, number, number][];
   hazards: HazardZone[];
   width: number;
+  checkpoints?: number[];
 }
 
 export const TRACK_SAMPLES = 600;

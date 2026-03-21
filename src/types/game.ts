@@ -27,6 +27,7 @@ export interface CarState {
   currentT: number; // spline parameter 0-1
   previousT: number;
   hasPassedHalfway: boolean; // guard to prevent false lap on race start
+  hasPassedQuarter: boolean; // additional guard for reverse cheating prevention
   completedLaps: number;
   bestLapTime: number;
   currentLapStart: number;
@@ -34,15 +35,26 @@ export interface CarState {
   finished: boolean;
   finishTime: number;
   isPlayer: boolean;
+  // Checkpoint state
+  checkpointBests: number[];
+  lastCheckpointTime: number;
+  lastCheckpointSegmentTime: number;
+  lastCheckpointBestTime: number;
+  lastCheckpointCrossedAt: number;
 }
 
 export interface HazardZone {
   type: 'juice' | 'oil' | 'food' | 'milk' | 'butter';
-  tStart: number;
-  tEnd: number;
-  lateralOffset: number;
-  width: number;
-  mesh?: THREE.Mesh;
+  // T-range format (legacy, used for preset tracks)
+  tStart?: number;
+  tEnd?: number;
+  lateralOffset?: number;
+  width?: number;
+  // Circle format (editor free placement)
+  centerX?: number;
+  centerZ?: number;
+  radius?: number;
+  mesh?: THREE.Object3D;
 }
 
 export interface HazardEffect {
@@ -78,6 +90,10 @@ export interface GameState {
   carPositions: MinimapCar[];
   trackPoints: MinimapPoint[];
   playerFinished: boolean;
+  // Checkpoint HUD
+  checkpointSegmentTime: number;
+  checkpointBestTime: number;
+  checkpointFlashAge: number;
 }
 
 export interface MinimapCar {

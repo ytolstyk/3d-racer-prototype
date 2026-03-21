@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 
-const BASE_HEIGHT = 110;
-const BASE_BACK = -55;
-const MAX_ZOOM_HEIGHT = 175;
-const MAX_ZOOM_BACK = -85;
+const BASE_HEIGHT = 82;
+const BASE_BACK = -41;
+const MAX_ZOOM_HEIGHT = 131;
+const MAX_ZOOM_BACK = -64;
 
 export class TopDownCamera {
   readonly camera: THREE.PerspectiveCamera;

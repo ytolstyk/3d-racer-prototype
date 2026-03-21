@@ -15,12 +15,16 @@ export class TrackDefinition {
   readonly curve: THREE.CatmullRomCurve3;
   readonly width: number;
   readonly hazardZones: HazardZone[];
+  readonly checkpoints: number[];
+  readonly name: string;
   private boundaryPoints: BoundaryPoint[] = [];
 
   constructor(config?: TrackConfig) {
     const cfg = config ?? TRACKS[0];
     this.width = cfg.width;
     this.hazardZones = cfg.hazards;
+    this.checkpoints = cfg.checkpoints ?? [0.25, 0.5, 0.75];
+    this.name = cfg.name;
 
     const points = cfg.controlPoints.map(
       ([x, y, z]) => new THREE.Vector3(x, y, z)

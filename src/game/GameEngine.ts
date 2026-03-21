@@ -25,6 +25,12 @@ import { CollisionParticleSystem } from './effects/CollisionParticleSystem.js';
 import { TireSmokeSystem } from './effects/TireSmokeSystem.js';
 import { KitchenItems } from './scene/KitchenItems.js';
 
+interface CarHazardState {
+  inHazard: boolean;
+  zoneType: string;
+  drip: number;
+}
+
 export class GameEngine {
   private scene: THREE.Scene;
   private renderer: THREE.WebGLRenderer;
@@ -47,6 +53,7 @@ export class GameEngine {
   private tireMarks: TireMarkSystem | null = null;
   private collisionParticles: CollisionParticleSystem | null = null;
   private tireSmoke: TireSmokeSystem | null = null;
+  private carHazardState: Map<string, CarHazardState> = new Map();
   private animFrameId = 0;
   private lastTime = 0;
   private raceStarted = false;
@@ -99,7 +106,7 @@ export class GameEngine {
     this.hazardSystem = new HazardSystem(this.track);
     this.scene.add(this.hazardSystem.buildMeshes());
 
-    // Boundary decorations (utensils + cereal)
+    // Boundary decorations (bollards + spectators)
     const boundaryObjects = new TrackBoundaryObjects(this.track);
     this.scene.add(boundaryObjects.build());
 
@@ -150,6 +157,7 @@ export class GameEngine {
       const now = performance.now();
       for (const car of this.cars) {
         car.currentLapStart = now;
+        car.lastCheckpointTime = now;
       }
     });
 
@@ -159,10 +167,7 @@ export class GameEngine {
   }
 
   private setupCars(factory: CarFactory, selectedCarId: string): void {
-    const startPoint = this.track.getPointAt(0);
-    const startTangent = this.track.getTangentAt(0);
-    const startNormal = this.track.getNormalAt(0);
-    const startRotation = Math.atan2(startTangent.x, startTangent.z);
+    const trackLength = this.track.getLength();
 
     // Player is always index 0; AI fills from available cars
     const playerDef = CAR_DEFINITIONS.find((c) => c.id === selectedCarId) ?? CAR_DEFINITIONS[0];
@@ -173,9 +178,9 @@ export class GameEngine {
     const slot = Math.floor(Math.random() * (allDefs.length + 1));
     allDefs.splice(slot, 0, { def: playerDef, isPlayer: true });
 
-    // Staggered grid like real racing: left column at front, right column half a row behind
+    // Staggered grid: left column at front, right column half a row behind
     const rowSpacing = 22;
-    const staggerOffset = 11; // right-side cars are this far behind their left-side pair
+    const staggerOffset = 11;
     const lateralSpacing = 16;
 
     for (let i = 0; i < allDefs.length; i++) {
@@ -183,39 +188,50 @@ export class GameEngine {
       const col = i % 2;
       const row = Math.floor(i / 2);
 
-      const mesh = factory.createCar(def);
+      const carMesh = factory.createCar(def);
 
-      // Position on grid — right column is staggered half a row behind
+      // Convert grid position to spline t-offset
       const backDist = row * rowSpacing + col * staggerOffset;
-      const backOffset = startTangent.clone().multiplyScalar(-backDist);
-      const sideOffset = startNormal.clone().multiplyScalar((col - 0.5) * lateralSpacing);
-      const pos = startPoint.clone().add(backOffset).add(sideOffset);
+      const tOffset = backDist / trackLength;
+      const carT = ((0 - tOffset) % 1 + 1) % 1;
+
+      // Get spline-based position and orientation
+      const splinePos = this.track.getPointAt(carT);
+      const splineTangent = this.track.getTangentAt(carT);
+      const splineNormal = this.track.getNormalAt(carT);
+      const carRotation = Math.atan2(splineTangent.x, splineTangent.z);
+
+      // Apply lateral lane offset along normal
+      const sideOffset = splineNormal.clone().multiplyScalar((col - 0.5) * lateralSpacing);
+      const pos = splinePos.clone().add(sideOffset);
       pos.y = 0.01;
 
-      mesh.position.copy(pos);
-      mesh.rotation.y = startRotation;
-      this.scene.add(mesh);
+      carMesh.position.copy(pos);
+      carMesh.rotation.y = carRotation;
+      this.scene.add(carMesh);
 
       // Add nameplate for AI cars
       if (!isPlayer) {
         const nameplate = factory.createNameplate(def.name, def.color);
-        mesh.add(nameplate);
+        carMesh.add(nameplate);
       }
 
+      const numCheckpoints = this.track.checkpoints.length;
       const car: CarState = {
         id: def.id,
         definition: def,
-        mesh,
+        mesh: carMesh,
         position: pos.clone(),
-        rotation: startRotation,
+        rotation: carRotation,
         speed: 0,
         lateralVelocity: 0,
         isSkidding: false,
         isBraking: false,
         steeringAngle: 0,
-        currentT: 0,
-        previousT: 0,
+        currentT: carT,
+        previousT: carT,
         hasPassedHalfway: false,
+        hasPassedQuarter: false,
         completedLaps: 0,
         bestLapTime: 0,
         currentLapStart: 0,
@@ -223,14 +239,19 @@ export class GameEngine {
         finished: false,
         finishTime: 0,
         isPlayer,
+        checkpointBests: new Array(numCheckpoints).fill(0),
+        lastCheckpointTime: 0,
+        lastCheckpointSegmentTime: 0,
+        lastCheckpointBestTime: 0,
+        lastCheckpointCrossedAt: 0,
       };
 
       this.cars.push(car);
+      this.carHazardState.set(def.id, { inHazard: false, zoneType: '', drip: 0 });
 
       if (isPlayer) {
         this.playerCar = car;
       } else {
-        // Assign AI skill levels
         const skillLevels: Record<string, number> = {
           'sir-skids': 0.9,
           'captain-crumb': 0.8,
@@ -248,7 +269,7 @@ export class GameEngine {
     if (this.disposed) return;
 
     const now = performance.now();
-    const dt = Math.min((now - this.lastTime) / 1000, 0.05); // Cap at 50ms
+    const dt = Math.min((now - this.lastTime) / 1000, 0.05);
     this.lastTime = now;
 
     // Update countdown
@@ -259,33 +280,16 @@ export class GameEngine {
       if (this.playerCar && !this.playerCar.finished) {
         const input = this.inputManager.getState();
         this.playerController.update(this.playerCar, input, dt);
-
-        // Hazard effects on player
-        const playerEffect = this.hazardSystem.getEffect(
-          this.playerCar.position,
-          this.playerCar.currentT,
-        );
-        if (playerEffect) {
-          this.carPhysics.applyHazardEffect(this.playerCar, playerEffect, dt);
-          // Substance tire marks
-          this.tireMarks?.addSubstanceMarks(this.playerCar, playerEffect.zoneType);
-        }
+        this.updateCarHazard(this.playerCar, dt);
       }
 
-      // AI updates — keep driving after finishing to clear the track
+      // AI updates
       for (const car of this.cars) {
         if (car.isPlayer) continue;
         const controller = this.aiControllers.get(car.id);
         if (controller) {
           controller.update(car, dt);
-
-          // Hazard effects on AI
-          const aiEffect = this.hazardSystem.getEffect(car.position, car.currentT);
-          if (aiEffect) {
-            this.carPhysics.applyHazardEffect(car, aiEffect, dt);
-            // Substance tire marks for AI too
-            this.tireMarks?.addSubstanceMarks(car, aiEffect.zoneType);
-          }
+          this.updateCarHazard(car, dt);
         }
       }
 
@@ -330,12 +334,46 @@ export class GameEngine {
     this.animFrameId = requestAnimationFrame(this.loop);
   };
 
+  private updateCarHazard(car: CarState, dt: number): void {
+    const hs = this.carHazardState.get(car.id);
+    if (!hs) return;
+
+    const effect = this.hazardSystem.getEffect(car.position, car.currentT);
+
+    if (effect) {
+      // In hazard — apply physics effect, don't yet leave substance marks
+      this.carPhysics.applyHazardEffect(car, effect, dt);
+      const wasInHazard = hs.inHazard;
+      hs.inHazard = true;
+      hs.zoneType = effect.zoneType;
+      if (!wasInHazard) {
+        // Just entered hazard
+        hs.drip = 0;
+      }
+    } else {
+      if (hs.inHazard) {
+        // Just exited hazard — start drip
+        hs.inHazard = false;
+        hs.drip = 60;
+      }
+      // Drip substance marks after leaving hazard
+      if (hs.drip > 0) {
+        this.tireMarks?.addSubstanceMarks(car, hs.zoneType);
+        hs.drip--;
+      }
+    }
+  }
+
   private emitState(countdown: number): void {
     if (!this.playerCar) return;
 
     const positions = this.raceManager.getPositions(this.cars);
     const playerIndex = positions.findIndex((c) => c.isPlayer);
     const now = performance.now();
+
+    const flashAge = this.playerCar.lastCheckpointCrossedAt > 0
+      ? now - this.playerCar.lastCheckpointCrossedAt
+      : Infinity;
 
     const state: GameState = {
       playerSpeed: Math.abs(this.playerCar.speed),
@@ -356,6 +394,9 @@ export class GameEngine {
       carPositions: this.minimap.getCarPositions(this.cars),
       trackPoints: this.minimap.getTrackPoints(),
       playerFinished: this.playerFinished,
+      checkpointSegmentTime: this.playerCar.lastCheckpointSegmentTime,
+      checkpointBestTime: this.playerCar.lastCheckpointBestTime,
+      checkpointFlashAge: flashAge,
     };
 
     this.emitter.emit(state, countdown >= 0);

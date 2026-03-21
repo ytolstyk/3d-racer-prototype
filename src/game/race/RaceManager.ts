@@ -31,6 +31,7 @@ export class RaceManager {
     if (!this.raceActive) return;
 
     const now = performance.now();
+    const checkpoints = this.track.checkpoints;
 
     for (const car of cars) {
       // Always update T — AI navigation needs it even after finishing
@@ -39,15 +40,48 @@ export class RaceManager {
 
       if (car.finished) continue;
 
+      // Track quarter point (anti-reverse guard)
+      if (car.currentT > 0.25 && car.currentT < 0.75) {
+        car.hasPassedQuarter = true;
+      }
+
       // Track halfway point so race-start crossing doesn't count as a lap
       if (car.currentT > 0.5) {
         car.hasPassedHalfway = true;
       }
 
-      // Lap detection: crossed start/finish from high T to low T
-      if (car.previousT > 0.95 && car.currentT < 0.05 && car.hasPassedHalfway) {
+      // Checkpoint detection — forward crossing only
+      for (let ci = 0; ci < checkpoints.length; ci++) {
+        const cpT = checkpoints[ci];
+        const margin = 0.02;
+        if (car.previousT > cpT - margin && car.previousT < cpT && car.currentT >= cpT && car.currentT < cpT + margin) {
+          const segTime = now - car.lastCheckpointTime;
+          car.lastCheckpointSegmentTime = segTime;
+          car.lastCheckpointBestTime = car.checkpointBests[ci];
+          if (car.checkpointBests[ci] === 0 || segTime < car.checkpointBests[ci]) {
+            car.checkpointBests[ci] = segTime;
+          }
+          car.lastCheckpointTime = now;
+          car.lastCheckpointCrossedAt = now;
+        }
+      }
+
+      // Lap detection: crossed start/finish from high T to low T (forward direction only)
+      const tDelta = car.currentT - car.previousT;
+      const isForward = tDelta < -0.5; // true only for genuine forward wrap
+      if (
+        car.previousT > 0.95 &&
+        car.currentT < 0.05 &&
+        car.hasPassedHalfway &&
+        car.hasPassedQuarter &&
+        isForward
+      ) {
         car.hasPassedHalfway = false;
+        car.hasPassedQuarter = false;
         car.completedLaps++;
+
+        // Reset checkpoint tracking for new lap
+        car.lastCheckpointTime = now;
 
         // Record lap time
         const lapTime = now - car.currentLapStart;

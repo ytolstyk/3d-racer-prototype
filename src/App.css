@@ -521,8 +521,9 @@
   position: absolute;
   inset: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  padding-top: 12vh;
   pointer-events: none;
   z-index: 10;
 }
@@ -664,6 +665,47 @@
   text-transform: uppercase;
   letter-spacing: 1px;
   color: rgba(255, 248, 236, 0.4);
+}
+
+/* Checkpoint Timer */
+.hud-checkpoint-timer {
+  position: absolute;
+  top: 35%;
+  right: 16px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-top: 3px solid #00aaff;
+  border-radius: 10px;
+  backdrop-filter: blur(6px);
+  z-index: 5;
+  padding: 8px 14px;
+  text-align: center;
+  min-width: 90px;
+  transition: opacity 0.15s;
+}
+
+.checkpoint-label {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: rgba(255, 248, 236, 0.45);
+  margin-bottom: 2px;
+}
+
+.checkpoint-time {
+  font-family: 'Russo One', monospace;
+  font-size: 26px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.checkpoint-delta {
+  font-family: 'Russo One', monospace;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
 }
 
 /* Minimap */

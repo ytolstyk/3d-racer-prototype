@@ -9,10 +9,15 @@ type HazardType = 'juice' | 'milk' | 'oil' | 'butter';
 
 interface HazardDef {
   type: HazardType;
-  tStart: number;
-  tEnd: number;
-  lateralOffset: number;
-  width: number;
+  // Circle format (editor free placement) — game world coords
+  centerX?: number;
+  centerZ?: number;
+  radius?: number;
+  // Legacy t-range format (loaded from JSON)
+  tStart?: number;
+  tEnd?: number;
+  lateralOffset?: number;
+  width?: number;
 }
 
 const HAZARD_COLORS: Record<HazardType, string> = {
@@ -36,8 +41,7 @@ interface EditorState {
   past: UndoSnapshot[];
   hazards: HazardDef[];
   activeHazardType: HazardType;
-  hazardWidth: number;
-  hazardLateralOffset: number;
+  loopClosed: boolean;
 }
 
 type EditorAction =
@@ -59,9 +63,9 @@ type EditorAction =
   | { type: 'ADD_HAZARD'; hazard: HazardDef }
   | { type: 'DELETE_HAZARD'; index: number }
   | { type: 'SET_HAZARD_TYPE'; hazardType: HazardType }
-  | { type: 'SET_HAZARD_WIDTH'; width: number }
-  | { type: 'SET_HAZARD_LATERAL'; offset: number }
-  | { type: 'LOAD_STATE'; points: [number, number][]; trackName: string; trackWidth: number; hazards?: HazardDef[] };
+  | { type: 'CLOSE_LOOP' }
+  | { type: 'OPEN_LOOP' }
+  | { type: 'LOAD_STATE'; points: [number, number][]; trackName: string; trackWidth: number; hazards?: HazardDef[]; loopClosed?: boolean };
 
 const initialState: EditorState = {
   points: [],
@@ -73,16 +77,28 @@ const initialState: EditorState = {
   past: [],
   hazards: [],
   activeHazardType: 'juice',
-  hazardWidth: 10,
-  hazardLateralOffset: 0,
+  loopClosed: false,
 };
 
 function getInitialState(): EditorState {
   try {
     const stored = sessionStorage.getItem('editor_draft');
     if (stored) {
-      const draft = JSON.parse(stored) as { points: [number, number][]; trackName: string; trackWidth: number; hazards?: HazardDef[] };
-      return { ...initialState, points: draft.points, trackName: draft.trackName, trackWidth: draft.trackWidth, hazards: draft.hazards ?? [] };
+      const draft = JSON.parse(stored) as {
+        points: [number, number][];
+        trackName: string;
+        trackWidth: number;
+        hazards?: HazardDef[];
+        loopClosed?: boolean;
+      };
+      return {
+        ...initialState,
+        points: draft.points,
+        trackName: draft.trackName,
+        trackWidth: draft.trackWidth,
+        hazards: draft.hazards ?? [],
+        loopClosed: draft.loopClosed ?? false,
+      };
     }
   } catch { /* ignore */ }
   return initialState;
@@ -121,6 +137,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         ...state,
         past: pushHistory(state),
         points: state.points.filter((_, i) => i !== action.index),
+        loopClosed: false,
       };
 
     case 'MOVE_POINT': {
@@ -159,8 +176,6 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (state.points.length < 3) return state;
       const pts = state.points;
       const n = pts.length;
-      // Chaikin's corner-cutting: for each edge insert points at 1/4 and 3/4.
-      // Non-contractive and adds resolution at corners on each application.
       const result: [number, number][] = [];
       for (let i = 0; i < n; i++) {
         const a = pts[i];
@@ -187,7 +202,14 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         trackName: state.trackName,
         trackWidth: state.trackWidth,
         showDirectionArrows: state.showDirectionArrows,
+        loopClosed: false,
       };
+
+    case 'CLOSE_LOOP':
+      return { ...state, loopClosed: true };
+
+    case 'OPEN_LOOP':
+      return { ...state, loopClosed: false };
 
     case 'INSERT_POINT': {
       const pts = [...state.points];
@@ -204,12 +226,6 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case 'SET_HAZARD_TYPE':
       return { ...state, activeHazardType: action.hazardType };
 
-    case 'SET_HAZARD_WIDTH':
-      return { ...state, hazardWidth: action.width };
-
-    case 'SET_HAZARD_LATERAL':
-      return { ...state, hazardLateralOffset: action.offset };
-
     case 'LOAD_STATE':
       return {
         ...initialState,
@@ -218,6 +234,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         trackName: action.trackName,
         trackWidth: action.trackWidth,
         hazards: action.hazards ?? [],
+        loopClosed: action.loopClosed ?? true,
       };
 
     default:
@@ -302,8 +319,9 @@ export function TrackEditor() {
   const panLastRef = useRef<{ x: number; y: number } | null>(null);
 
   const importFileRef = useRef<HTMLInputElement>(null);
-  const hazardDragStartTRef = useRef<number | null>(null);
-  const hazardPreviewTRef = useRef<number | null>(null);
+  // Hazard circle placement refs
+  const hazardCenterRef = useRef<[number, number] | null>(null);   // canvas world coords
+  const hazardRadiusRef = useRef<number>(0);
   const stateRef = useRef(state);
   stateRef.current = state;
   const viewInitializedRef = useRef(false);
@@ -321,7 +339,7 @@ export function TrackEditor() {
     const invZoom = 1 / zoom;
     const originX = W / 2;
     const originY = H / 2;
-    const { points, trackWidth, activeTool, showDirectionArrows, hazards, activeHazardType, hazardWidth, hazardLateralOffset } = stateRef.current;
+    const { points, trackWidth, activeTool, showDirectionArrows, hazards, activeHazardType, loopClosed } = stateRef.current;
 
     // 1. Clear (in screen space)
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -366,7 +384,7 @@ export function TrackEditor() {
     ctx.lineTo(worldRight, originY);
     ctx.stroke();
 
-    // 2c. Table boundary (1200 × 900 game units, centered on origin)
+    // 2c. Table boundary
     const tableW = 1200;
     const tableH = 900;
     const tableX = originX - tableW / 2;
@@ -384,10 +402,9 @@ export function TrackEditor() {
     ctx.fillText('table edge', tableX + 6 * invZoom, tableY + 14 * invZoom);
 
     // 2b. Car silhouettes as scale reference
-    // Car size in world units: ~5 wide, ~9 long (fits ~5 across default track width 28)
     const carW = 5;
     const carL = 9;
-    const carGridStep = 100; // place a car every 100 world units
+    const carGridStep = 100;
     const cg0x = Math.floor(worldLeft / carGridStep) * carGridStep;
     const cg0y = Math.floor(worldTop / carGridStep) * carGridStep;
     ctx.fillStyle = 'rgba(255,255,255,0.06)';
@@ -402,9 +419,9 @@ export function TrackEditor() {
       }
     }
 
+    // Track corridor and spline
     if (points.length >= 2) {
-      const closed = points.length >= 3;
-      const curve = catmullRomPoints(points, closed, 20);
+      const curve = catmullRomPoints(points, loopClosed, 20);
 
       // 3. Track corridor
       if (curve.length > 1) {
@@ -428,7 +445,7 @@ export function TrackEditor() {
         ctx.moveTo(left[0][0], left[0][1]);
         for (const p of left) ctx.lineTo(p[0], p[1]);
         for (let i = right.length - 1; i >= 0; i--) ctx.lineTo(right[i][0], right[i][1]);
-        ctx.closePath();
+        if (loopClosed) ctx.closePath();
         ctx.fillStyle = 'rgba(255,210,63,0.12)';
         ctx.fill();
         ctx.strokeStyle = 'rgba(255,210,63,0.35)';
@@ -436,17 +453,33 @@ export function TrackEditor() {
         ctx.stroke();
       }
 
-      // 3b. Hazard zones
-      if (hazards.length > 0) {
-        const totalSamples = curve.length;
-        for (const hz of hazards) {
+      // 3b. Hazard zones — circles (new format) or track-relative bands (legacy)
+      for (const hz of hazards) {
+        if (hz.centerX !== undefined && hz.centerZ !== undefined && hz.radius !== undefined) {
+          // Circle format
+          const [cx2, cy2] = gameToCanvas(hz.centerX, hz.centerZ, originX, originY);
+          ctx.beginPath();
+          ctx.arc(cx2, cy2, hz.radius, 0, Math.PI * 2);
+          ctx.fillStyle = HAZARD_COLORS[hz.type];
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+          ctx.lineWidth = invZoom;
+          ctx.stroke();
+          // Label
+          ctx.fillStyle = 'rgba(255,255,255,0.8)';
+          ctx.font = `${9 * invZoom}px monospace`;
+          ctx.textAlign = 'center';
+          ctx.fillText(hz.type, cx2, cy2 - hz.radius - 4 * invZoom);
+        } else if (hz.tStart !== undefined && hz.tEnd !== undefined) {
+          // Legacy t-range format
+          const totalSamples = curve.length;
           const startI = Math.round(hz.tStart * totalSamples);
           const endI = Math.round(hz.tEnd * totalSamples);
           if (endI <= startI + 1) continue;
-          const hw = hz.width / 2;
-          const lo = hz.lateralOffset;
-          const left: [number, number][] = [];
-          const right: [number, number][] = [];
+          const hw = (hz.width ?? 10) / 2;
+          const lo = hz.lateralOffset ?? 0;
+          const left2: [number, number][] = [];
+          const right2: [number, number][] = [];
           for (let i = startI; i <= endI; i++) {
             const ii = Math.min(i, totalSamples - 1);
             const prev = curve[(ii - 1 + totalSamples) % totalSamples];
@@ -456,69 +489,41 @@ export function TrackEditor() {
             const len = Math.hypot(dx, dy) || 1;
             const nx = -dy / len;
             const ny = dx / len;
-            left.push([curve[ii][0] + nx * (lo + hw), curve[ii][1] + ny * (lo + hw)]);
-            right.push([curve[ii][0] + nx * (lo - hw), curve[ii][1] + ny * (lo - hw)]);
+            left2.push([curve[ii][0] + nx * (lo + hw), curve[ii][1] + ny * (lo + hw)]);
+            right2.push([curve[ii][0] + nx * (lo - hw), curve[ii][1] + ny * (lo - hw)]);
           }
           ctx.beginPath();
-          ctx.moveTo(left[0][0], left[0][1]);
-          for (const p of left) ctx.lineTo(p[0], p[1]);
-          for (let i = right.length - 1; i >= 0; i--) ctx.lineTo(right[i][0], right[i][1]);
+          ctx.moveTo(left2[0][0], left2[0][1]);
+          for (const p of left2) ctx.lineTo(p[0], p[1]);
+          for (let i = right2.length - 1; i >= 0; i--) ctx.lineTo(right2[i][0], right2[i][1]);
           ctx.closePath();
           ctx.fillStyle = HAZARD_COLORS[hz.type];
           ctx.fill();
-          // Label at midpoint
           const midPt = curve[Math.min(Math.round((startI + endI) / 2), totalSamples - 1)];
           ctx.fillStyle = 'rgba(255,255,255,0.75)';
           ctx.font = `${9 * invZoom}px monospace`;
           ctx.textAlign = 'center';
-          ctx.fillText(hz.type, midPt[0], midPt[1] - (hz.width / 2 + 4) * invZoom);
+          ctx.fillText(hz.type, midPt[0], midPt[1] - ((hz.width ?? 10) / 2 + 4) * invZoom);
         }
       }
 
-      // 3c. Hazard placement preview
-      if (activeTool === 'hazard' && hazardDragStartTRef.current !== null && hazardPreviewTRef.current !== null) {
-        const totalSamples = curve.length;
-        const t0 = Math.min(hazardDragStartTRef.current, hazardPreviewTRef.current);
-        const t1 = Math.max(hazardDragStartTRef.current, hazardPreviewTRef.current);
-        const startI = Math.round(t0 * totalSamples);
-        const endI = Math.round(t1 * totalSamples);
-        if (endI > startI + 1) {
-          const hw = hazardWidth / 2;
-          const lo = hazardLateralOffset;
-          const left: [number, number][] = [];
-          const right: [number, number][] = [];
-          for (let i = startI; i <= endI; i++) {
-            const ii = Math.min(i, totalSamples - 1);
-            const prev = curve[(ii - 1 + totalSamples) % totalSamples];
-            const next = curve[(ii + 1) % totalSamples];
-            const dx = next[0] - prev[0];
-            const dy = next[1] - prev[1];
-            const len = Math.hypot(dx, dy) || 1;
-            const nx = -dy / len;
-            const ny = dx / len;
-            left.push([curve[ii][0] + nx * (lo + hw), curve[ii][1] + ny * (lo + hw)]);
-            right.push([curve[ii][0] + nx * (lo - hw), curve[ii][1] + ny * (lo - hw)]);
-          }
-          if (left.length >= 2) {
-            ctx.beginPath();
-            ctx.moveTo(left[0][0], left[0][1]);
-            for (const p of left) ctx.lineTo(p[0], p[1]);
-            for (let i = right.length - 1; i >= 0; i--) ctx.lineTo(right[i][0], right[i][1]);
-            ctx.closePath();
-            ctx.fillStyle = HAZARD_COLORS[activeHazardType];
-            ctx.fill();
-            ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-            ctx.lineWidth = 2 * invZoom;
-            ctx.stroke();
-          }
-        }
+      // 3c. Hazard placement preview (circle drag)
+      if (activeTool === 'hazard' && hazardCenterRef.current !== null && hazardRadiusRef.current > 0) {
+        const [cx2, cy2] = hazardCenterRef.current;
+        ctx.beginPath();
+        ctx.arc(cx2, cy2, hazardRadiusRef.current, 0, Math.PI * 2);
+        ctx.fillStyle = HAZARD_COLORS[activeHazardType];
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+        ctx.lineWidth = 2 * invZoom;
+        ctx.stroke();
       }
 
       // 4. CatmullRom centerline
       ctx.beginPath();
       ctx.moveTo(curve[0][0], curve[0][1]);
       for (const p of curve) ctx.lineTo(p[0], p[1]);
-      if (closed) ctx.closePath();
+      if (loopClosed) ctx.closePath();
       ctx.strokeStyle = 'rgba(255,210,63,0.85)';
       ctx.lineWidth = 2 * invZoom;
       ctx.stroke();
@@ -537,28 +542,37 @@ export function TrackEditor() {
       ctx.stroke();
     }
 
+    // 5b. Highlight ring on first point when pen can close loop
+    if (activeTool === 'pen' && !loopClosed && points.length >= 3) {
+      const [fx, fy] = points[0];
+      ctx.beginPath();
+      ctx.arc(fx, fy, ptR * 2.2, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(80, 255, 80, 0.85)';
+      ctx.lineWidth = 2.5 * invZoom;
+      ctx.stroke();
+    }
+
     // 6. Direction arrows along centerline
     if (showDirectionArrows && points.length >= 2) {
-      const closed = points.length >= 3;
-      const curve = catmullRomPoints(points, closed, 20);
-      const arrowSpacing = 80; // world units between arrows
+      const arrowCurve = catmullRomPoints(points, loopClosed, 20);
+      const arrowSpacing = 80;
       const headLen = Math.max(6, trackWidth * 0.35) * invZoom;
       const headAngle = Math.PI / 5;
-      let accumulated = arrowSpacing / 2; // offset so first arrow isn't at very start
+      let accumulated = arrowSpacing / 2;
 
       ctx.strokeStyle = 'rgba(100,220,255,0.75)';
       ctx.lineWidth = 2 * invZoom;
 
-      for (let i = 1; i < curve.length; i++) {
-        const dx = curve[i][0] - curve[i - 1][0];
-        const dy = curve[i][1] - curve[i - 1][1];
+      for (let i = 1; i < arrowCurve.length; i++) {
+        const dx = arrowCurve[i][0] - arrowCurve[i - 1][0];
+        const dy = arrowCurve[i][1] - arrowCurve[i - 1][1];
         const segLen = Math.hypot(dx, dy);
         accumulated += segLen;
         if (accumulated >= arrowSpacing) {
           accumulated -= arrowSpacing;
           const angle = Math.atan2(dy, dx);
-          const mx = curve[i][0];
-          const my = curve[i][1];
+          const mx = arrowCurve[i][0];
+          const my = arrowCurve[i][1];
           ctx.beginPath();
           ctx.moveTo(mx, my);
           ctx.lineTo(mx - headLen * Math.cos(angle - headAngle), my - headLen * Math.sin(angle - headAngle));
@@ -633,7 +647,7 @@ export function TrackEditor() {
     return () => ro.disconnect();
   }, [draw]);
 
-  // Wheel zoom (passive: false to allow preventDefault)
+  // Wheel zoom
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -645,7 +659,6 @@ export function TrackEditor() {
       const oldZoom = zoomRef.current;
       const factor = Math.pow(1.1, -e.deltaY / 120);
       const newZoom = Math.max(0.1, Math.min(10, oldZoom * factor));
-      // Keep the world point under cursor fixed
       const wx = (sx - panRef.current.x) / oldZoom;
       const wy = (sy - panRef.current.y) / oldZoom;
       panRef.current = { x: sx - wx * newZoom, y: sy - wy * newZoom };
@@ -656,7 +669,7 @@ export function TrackEditor() {
     return () => canvas.removeEventListener('wheel', onWheel);
   }, [draw]);
 
-  // Keyboard shortcuts + Cmd/Ctrl+Z undo + Space pan
+  // Keyboard shortcuts
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).tagName === 'INPUT') return;
@@ -719,22 +732,7 @@ export function TrackEditor() {
     return -1;
   };
 
-  // Find nearest t (0-1) on the spline to a canvas position
-  const findNearestT = (pos: [number, number]): number => {
-    const pts = stateRef.current.points;
-    if (pts.length < 2) return 0;
-    const closed = pts.length >= 3;
-    const samples = catmullRomPoints(pts, closed, 20);
-    let bestDist = Infinity;
-    let bestI = 0;
-    for (let i = 0; i < samples.length; i++) {
-      const d = Math.hypot(samples[i][0] - pos[0], samples[i][1] - pos[1]);
-      if (d < bestDist) { bestDist = d; bestI = i; }
-    }
-    return bestI / samples.length;
-  };
-
-  // Find nearest segment; returns { afterIndex, projX, projY } or null
+  // Find nearest segment
   const findNearestSegment = (pos: [number, number]): { afterIndex: number; px: number; py: number } | null => {
     const pts = stateRef.current.points;
     if (pts.length < 2) return null;
@@ -761,7 +759,6 @@ export function TrackEditor() {
   };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    // Space held → start panning
     if (isSpaceDownRef.current) {
       isPanningRef.current = true;
       panLastRef.current = { x: e.clientX, y: e.clientY };
@@ -770,11 +767,24 @@ export function TrackEditor() {
     }
 
     const pos = getPos(e);
-    const { activeTool } = stateRef.current;
+    const { activeTool, loopClosed, points } = stateRef.current;
     isDraggingRef.current = true;
 
     if (activeTool === 'pen') {
-      dispatch({ type: 'ADD_POINT', point: pos });
+      // Check if clicking near first point to close loop
+      if (!loopClosed && points.length >= 3) {
+        const firstPt = points[0];
+        const worldDist = Math.hypot(pos[0] - firstPt[0], pos[1] - firstPt[1]);
+        const screenDist = worldDist * zoomRef.current;
+        if (screenDist < 15) {
+          dispatch({ type: 'CLOSE_LOOP' });
+          dispatch({ type: 'SET_TOOL', tool: 'move' });
+          return;
+        }
+      }
+      if (!loopClosed) {
+        dispatch({ type: 'ADD_POINT', point: pos });
+      }
     } else if (activeTool === 'line') {
       lineStartRef.current = pos;
     } else if (activeTool === 'eraser') {
@@ -793,16 +803,13 @@ export function TrackEditor() {
       const seg = findNearestSegment(pos);
       if (seg) dispatch({ type: 'INSERT_POINT', afterIndex: seg.afterIndex, point: [seg.px, seg.py] });
     } else if (activeTool === 'hazard') {
-      if (stateRef.current.points.length >= 2) {
-        const t = findNearestT(pos);
-        hazardDragStartTRef.current = t;
-        hazardPreviewTRef.current = t;
-      }
+      // Start circle placement
+      hazardCenterRef.current = pos;
+      hazardRadiusRef.current = 0;
     }
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    // Pan mode
     if (isPanningRef.current && panLastRef.current) {
       const dx = e.clientX - panLastRef.current.x;
       const dy = e.clientY - panLastRef.current.y;
@@ -821,8 +828,9 @@ export function TrackEditor() {
         dispatch({ type: 'MOVE_POINT', index: dragIndexRef.current, point: pos });
         return;
       }
-      if (activeTool === 'hazard' && hazardDragStartTRef.current !== null) {
-        hazardPreviewTRef.current = findNearestT(pos);
+      if (activeTool === 'hazard' && hazardCenterRef.current !== null) {
+        const center = hazardCenterRef.current;
+        hazardRadiusRef.current = Math.hypot(pos[0] - center[0], pos[1] - center[1]);
         draw();
         return;
       }
@@ -849,25 +857,27 @@ export function TrackEditor() {
       lineStartRef.current = null;
     } else if (activeTool === 'move') {
       dragIndexRef.current = -1;
-    } else if (activeTool === 'hazard' && hazardDragStartTRef.current !== null) {
-      const endT = findNearestT(pos);
-      const tStart = Math.min(hazardDragStartTRef.current, endT);
-      const tEnd = Math.max(hazardDragStartTRef.current, endT);
-      if (tEnd - tStart > 0.005) {
-        const { activeHazardType, hazardWidth, hazardLateralOffset } = stateRef.current;
+    } else if (activeTool === 'hazard' && hazardCenterRef.current !== null) {
+      const radius = hazardRadiusRef.current;
+      if (radius > 3) {
+        const canvas = canvasRef.current!;
+        const originX = canvas.width / 2;
+        const originY = canvas.height / 2;
+        const [cx, cy] = hazardCenterRef.current;
+        const [gx, , gz] = canvasToGame(cx, cy, originX, originY);
+        const { activeHazardType } = stateRef.current;
         dispatch({
           type: 'ADD_HAZARD',
           hazard: {
             type: activeHazardType,
-            tStart: Math.round(tStart * 1000) / 1000,
-            tEnd: Math.round(tEnd * 1000) / 1000,
-            lateralOffset: hazardLateralOffset,
-            width: hazardWidth,
+            centerX: Math.round(gx * 100) / 100,
+            centerZ: Math.round(gz * 100) / 100,
+            radius: Math.round(radius * 100) / 100,
           },
         });
       }
-      hazardDragStartTRef.current = null;
-      hazardPreviewTRef.current = null;
+      hazardCenterRef.current = null;
+      hazardRadiusRef.current = 0;
     }
 
     draw();
@@ -878,17 +888,21 @@ export function TrackEditor() {
     isDraggingRef.current = false;
     isPanningRef.current = false;
     panLastRef.current = null;
-    hazardDragStartTRef.current = null;
-    hazardPreviewTRef.current = null;
+    hazardCenterRef.current = null;
+    hazardRadiusRef.current = 0;
     draw();
   };
 
   const handleTest = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const { points, trackName, trackWidth, hazards } = stateRef.current;
+    const { points, trackName, trackWidth, hazards, loopClosed } = stateRef.current;
     if (points.length < 3) {
       alert('Add at least 3 points to test the track.');
+      return;
+    }
+    if (!loopClosed) {
+      alert('Close the loop first — click the first point (green ring) to close the track.');
       return;
     }
     const originX = canvas.width / 2;
@@ -902,7 +916,7 @@ export function TrackEditor() {
       hazards,
     };
     sessionStorage.setItem('editor_track', JSON.stringify(config));
-    sessionStorage.setItem('editor_draft', JSON.stringify({ points, trackName, trackWidth, hazards }));
+    sessionStorage.setItem('editor_draft', JSON.stringify({ points, trackName, trackWidth, hazards, loopClosed }));
     navigate('/', { state: { fromEditor: true } });
   };
 
@@ -946,7 +960,7 @@ export function TrackEditor() {
           name?: string;
           controlPoints: [number, number, number][];
           width?: number;
-          hazards?: Array<{ type: string; tStart: number; tEnd: number; lateralOffset: number; width: number }>;
+          hazards?: HazardDef[];
         };
         const points = data.controlPoints.map(([gx, , gz]) =>
           gameToCanvas(gx, gz, originX, originY)
@@ -961,13 +975,13 @@ export function TrackEditor() {
           trackName: data.name ?? 'Imported Track',
           trackWidth: data.width ?? 28,
           hazards,
+          loopClosed: true,
         });
       } catch {
         alert('Failed to parse JSON file.');
       }
     };
     reader.readAsText(file);
-    // Reset so the same file can be re-imported
     e.target.value = '';
   };
 
@@ -985,13 +999,20 @@ export function TrackEditor() {
     const validTypes = new Set<string>(['juice', 'milk', 'oil', 'butter']);
     const hazards: HazardDef[] = track.hazards
       .filter(h => validTypes.has(h.type))
-      .map(h => ({ type: h.type as HazardType, tStart: h.tStart, tEnd: h.tEnd, lateralOffset: h.lateralOffset, width: h.width }));
+      .map(h => ({
+        type: h.type as HazardType,
+        tStart: h.tStart,
+        tEnd: h.tEnd,
+        lateralOffset: h.lateralOffset,
+        width: h.width,
+      }));
     dispatch({
       type: 'LOAD_STATE',
       points,
       trackName: track.name,
       trackWidth: track.width,
       hazards,
+      loopClosed: true,
     });
   };
 
@@ -1073,21 +1094,7 @@ export function TrackEditor() {
                 {ht}
               </button>
             ))}
-            <label className="editor-label" style={{ marginTop: 6 }}>Width: {state.hazardWidth}</label>
-            <input
-              className="editor-slider"
-              type="range" min="4" max="30"
-              value={state.hazardWidth}
-              onChange={e => dispatch({ type: 'SET_HAZARD_WIDTH', width: Number(e.target.value) })}
-            />
-            <label className="editor-label">Offset: {state.hazardLateralOffset}</label>
-            <input
-              className="editor-slider"
-              type="range" min="-20" max="20"
-              value={state.hazardLateralOffset}
-              onChange={e => dispatch({ type: 'SET_HAZARD_LATERAL', offset: Number(e.target.value) })}
-            />
-            <span style={{ opacity: 0.5, fontSize: 9 }}>drag on track to place</span>
+            <span style={{ opacity: 0.5, fontSize: 9, marginTop: 4 }}>click+drag to place circle</span>
           </div>
         )}
 
@@ -1102,7 +1109,11 @@ export function TrackEditor() {
                   padding: '1px 4px', borderRadius: 2,
                   textShadow: '0 0 3px rgba(0,0,0,0.8)',
                 }}>
-                  {hz.type} {(hz.tStart * 100).toFixed(0)}–{(hz.tEnd * 100).toFixed(0)}%
+                  {hz.type}
+                  {hz.radius !== undefined
+                    ? ` r=${hz.radius.toFixed(0)}`
+                    : ` ${((hz.tStart ?? 0) * 100).toFixed(0)}–${((hz.tEnd ?? 0) * 100).toFixed(0)}%`
+                  }
                 </span>
                 <button
                   className="tool-btn tool-btn-danger"
@@ -1115,6 +1126,18 @@ export function TrackEditor() {
         )}
 
         <div className="editor-section">
+          {state.loopClosed ? (
+            <button
+              className="tool-btn active"
+              onClick={() => dispatch({ type: 'OPEN_LOOP' })}
+            >
+              Loop: Closed
+            </button>
+          ) : (
+            <div style={{ fontSize: 9, opacity: 0.6, marginBottom: 4 }}>
+              Click first point (green) to close loop
+            </div>
+          )}
           <button
             className="tool-btn"
             onClick={() => dispatch({ type: 'REVERSE' })}
@@ -1176,7 +1199,7 @@ export function TrackEditor() {
           <button
             className="tool-btn tool-btn-test"
             onClick={handleTest}
-            disabled={state.points.length < 3}
+            disabled={state.points.length < 3 || !state.loopClosed}
           >
             ▶ Test Track
           </button>
@@ -1184,6 +1207,7 @@ export function TrackEditor() {
 
         <div className="editor-label" style={{ marginTop: 'auto' }}>
           {state.points.length} point{state.points.length !== 1 ? 's' : ''}
+          {state.loopClosed && <span style={{ color: '#5db345', marginLeft: 4 }}>✓</span>}
           <br />
           <span style={{ opacity: 0.6, fontSize: '9px' }}>
             Space+drag pan · scroll zoom
