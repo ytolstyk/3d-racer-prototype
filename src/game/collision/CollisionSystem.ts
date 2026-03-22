@@ -10,7 +10,7 @@ export class CollisionSystem {
   private obstacles: ObstacleInfo[];
   private physics: CarPhysics;
   private boundaryCooldowns = new Map<string, number>();
-  onCollision: ((position: THREE.Vector3, direction: THREE.Vector3, color: number) => void) | null = null;
+  onCollision: ((position: THREE.Vector3, direction: THREE.Vector3, color: number, carVelocity?: THREE.Vector3) => void) | null = null;
 
   constructor(track: TrackDefinition, obstacles: ObstacleInfo[], physics: CarPhysics) {
     this.track = track;
@@ -76,7 +76,8 @@ export class CollisionSystem {
       // Emit collision for particles
       if (this.onCollision) {
         const midpoint = a.position.clone().add(b.position).multiplyScalar(0.5);
-        this.onCollision(midpoint, pushDir, a.definition.color);
+        const velA = new THREE.Vector3(Math.sin(a.rotation) * a.speed, 0, Math.cos(a.rotation) * a.speed);
+        this.onCollision(midpoint, pushDir, a.definition.color, velA);
       }
 
       // Update meshes
@@ -95,7 +96,8 @@ export class CollisionSystem {
       car.position.add(pushDir.clone().multiplyScalar(overlap));
       car.speed *= 0.5;
       car.mesh.position.copy(car.position);
-      this.onCollision?.(car.position.clone(), pushDir, car.definition.color);
+      const obsVel = new THREE.Vector3(Math.sin(car.rotation) * car.speed, 0, Math.cos(car.rotation) * car.speed);
+      this.onCollision?.(car.position.clone(), pushDir, car.definition.color, obsVel);
     }
   }
 
@@ -111,7 +113,8 @@ export class CollisionSystem {
       if ((now - (this.boundaryCooldowns.get(car.id) ?? 0)) > 200) {
         this.boundaryCooldowns.set(car.id, now);
         const dir = new THREE.Vector3().subVectors(car.position, center).normalize();
-        this.onCollision?.(car.position.clone(), dir, car.definition.color);
+        const carVel = new THREE.Vector3(Math.sin(car.rotation) * car.speed, 0, Math.cos(car.rotation) * car.speed);
+        this.onCollision?.(car.position.clone(), dir, car.definition.color, carVel);
       }
     }
   }

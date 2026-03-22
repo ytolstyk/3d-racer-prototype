@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { makeFloorTileTexture } from './ProceduralTextures.js';
 
 export class TableScene {
   build(): THREE.Group {
@@ -36,12 +37,20 @@ export class TableScene {
     table.receiveShadow = true;
     group.add(table);
 
-    // Floor below table — neutral surface that catches shadows and hides the void
+    // Floor below table — tiled blue/white polished surface
+    const floorTex = makeFloorTileTexture();
+    floorTex.repeat.set(20, 20);
     const floorGeo = new THREE.PlaneGeometry(8000, 8000);
-    const floorMat = new THREE.MeshStandardMaterial({ color: 0x8a7060, roughness: 0.9 });
+    const floorMat = new THREE.MeshStandardMaterial({
+      map: floorTex,
+      roughness: 0.3,
+      metalness: 0.05,
+      emissive: new THREE.Color(0x0a1525),
+      emissiveIntensity: 1.0,
+    });
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
-    floor.position.set(0, -5, 0);
+    floor.position.set(0, -8, 0);
     floor.receiveShadow = true;
     group.add(floor);
 

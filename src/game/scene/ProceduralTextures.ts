@@ -116,6 +116,47 @@ function makeSplatTexture(size: number, baseColor: string, blobColor: string, se
   return tex;
 }
 
+/** Blue/white polished floor tiles with deep grout lines. */
+export function makeFloorTileTexture(size = 512): THREE.CanvasTexture {
+  const [canvas, ctx] = makeCanvas(size);
+  const cols = 4, rows = 4;
+  const tileW = size / cols;
+  const tileH = size / rows;
+  const grooveThick = 8;
+
+  // Apply soft blur filter before drawing fills for baked DOF-like softness
+  ctx.filter = 'blur(3px)';
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = c * tileW;
+      const y = r * tileH;
+      // Alternate blue and white tiles in checkerboard-ish pattern
+      const isBlue = (r + c) % 2 === 0;
+      ctx.fillStyle = isBlue ? '#4a7ab5' : '#e8eef7';
+      ctx.fillRect(x, y, tileW, tileH);
+    }
+  }
+
+  // Grooves
+  ctx.filter = 'none';
+  ctx.fillStyle = '#111827';
+  // Horizontal grooves
+  for (let r = 0; r <= rows; r++) {
+    ctx.fillRect(0, r * tileH - grooveThick / 2, size, grooveThick);
+  }
+  // Vertical grooves
+  for (let c = 0; c <= cols; c++) {
+    ctx.fillRect(c * tileW - grooveThick / 2, 0, grooveThick, size);
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+}
+
 export function makeOilSplatTexture(size = 512): THREE.CanvasTexture {
   return makeSplatTexture(size, '#3a3a10', '#555520', 201);
 }

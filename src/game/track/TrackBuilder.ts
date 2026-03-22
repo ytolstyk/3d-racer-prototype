@@ -9,16 +9,14 @@ export class TrackBuilder {
     const surface = this.buildSurfaceChunked(track);
     group.add(surface);
 
-    // Build curbs on both edges
-    group.add(this.buildCurb(track, 'left'));
-    group.add(this.buildCurb(track, 'right'));
+    // Build flat curb decals on both edges
+    group.add(this.buildCurbDecals(track, 'left'));
+    group.add(this.buildCurbDecals(track, 'right'));
 
-    // Build jersey barriers on both sides
-    group.add(this.buildBarriers(track, 'left'));
-    group.add(this.buildBarriers(track, 'right'));
+    // Build jersey barriers on both sides (continuous spline mesh)
+    group.add(this.buildBarrierSpline(track, 'left'));
+    group.add(this.buildBarrierSpline(track, 'right'));
 
-    // Build rumble strips at tight corners
-    group.add(this.buildRumbleStrips(track));
 
     // Build start/finish line
     const startLine = this.buildStartLine(track);
@@ -84,81 +82,65 @@ export class TrackBuilder {
     return group;
   }
 
-  private buildCurb(track: TrackDefinition, side: 'left' | 'right'): THREE.Mesh {
+  private buildCurbDecals(track: TrackDefinition, side: 'left' | 'right'): THREE.Group {
+    const group = new THREE.Group();
     const boundaries = track.getBoundaryPoints();
     const total = boundaries.length;
-    const geometry = new THREE.BufferGeometry();
 
-    const vertices: number[] = [];
-    const colors: number[] = [];
-    const uvs: number[] = [];
-    const indices: number[] = [];
-
-    const curbHeight = 0.3;
     const curbWidth = 1.8;
-    const uRepeat = 12; // texture tiles along track
-
     const curbTex = this.makeCurbTexture();
+    const material = new THREE.MeshBasicMaterial({
+      map: curbTex,
+      transparent: true,
+      depthWrite: false,
+      renderOrder: 1,
+      side: THREE.DoubleSide,
+    });
 
-    for (let i = 0; i < total; i++) {
+    for (let i = 0; i < total - 1; i++) {
       const bp = boundaries[i];
-      const base = side === 'left' ? bp.left : bp.right;
-      const normal = track.getNormalAt(bp.t);
-      const outward = side === 'left' ? normal : normal.clone().negate();
+      const bpNext = boundaries[i + 1];
 
-      const inner = base.clone();
-      const outer = base.clone().add(outward.clone().multiplyScalar(curbWidth));
-
-      // Compute curvature from adjacent tangents for corner darkening
+      // Skip quads at very tight turns to avoid overlap artifacts
       const iPrev = (i - 1 + total) % total;
       const iNext = (i + 1) % total;
       const tPrev = boundaries[iPrev].tangent;
       const tNext = boundaries[iNext].tangent;
       const curvature = Math.max(0, 1 - tPrev.dot(tNext));
-      const dark = 1 - Math.min(curvature * 4, 0.55);
+      if (curvature > 0.35) continue;
 
-      // Bottom inner, top inner, top outer, bottom outer
-      vertices.push(inner.x, 0.05, inner.z);
-      vertices.push(inner.x, 0.05 + curbHeight, inner.z);
-      vertices.push(outer.x, 0.05 + curbHeight, outer.z);
-      vertices.push(outer.x, 0.05, outer.z);
+      const base = side === 'left' ? bp.left : bp.right;
+      const baseNext = side === 'left' ? bpNext.left : bpNext.right;
 
-      // Vertex colors (curvature darkening in tight corners)
-      for (let j = 0; j < 4; j++) {
-        colors.push(dark, dark, dark);
-      }
+      const normal = track.getNormalAt(bp.t);
+      const outward = side === 'left' ? normal : normal.clone().negate();
 
-      // UV: u = along track (with repeat), v = 0 inner / 1 outer
-      const u = (i / total) * uRepeat;
-      uvs.push(u, 0); // bot-inner
-      uvs.push(u, 0); // top-inner
-      uvs.push(u, 1); // top-outer
-      uvs.push(u, 1); // bot-outer
+      const innerA = base.clone();
+      const outerA = base.clone().add(outward.clone().multiplyScalar(curbWidth));
+      const innerB = baseNext.clone();
+      const outerB = baseNext.clone().add(outward.clone().multiplyScalar(curbWidth));
 
-      if (i < total - 1) {
-        const baseIdx = i * 4;
-        // Top face
-        indices.push(baseIdx + 1, baseIdx + 2, baseIdx + 5);
-        indices.push(baseIdx + 2, baseIdx + 6, baseIdx + 5);
-        // Outer face
-        indices.push(baseIdx + 2, baseIdx + 3, baseIdx + 6);
-        indices.push(baseIdx + 3, baseIdx + 7, baseIdx + 6);
-      }
+      const verts = new Float32Array([
+        innerA.x, 0.06, innerA.z,
+        outerA.x, 0.06, outerA.z,
+        innerB.x, 0.06, innerB.z,
+        outerB.x, 0.06, outerB.z,
+      ]);
+      const uvArr = new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]);
+      const idx = new Uint16Array([0, 1, 2, 1, 3, 2]);
+
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
+      geo.setIndex(new THREE.BufferAttribute(idx, 1));
+      geo.computeVertexNormals();
+
+      const mesh = new THREE.Mesh(geo, material);
+      mesh.renderOrder = 1;
+      group.add(mesh);
     }
 
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-    geometry.setIndex(indices);
-    geometry.computeVertexNormals();
-
-    const material = new THREE.MeshStandardMaterial({
-      map: curbTex,
-      vertexColors: true,
-      roughness: 0.6,
-    });
-
-    return new THREE.Mesh(geometry, material);
+    return group;
   }
 
   private makeCurbTexture(): THREE.CanvasTexture {
@@ -255,121 +237,134 @@ export class TrackBuilder {
     return tex;
   }
 
-  private buildBarriers(track: TrackDefinition, side: 'left' | 'right'): THREE.Group {
+  private buildBarrierSpline(track: TrackDefinition, side: 'left' | 'right'): THREE.Group {
     const group = new THREE.Group();
     const boundaries = track.getBoundaryPoints();
-    const total = boundaries.length;
+
+    const barrierOutset = 3.25;
+    const barrierH = 3.5;
+    const halfD = 1.8;        // half-depth (total width = 3.6 units)
+    const stripeH = 0.8;
+    const stripeY = 1.2;
+    const RIB_INTERVAL = 6;   // cross-section rib every N sample points
+
+    // Collect spine points along barrier centerline
+    const spinePoints: THREE.Vector3[] = [];
+    const spineRights: THREE.Vector3[] = [];
+    for (let bi = 0; bi < boundaries.length; bi++) {
+      const bp = boundaries[bi];
+      const base = side === 'left' ? bp.left : bp.right;
+      const normal = track.getNormalAt(bp.t);
+      const outward = side === 'left' ? normal : normal.clone().negate();
+      spinePoints.push(base.clone().add(outward.clone().multiplyScalar(barrierOutset)));
+
+      // Right = lateral direction (perpendicular to travel, horizontal)
+      const next = boundaries[(bi + 1) % boundaries.length];
+      const tangent = new THREE.Vector3().subVectors(next.center, bp.center).normalize();
+      spineRights.push(new THREE.Vector3().crossVectors(tangent, new THREE.Vector3(0, 1, 0)).normalize());
+    }
 
     const barrierMat = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.6, metalness: 0.0 });
-    const stripeMat = new THREE.MeshStandardMaterial({ color: 0xcc1111, roughness: 0.7, metalness: 0.0 });
+    const stripeMat  = new THREE.MeshStandardMaterial({ color: 0xcc1111, roughness: 0.7, metalness: 0.0 });
+    // Ribs face along the track direction — DoubleSide so visible from both travel directions
+    const ribMat = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.6, metalness: 0.0, side: THREE.DoubleSide });
 
-    const barrierOutset = 2.0; // distance beyond curb edge
-    const segLen = 6.0;
+    const innerVerts:  number[] = [], innerUVs:  number[] = [], innerIdx:  number[] = [];
+    const outerVerts:  number[] = [], outerUVs:  number[] = [], outerIdx:  number[] = [];
+    const topVerts:    number[] = [], topUVs:    number[] = [], topIdx:    number[] = [];
+    const stripeVerts: number[] = [], stripeUVs: number[] = [], stripeIdx: number[] = [];
+    const ribVerts:    number[] = [], ribUVs:    number[] = [], ribIdx:    number[] = [];
 
-    // Group boundary points into segments by arc length
-    let accumulated = 0;
-    let segStart = 0;
+    const total = spinePoints.length;
 
-    for (let i = 1; i <= total; i++) {
-      const prev = boundaries[(i - 1) % total];
-      const curr = boundaries[i % total];
-      const step = prev.center.distanceTo(curr.center);
-      accumulated += step;
+    const pushQuad = (
+      verts: number[], uvs: number[], idx: number[],
+      v00: [number, number, number], v01: [number, number, number],
+      v10: [number, number, number], v11: [number, number, number],
+      u0: number, u1: number,
+      flip = false,
+    ) => {
+      const b = verts.length / 3;
+      verts.push(...v00, ...v01, ...v10, ...v11);
+      uvs.push(u0, 0,  u0, 1,  u1, 0,  u1, 1);
+      if (flip) idx.push(b, b + 2, b + 1,  b + 1, b + 2, b + 3);
+      else      idx.push(b, b + 1, b + 2,  b + 1, b + 3, b + 2);
+    };
 
-      if (accumulated >= segLen || i === total) {
-        const midIdx = Math.floor((segStart + (i - 1)) / 2) % total;
-        const bp = boundaries[midIdx];
-        const base = side === 'left' ? bp.left : bp.right;
-        const normal = new THREE.Vector3().crossVectors(bp.tangent, new THREE.Vector3(0, 1, 0)).normalize();
-        const outward = side === 'left' ? normal : normal.clone().negate();
+    for (let i = 0; i < total - 1; i++) {
+      const p0 = spinePoints[i],   r0 = spineRights[i];
+      const p1 = spinePoints[i + 1];
+      const u0 = i / total, u1 = (i + 1) / total;
 
-        const pos = base.clone().add(outward.clone().multiplyScalar(barrierOutset + 1.25));
-        const tAngle = Math.atan2(bp.tangent.x, bp.tangent.z);
-        const jitter = (Math.random() - 0.5) * 0.04;
+      // Inner face (track-facing)
+      pushQuad(innerVerts, innerUVs, innerIdx,
+        [p0.x + r0.x * halfD, 0.05,            p0.z + r0.z * halfD],
+        [p0.x + r0.x * halfD, 0.05 + barrierH, p0.z + r0.z * halfD],
+        [p1.x + r0.x * halfD, 0.05,            p1.z + r0.z * halfD],
+        [p1.x + r0.x * halfD, 0.05 + barrierH, p1.z + r0.z * halfD],
+        u0, u1,
+      );
 
-        // Trapezoidal jersey barrier body
-        const bodyLen = accumulated * 0.95;
-        const bodyGeo = new THREE.BoxGeometry(2.0, 3.5, bodyLen);
-        const body = new THREE.Mesh(bodyGeo, barrierMat);
-        body.position.set(pos.x, 1.75, pos.z);
-        body.rotation.y = tAngle + jitter;
-        body.castShadow = true;
-        body.receiveShadow = true;
-        group.add(body);
+      // Outer face (away from track) — flipped winding
+      pushQuad(outerVerts, outerUVs, outerIdx,
+        [p0.x - r0.x * halfD, 0.05,            p0.z - r0.z * halfD],
+        [p0.x - r0.x * halfD, 0.05 + barrierH, p0.z - r0.z * halfD],
+        [p1.x - r0.x * halfD, 0.05,            p1.z - r0.z * halfD],
+        [p1.x - r0.x * halfD, 0.05 + barrierH, p1.z - r0.z * halfD],
+        u0, u1, true,
+      );
 
-        // Red stripe band around mid-height
-        const stripeGeo = new THREE.BoxGeometry(2.1, 0.8, bodyLen + 0.05);
-        const stripe = new THREE.Mesh(stripeGeo, stripeMat);
-        stripe.position.set(pos.x, 1.2, pos.z);
-        stripe.rotation.y = tAngle + jitter;
-        group.add(stripe);
+      // Top face
+      const topY = 0.05 + barrierH;
+      pushQuad(topVerts, topUVs, topIdx,
+        [p0.x + r0.x * halfD, topY, p0.z + r0.z * halfD],
+        [p0.x - r0.x * halfD, topY, p0.z - r0.z * halfD],
+        [p1.x + r0.x * halfD, topY, p1.z + r0.z * halfD],
+        [p1.x - r0.x * halfD, topY, p1.z - r0.z * halfD],
+        u0, u1,
+      );
 
-        // Reset for next segment
-        accumulated = 0;
-        segStart = i;
+      // Red stripe on inner and outer faces
+      for (const [sign, flip] of [[1, false], [-1, true]] as [number, boolean][]) {
+        pushQuad(stripeVerts, stripeUVs, stripeIdx,
+          [p0.x + r0.x * sign * halfD, stripeY,            p0.z + r0.z * sign * halfD],
+          [p0.x + r0.x * sign * halfD, stripeY + stripeH,  p0.z + r0.z * sign * halfD],
+          [p1.x + r0.x * sign * halfD, stripeY,            p1.z + r0.z * sign * halfD],
+          [p1.x + r0.x * sign * halfD, stripeY + stripeH,  p1.z + r0.z * sign * halfD],
+          u0, u1, flip,
+        );
+      }
+
+      // Cross-section rib — perpendicular to track, visible when looking along the barrier length
+      if (i % RIB_INTERVAL === 0) {
+        const b = ribVerts.length / 3;
+        ribVerts.push(
+          p0.x + r0.x *  halfD, 0.05,            p0.z + r0.z *  halfD,  // inner-bottom
+          p0.x + r0.x *  halfD, 0.05 + barrierH, p0.z + r0.z *  halfD,  // inner-top
+          p0.x - r0.x *  halfD, 0.05 + barrierH, p0.z - r0.z *  halfD,  // outer-top
+          p0.x - r0.x *  halfD, 0.05,            p0.z - r0.z *  halfD,  // outer-bottom
+        );
+        ribUVs.push(0, 0,  0, 1,  1, 1,  1, 0);
+        ribIdx.push(b, b + 1, b + 2,  b, b + 2, b + 3);
       }
     }
 
-    return group;
-  }
-
-  private buildRumbleStrips(track: TrackDefinition): THREE.Group {
-    const group = new THREE.Group();
-    const boundaries = track.getBoundaryPoints();
-    const total = boundaries.length;
-    const curbTex = this.makeCurbTexture();
-
-    const rumbleMat = new THREE.MeshStandardMaterial({
-      map: curbTex,
-      roughness: 0.6,
-      side: THREE.DoubleSide,
-    });
-
-    const stripWidth = 3.0;
-
-    for (let i = 0; i < total - 1; i++) {
-      const iPrev = (i - 1 + total) % total;
-      const iNext = (i + 1) % total;
-      const tPrev = boundaries[iPrev].tangent;
-      const tNext = boundaries[iNext].tangent;
-      const curvature = Math.max(0, 1 - tPrev.dot(tNext));
-
-      if (curvature < 0.012) continue;
-
-      // Determine which side is the inside of the curve
-      const cross = tPrev.clone().cross(tNext);
-      const insideSide = cross.y > 0 ? 'left' : 'right';
-
-      const bp = boundaries[i];
-      const bpNext = boundaries[iNext];
-      const base = insideSide === 'left' ? bp.left : bp.right;
-      const baseNext = insideSide === 'left' ? bpNext.left : bpNext.right;
-      const normal = new THREE.Vector3().crossVectors(bp.tangent, new THREE.Vector3(0, 1, 0)).normalize();
-      const inward = insideSide === 'left' ? normal.clone().negate() : normal.clone();
-
-      // Inner edge of rumble strip (into track)
-      const innerA = base.clone().add(inward.clone().multiplyScalar(stripWidth));
-      const innerB = baseNext.clone().add(inward.clone().multiplyScalar(stripWidth));
-      const outerA = base.clone();
-      const outerB = baseNext.clone();
-
-      const verts = new Float32Array([
-        outerA.x, 0.065, outerA.z,
-        outerB.x, 0.065, outerB.z,
-        innerA.x, 0.065, innerA.z,
-        innerB.x, 0.065, innerB.z,
-      ]);
-      const uvArr = new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]);
-      const idx = new Uint16Array([0, 1, 2, 1, 3, 2]);
-
+    const buildMesh = (verts: number[], uvs: number[], idx: number[], mat: THREE.Material, shadow = false) => {
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
-      geo.setIndex(new THREE.BufferAttribute(idx, 1));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geo.setIndex(idx);
       geo.computeVertexNormals();
+      const mesh = new THREE.Mesh(geo, mat);
+      if (shadow) { mesh.castShadow = true; mesh.receiveShadow = true; }
+      return mesh;
+    };
 
-      group.add(new THREE.Mesh(geo, rumbleMat));
-    }
+    group.add(buildMesh(innerVerts,  innerUVs,  innerIdx,  barrierMat, true));
+    group.add(buildMesh(outerVerts,  outerUVs,  outerIdx,  barrierMat));
+    group.add(buildMesh(topVerts,    topUVs,    topIdx,    barrierMat));
+    group.add(buildMesh(stripeVerts, stripeUVs, stripeIdx, stripeMat));
+    group.add(buildMesh(ribVerts,    ribUVs,    ribIdx,    ribMat));
 
     return group;
   }

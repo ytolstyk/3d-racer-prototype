@@ -6,10 +6,10 @@ interface Particle {
   velocity: THREE.Vector3;
 }
 
-const SPARK_COUNT = 200;
-const PAINT_COUNT = 150;
-const SHARD_COUNT = 100;
-const SMOKE_COUNT = 200;
+const SPARK_COUNT = 300;
+const PAINT_COUNT = 225;
+const SHARD_COUNT = 150;
+const SMOKE_COUNT = 240;
 
 export class CollisionParticleSystem {
   private sparks: THREE.InstancedMesh;
@@ -31,7 +31,7 @@ export class CollisionParticleSystem {
 
   constructor(scene: THREE.Scene) {
     // Sparks — bright yellow planes (larger for visibility)
-    const sparkGeo = new THREE.PlaneGeometry(0.5, 0.5);
+    const sparkGeo = new THREE.PlaneGeometry(1.5, 1.5);
     const sparkMat = new THREE.MeshBasicMaterial({
       color: 0xffdd44,
       transparent: true,
@@ -46,7 +46,7 @@ export class CollisionParticleSystem {
     scene.add(this.sparks);
 
     // Paint chips — colored by car
-    const paintGeo = new THREE.PlaneGeometry(0.2, 0.12);
+    const paintGeo = new THREE.PlaneGeometry(0.6, 0.35);
     const paintMat = new THREE.MeshBasicMaterial({
       transparent: true,
       opacity: 1.0,
@@ -65,7 +65,7 @@ export class CollisionParticleSystem {
 
     // Shards — dark grey triangles
     const shardGeo = new THREE.BufferGeometry();
-    const shardVerts = new Float32Array([0, 0, 0, 0.15, 0, 0, 0.07, 0.2, 0]);
+    const shardVerts = new Float32Array([0, 0, 0, 0.4, 0, 0, 0.2, 0.5, 0]);
     shardGeo.setAttribute('position', new THREE.BufferAttribute(shardVerts, 3));
     shardGeo.computeVertexNormals();
     const shardMat = new THREE.MeshBasicMaterial({
@@ -93,7 +93,7 @@ export class CollisionParticleSystem {
     }
 
     // Smoke puffs — flat grey circles, expand and fade over 1.5s
-    const smokeGeo = new THREE.CircleGeometry(1.0, 6);
+    const smokeGeo = new THREE.CircleGeometry(1.8, 8);
     const smokeMat = new THREE.MeshBasicMaterial({
       color: 0x888888,
       transparent: true,
@@ -121,17 +121,20 @@ export class CollisionParticleSystem {
     for (let i = 0; i < SMOKE_COUNT; i++) this.smokePuffs.setMatrixAt(i, this.dummy.matrix);
   }
 
-  emit(position: THREE.Vector3, impactDir: THREE.Vector3, carColor: number, count = 20): void {
+  emit(position: THREE.Vector3, impactDir: THREE.Vector3, carColor: number, carVelocity?: THREE.Vector3, count = 35): void {
     const color = new THREE.Color(carColor);
+    const vel = carVelocity ?? new THREE.Vector3();
+    const speed = vel.length();
+    const velDir = speed > 0.01 ? vel.clone().normalize() : new THREE.Vector3();
 
     // Sparks
     for (let i = 0; i < count; i++) {
       const p = this.sparkParticles[this.sparkNext];
       p.life = p.maxLife;
       p.velocity.set(
-        (Math.random() - 0.5) * 35 + impactDir.x * 18,
+        (Math.random() - 0.5) * 52 + impactDir.x * 30 + velDir.x * 0.4 * speed,
         Math.random() * 25 + 8,
-        (Math.random() - 0.5) * 35 + impactDir.z * 18,
+        (Math.random() - 0.5) * 52 + impactDir.z * 30 + velDir.z * 0.4 * speed,
       );
       this.dummy.position.copy(position);
       this.dummy.scale.set(1, 1, 1);
@@ -149,9 +152,9 @@ export class CollisionParticleSystem {
       const p = this.paintParticles[this.paintNext];
       p.life = p.maxLife;
       p.velocity.set(
-        (Math.random() - 0.5) * 12 + impactDir.x * 6,
+        (Math.random() - 0.5) * 18 + impactDir.x * 15 + velDir.x * 0.4 * speed,
         Math.random() * 8 + 2,
-        (Math.random() - 0.5) * 12 + impactDir.z * 6,
+        (Math.random() - 0.5) * 18 + impactDir.z * 15 + velDir.z * 0.4 * speed,
       );
       this.dummy.position.copy(position);
       this.dummy.scale.set(1, 1, 1);
@@ -171,9 +174,9 @@ export class CollisionParticleSystem {
       const p = this.shardParticles[this.shardNext];
       p.life = p.maxLife;
       p.velocity.set(
-        (Math.random() - 0.5) * 8 + impactDir.x * 4,
+        (Math.random() - 0.5) * 12 + impactDir.x * 12 + velDir.x * 0.2 * speed,
         Math.random() * 6 + 1,
-        (Math.random() - 0.5) * 8 + impactDir.z * 4,
+        (Math.random() - 0.5) * 12 + impactDir.z * 12 + velDir.z * 0.2 * speed,
       );
       this.dummy.position.copy(position);
       this.dummy.scale.set(1, 1, 1);
@@ -191,13 +194,13 @@ export class CollisionParticleSystem {
       const p = this.smokeParticles[this.smokeNext];
       p.life = p.maxLife;
       p.velocity.set(
-        (Math.random() - 0.5) * 4,
+        (Math.random() - 0.5) * 6 + velDir.x * 0.1 * speed,
         Math.random() * 3 + 1,
-        (Math.random() - 0.5) * 4,
+        (Math.random() - 0.5) * 6 + velDir.z * 0.1 * speed,
       );
       this.dummy.position.copy(position);
-      this.dummy.position.x += (Math.random() - 0.5) * 3;
-      this.dummy.position.z += (Math.random() - 0.5) * 3;
+      this.dummy.position.x += (Math.random() - 0.5) * 4.5;
+      this.dummy.position.z += (Math.random() - 0.5) * 4.5;
       this.dummy.scale.set(0.5, 0.5, 0.5);
       this.dummy.rotation.set(-Math.PI / 2, 0, Math.random() * Math.PI * 2);
       this.dummy.updateMatrix();

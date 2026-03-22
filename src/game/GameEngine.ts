@@ -128,8 +128,8 @@ export class GameEngine {
 
     // Collision particles
     this.collisionParticles = new CollisionParticleSystem(this.scene);
-    this.collisionSystem.onCollision = (pos, dir, color) => {
-      this.collisionParticles?.emit(pos, dir, color);
+    this.collisionSystem.onCollision = (pos, dir, color, carVelocity) => {
+      this.collisionParticles?.emit(pos, dir, color, carVelocity);
     };
 
     // Race

@@ -86,36 +86,34 @@ export class HazardSystem {
     group.position.set(position.x, 0, position.z);
 
     // Primary splat
-    const primaryMat = new THREE.MeshStandardMaterial({
+    const primaryMat = new THREE.MeshBasicMaterial({
       map: texture,
       color,
       transparent: true,
       alphaTest: 0.01,
       depthWrite: false,
-      roughness: 0.7,
-      emissive: color,
-      emissiveIntensity: 0.12,
     });
     const primaryMesh = new THREE.Mesh(new THREE.PlaneGeometry(splatSize, splatSize), primaryMat);
     primaryMesh.rotation.x = -Math.PI / 2;
     primaryMesh.rotation.z = rotationZ;
-    primaryMesh.position.y = 0.07;
+    primaryMesh.position.y = 0.075;
+    primaryMesh.renderOrder = 3;
     group.add(primaryMesh);
 
     // Secondary splat layer — smaller, slightly offset, 30° rotation
-    const secondaryMat = new THREE.MeshStandardMaterial({
+    const secondaryMat = new THREE.MeshBasicMaterial({
       map: texture,
       color,
       transparent: true,
       alphaTest: 0.01,
       depthWrite: false,
-      roughness: 0.7,
       opacity: 0.4,
     });
     const secondaryMesh = new THREE.Mesh(new THREE.PlaneGeometry(splatSize * 0.7, splatSize * 0.7), secondaryMat);
     secondaryMesh.rotation.x = -Math.PI / 2;
     secondaryMesh.rotation.z = rotationZ + Math.PI / 6;
-    secondaryMesh.position.y = 0.08;
+    secondaryMesh.position.y = 0.076;
+    secondaryMesh.renderOrder = 3;
     group.add(secondaryMesh);
 
     // Point light above hazard for glow effect
