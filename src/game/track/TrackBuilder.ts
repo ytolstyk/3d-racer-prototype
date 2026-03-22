@@ -9,10 +9,6 @@ export class TrackBuilder {
     const surface = this.buildSurfaceChunked(track);
     group.add(surface);
 
-    // Build flat curb decals on both edges
-    group.add(this.buildCurbDecals(track, 'left'));
-    group.add(this.buildCurbDecals(track, 'right'));
-
     // Build jersey barriers on both sides (continuous spline mesh)
     group.add(this.buildBarrierSpline(track, 'left'));
     group.add(this.buildBarrierSpline(track, 'right'));
@@ -44,6 +40,7 @@ export class TrackBuilder {
       color: 0x4a4a4a,
       roughness: 0.85,
       metalness: 0.05,
+      side: THREE.DoubleSide,
     });
 
     for (let c = 0; c < chunkCount; c++) {
@@ -243,7 +240,7 @@ export class TrackBuilder {
 
     const barrierOutset = 3.25;
     const barrierH = 3.5;
-    const halfD = 1.8;        // half-depth (total width = 3.6 units)
+    const halfD = 1.2;        // half-depth (total width = 2.4 units)
     const stripeH = 0.8;
     const stripeY = 1.2;
     const RIB_INTERVAL = 6;   // cross-section rib every N sample points
@@ -264,8 +261,8 @@ export class TrackBuilder {
       spineRights.push(new THREE.Vector3().crossVectors(tangent, new THREE.Vector3(0, 1, 0)).normalize());
     }
 
-    const barrierMat = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.6, metalness: 0.0 });
-    const stripeMat  = new THREE.MeshStandardMaterial({ color: 0xcc1111, roughness: 0.7, metalness: 0.0 });
+    const barrierMat = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.6, metalness: 0.0, side: THREE.DoubleSide });
+    const stripeMat  = new THREE.MeshStandardMaterial({ color: 0xcc1111, roughness: 0.7, metalness: 0.0, side: THREE.DoubleSide });
     // Ribs face along the track direction — DoubleSide so visible from both travel directions
     const ribMat = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.6, metalness: 0.0, side: THREE.DoubleSide });
 
@@ -293,15 +290,15 @@ export class TrackBuilder {
 
     for (let i = 0; i < total - 1; i++) {
       const p0 = spinePoints[i],   r0 = spineRights[i];
-      const p1 = spinePoints[i + 1];
+      const p1 = spinePoints[i + 1], r1 = spineRights[i + 1];
       const u0 = i / total, u1 = (i + 1) / total;
 
       // Inner face (track-facing)
       pushQuad(innerVerts, innerUVs, innerIdx,
         [p0.x + r0.x * halfD, 0.05,            p0.z + r0.z * halfD],
         [p0.x + r0.x * halfD, 0.05 + barrierH, p0.z + r0.z * halfD],
-        [p1.x + r0.x * halfD, 0.05,            p1.z + r0.z * halfD],
-        [p1.x + r0.x * halfD, 0.05 + barrierH, p1.z + r0.z * halfD],
+        [p1.x + r1.x * halfD, 0.05,            p1.z + r1.z * halfD],
+        [p1.x + r1.x * halfD, 0.05 + barrierH, p1.z + r1.z * halfD],
         u0, u1,
       );
 
@@ -309,8 +306,8 @@ export class TrackBuilder {
       pushQuad(outerVerts, outerUVs, outerIdx,
         [p0.x - r0.x * halfD, 0.05,            p0.z - r0.z * halfD],
         [p0.x - r0.x * halfD, 0.05 + barrierH, p0.z - r0.z * halfD],
-        [p1.x - r0.x * halfD, 0.05,            p1.z - r0.z * halfD],
-        [p1.x - r0.x * halfD, 0.05 + barrierH, p1.z - r0.z * halfD],
+        [p1.x - r1.x * halfD, 0.05,            p1.z - r1.z * halfD],
+        [p1.x - r1.x * halfD, 0.05 + barrierH, p1.z - r1.z * halfD],
         u0, u1, true,
       );
 
@@ -319,8 +316,8 @@ export class TrackBuilder {
       pushQuad(topVerts, topUVs, topIdx,
         [p0.x + r0.x * halfD, topY, p0.z + r0.z * halfD],
         [p0.x - r0.x * halfD, topY, p0.z - r0.z * halfD],
-        [p1.x + r0.x * halfD, topY, p1.z + r0.z * halfD],
-        [p1.x - r0.x * halfD, topY, p1.z - r0.z * halfD],
+        [p1.x + r1.x * halfD, topY, p1.z + r1.z * halfD],
+        [p1.x - r1.x * halfD, topY, p1.z - r1.z * halfD],
         u0, u1,
       );
 
@@ -329,8 +326,8 @@ export class TrackBuilder {
         pushQuad(stripeVerts, stripeUVs, stripeIdx,
           [p0.x + r0.x * sign * halfD, stripeY,            p0.z + r0.z * sign * halfD],
           [p0.x + r0.x * sign * halfD, stripeY + stripeH,  p0.z + r0.z * sign * halfD],
-          [p1.x + r0.x * sign * halfD, stripeY,            p1.z + r0.z * sign * halfD],
-          [p1.x + r0.x * sign * halfD, stripeY + stripeH,  p1.z + r0.z * sign * halfD],
+          [p1.x + r1.x * sign * halfD, stripeY,            p1.z + r1.z * sign * halfD],
+          [p1.x + r1.x * sign * halfD, stripeY + stripeH,  p1.z + r1.z * sign * halfD],
           u0, u1, flip,
         );
       }
