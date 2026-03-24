@@ -8,6 +8,7 @@ import { LapTimer } from '../hud/LapTimer.js';
 import { MinimapDisplay } from '../hud/MinimapDisplay.js';
 import { PositionIndicator } from '../hud/PositionIndicator.js';
 import { CheckpointTimer } from '../hud/CheckpointTimer.js';
+import { WrongWayIndicator } from '../hud/WrongWayIndicator.js';
 import { Scoreboard } from './Scoreboard.js';
 
 interface RaceScreenProps {
@@ -37,6 +38,8 @@ export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, onMainMe
       )}
 
       {state.countdownActive && <Countdown value={state.countdown} />}
+
+      <WrongWayIndicator visible={state.raceStarted && !state.playerFinished && state.isWrongWay} />
 
       {state.raceStarted && !state.playerFinished && (
         <>

@@ -5,6 +5,7 @@ interface SmokeParticle {
   life: number;
   maxLife: number;
   velocity: THREE.Vector3;
+  isDark: boolean;
 }
 
 const PARTICLE_COUNT = 400;
@@ -28,11 +29,14 @@ function makeSmokeTexture(): THREE.CanvasTexture {
 
 const vertexShader = /* glsl */ `
   attribute float aOpacity;
+  attribute float aDark;
   varying float vOpacity;
+  varying float vDark;
   varying vec2 vUv;
 
   void main() {
     vOpacity = aOpacity;
+    vDark = aDark;
     vUv = uv;
     gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
   }
@@ -41,11 +45,13 @@ const vertexShader = /* glsl */ `
 const fragmentShader = /* glsl */ `
   uniform sampler2D map;
   varying float vOpacity;
+  varying float vDark;
   varying vec2 vUv;
 
   void main() {
     vec4 texColor = texture2D(map, vUv);
-    gl_FragColor = vec4(0.7, 0.7, 0.7, texColor.a * vOpacity);
+    vec3 color = mix(vec3(0.7), vec3(0.25), vDark);
+    gl_FragColor = vec4(color, texColor.a * vOpacity);
     if (gl_FragColor.a < 0.01) discard;
   }
 `;
@@ -57,6 +63,7 @@ export class TireSmokeSystem {
   private dummy = new THREE.Object3D();
   private carTimers = new Map<string, number>();
   private opacityAttr: THREE.InstancedBufferAttribute;
+  private aDarkAttr: THREE.InstancedBufferAttribute;
 
   constructor(scene: THREE.Scene) {
     const geo = new THREE.CircleGeometry(1.0, 8);
@@ -65,6 +72,11 @@ export class TireSmokeSystem {
     this.opacityAttr = new THREE.InstancedBufferAttribute(opacityData, 1);
     this.opacityAttr.setUsage(THREE.DynamicDrawUsage);
     geo.setAttribute('aOpacity', this.opacityAttr);
+
+    const darkData = new Float32Array(PARTICLE_COUNT);
+    this.aDarkAttr = new THREE.InstancedBufferAttribute(darkData, 1);
+    this.aDarkAttr.setUsage(THREE.DynamicDrawUsage);
+    geo.setAttribute('aDark', this.aDarkAttr);
 
     const mat = new THREE.ShaderMaterial({
       uniforms: { map: { value: makeSmokeTexture() } },
@@ -82,7 +94,7 @@ export class TireSmokeSystem {
     scene.add(this.mesh);
 
     for (let i = 0; i < PARTICLE_COUNT; i++) {
-      this.particles.push({ life: 0, maxLife: 1.5, velocity: new THREE.Vector3() });
+      this.particles.push({ life: 0, maxLife: 1.5, velocity: new THREE.Vector3(), isDark: false });
     }
 
     // Hide all initially
@@ -94,9 +106,20 @@ export class TireSmokeSystem {
     this.mesh.instanceMatrix.needsUpdate = true;
   }
 
+  private findFreeSlot(): number {
+    const n = this.particles.length;
+    for (let offset = 0; offset < n; offset++) {
+      const i = (this.nextParticle + offset) % n;
+      if (this.particles[i].life <= 0) return i;
+    }
+    return this.nextParticle;
+  }
+
   private emitOne(x: number, y: number, z: number): void {
-    const p = this.particles[this.nextParticle];
+    const idx = this.findFreeSlot();
+    const p = this.particles[idx];
     p.life = p.maxLife;
+    p.isDark = false;
     p.velocity.set(
       (Math.random() - 0.5) * 2,
       1.5 + Math.random() * 1.5,
@@ -106,9 +129,10 @@ export class TireSmokeSystem {
     this.dummy.scale.set(0.3, 0.3, 0.3);
     this.dummy.rotation.set(-Math.PI / 2, 0, Math.random() * Math.PI * 2);
     this.dummy.updateMatrix();
-    this.mesh.setMatrixAt(this.nextParticle, this.dummy.matrix);
-    this.opacityAttr.setX(this.nextParticle, 0.45);
-    this.nextParticle = (this.nextParticle + 1) % PARTICLE_COUNT;
+    this.mesh.setMatrixAt(idx, this.dummy.matrix);
+    this.opacityAttr.setX(idx, 0.45);
+    this.aDarkAttr.setX(idx, 0);
+    this.nextParticle = (idx + 1) % PARTICLE_COUNT;
   }
 
   emitForCar(car: CarState, dt: number): void {
@@ -127,11 +151,43 @@ export class TireSmokeSystem {
     const rearX = car.position.x - sinR * 3;
     const rearZ = car.position.z - cosR * 3;
 
-    // Lateral offset for left/right tire
     const lateralX = cosR * 1.5;
     const lateralZ = -sinR * 1.5;
     this.emitOne(rearX - lateralX, 0.3, rearZ - lateralZ);
     this.emitOne(rearX + lateralX, 0.3, rearZ + lateralZ);
+
+    this.mesh.instanceMatrix.needsUpdate = true;
+    this.opacityAttr.needsUpdate = true;
+    this.aDarkAttr.needsUpdate = true;
+  }
+
+  emitCollisionSmoke(position: THREE.Vector3, count = 3): void {
+    for (let i = 0; i < count; i++) {
+      const idx = this.findFreeSlot();
+      const p = this.particles[idx];
+      p.life = p.maxLife;
+      p.isDark = true;
+      p.velocity.set(
+        (Math.random() - 0.5) * 6,
+        Math.random() * 3 + 1,
+        (Math.random() - 0.5) * 6,
+      );
+      this.dummy.position.set(
+        position.x + (Math.random() - 0.5) * 4.5,
+        0.3,
+        position.z + (Math.random() - 0.5) * 4.5,
+      );
+      this.dummy.scale.set(0.39, 0.39, 0.39);
+      this.dummy.rotation.set(-Math.PI / 2, 0, Math.random() * Math.PI * 2);
+      this.dummy.updateMatrix();
+      this.mesh.setMatrixAt(idx, this.dummy.matrix);
+      this.opacityAttr.setX(idx, 0.45);
+      this.aDarkAttr.setX(idx, 1.0);
+      this.nextParticle = (idx + 1) % PARTICLE_COUNT;
+    }
+    this.mesh.instanceMatrix.needsUpdate = true;
+    this.opacityAttr.needsUpdate = true;
+    this.aDarkAttr.needsUpdate = true;
   }
 
   update(dt: number): void {
@@ -150,10 +206,15 @@ export class TireSmokeSystem {
       if (p.life <= 0) {
         this.dummy.scale.set(0, 0, 0);
         p.life = 0;
+        p.isDark = false;
         this.opacityAttr.setX(i, 0);
+        this.aDarkAttr.setX(i, 0);
       } else {
         const progress = 1 - p.life / p.maxLife;
-        const sz = 0.3 + progress * 2.2;
+        // Dark (collision) smoke: 30% bigger — 0.39 → 3.25; regular: 0.3 → 2.5
+        const sz = p.isDark
+          ? 0.39 + progress * 2.86
+          : 0.3 + progress * 2.2;
         this.dummy.scale.set(sz, sz, sz);
 
         // Fade out over last 40% of lifetime
@@ -171,6 +232,7 @@ export class TireSmokeSystem {
     if (dirty) {
       this.mesh.instanceMatrix.needsUpdate = true;
       this.opacityAttr.needsUpdate = true;
+      this.aDarkAttr.needsUpdate = true;
     }
   }
 

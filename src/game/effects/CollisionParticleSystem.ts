@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { TireSmokeSystem } from './TireSmokeSystem.js';
 
 interface Particle {
   life: number;
@@ -9,29 +10,28 @@ interface Particle {
 const SPARK_COUNT = 300;
 const PAINT_COUNT = 225;
 const SHARD_COUNT = 150;
-const SMOKE_COUNT = 240;
 
 export class CollisionParticleSystem {
   private sparks: THREE.InstancedMesh;
   private paintChips: THREE.InstancedMesh;
   private shards: THREE.InstancedMesh;
-  private smokePuffs: THREE.InstancedMesh;
+  private tireSmokeSystem: TireSmokeSystem;
 
   private sparkParticles: Particle[] = [];
   private paintParticles: Particle[] = [];
   private shardParticles: Particle[] = [];
-  private smokeParticles: Particle[] = [];
 
   private sparkNext = 0;
   private paintNext = 0;
   private shardNext = 0;
-  private smokeNext = 0;
 
   private dummy = new THREE.Object3D();
 
-  constructor(scene: THREE.Scene) {
-    // Sparks — bright yellow planes (larger for visibility)
-    const sparkGeo = new THREE.PlaneGeometry(1.5, 1.5);
+  constructor(scene: THREE.Scene, tireSmokeSystem: TireSmokeSystem) {
+    this.tireSmokeSystem = tireSmokeSystem;
+
+    // Sparks — bright yellow planes (30% smaller: 1.5 → 1.05)
+    const sparkGeo = new THREE.PlaneGeometry(1.05, 1.05);
     const sparkMat = new THREE.MeshBasicMaterial({
       color: 0xffdd44,
       transparent: true,
@@ -45,8 +45,8 @@ export class CollisionParticleSystem {
     this.sparks.frustumCulled = false;
     scene.add(this.sparks);
 
-    // Paint chips — colored by car
-    const paintGeo = new THREE.PlaneGeometry(0.6, 0.35);
+    // Paint chips — colored by car (30% smaller: 0.6×0.35 → 0.42×0.245)
+    const paintGeo = new THREE.PlaneGeometry(0.42, 0.245);
     const paintMat = new THREE.MeshBasicMaterial({
       transparent: true,
       opacity: 1.0,
@@ -63,9 +63,9 @@ export class CollisionParticleSystem {
     this.paintChips.frustumCulled = false;
     scene.add(this.paintChips);
 
-    // Shards — dark grey triangles
+    // Shards — dark grey triangles (30% smaller: scale verts by 0.7)
     const shardGeo = new THREE.BufferGeometry();
-    const shardVerts = new Float32Array([0, 0, 0, 0.4, 0, 0, 0.2, 0.5, 0]);
+    const shardVerts = new Float32Array([0, 0, 0, 0.28, 0, 0, 0.14, 0.35, 0]);
     shardGeo.setAttribute('position', new THREE.BufferAttribute(shardVerts, 3));
     shardGeo.computeVertexNormals();
     const shardMat = new THREE.MeshBasicMaterial({
@@ -92,33 +92,21 @@ export class CollisionParticleSystem {
       this.shardParticles.push({ life: 0, maxLife: 1.8, velocity: new THREE.Vector3() });
     }
 
-    // Smoke puffs — flat grey circles, expand and fade over 1.5s
-    const smokeGeo = new THREE.CircleGeometry(1.8, 8);
-    const smokeMat = new THREE.MeshBasicMaterial({
-      color: 0x888888,
-      transparent: true,
-      opacity: 0.5,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    });
-    this.smokePuffs = new THREE.InstancedMesh(smokeGeo, smokeMat, SMOKE_COUNT);
-    this.smokePuffs.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    this.smokePuffs.count = 0;
-    this.smokePuffs.frustumCulled = false;
-    scene.add(this.smokePuffs);
-
-    // Init particle arrays
-    for (let i = 0; i < SMOKE_COUNT; i++) {
-      this.smokeParticles.push({ life: 0, maxLife: 1.5, velocity: new THREE.Vector3() });
-    }
-
     // Hide all instances initially
     this.dummy.scale.set(0, 0, 0);
     this.dummy.updateMatrix();
     for (let i = 0; i < SPARK_COUNT; i++) this.sparks.setMatrixAt(i, this.dummy.matrix);
     for (let i = 0; i < PAINT_COUNT; i++) this.paintChips.setMatrixAt(i, this.dummy.matrix);
     for (let i = 0; i < SHARD_COUNT; i++) this.shards.setMatrixAt(i, this.dummy.matrix);
-    for (let i = 0; i < SMOKE_COUNT; i++) this.smokePuffs.setMatrixAt(i, this.dummy.matrix);
+  }
+
+  private findFreeSlot(pool: Particle[], nextPtr: number): number {
+    const n = pool.length;
+    for (let offset = 0; offset < n; offset++) {
+      const i = (nextPtr + offset) % n;
+      if (pool[i].life <= 0) return i;
+    }
+    return nextPtr; // fallback: overwrite oldest
   }
 
   emit(position: THREE.Vector3, impactDir: THREE.Vector3, carColor: number, carVelocity?: THREE.Vector3, count = 35): void {
@@ -129,7 +117,8 @@ export class CollisionParticleSystem {
 
     // Sparks
     for (let i = 0; i < count; i++) {
-      const p = this.sparkParticles[this.sparkNext];
+      const slot = this.findFreeSlot(this.sparkParticles, this.sparkNext);
+      const p = this.sparkParticles[slot];
       p.life = p.maxLife;
       p.velocity.set(
         (Math.random() - 0.5) * 52 + impactDir.x * 30 + velDir.x * 0.4 * speed,
@@ -140,8 +129,8 @@ export class CollisionParticleSystem {
       this.dummy.scale.set(1, 1, 1);
       this.dummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
       this.dummy.updateMatrix();
-      this.sparks.setMatrixAt(this.sparkNext, this.dummy.matrix);
-      this.sparkNext = (this.sparkNext + 1) % SPARK_COUNT;
+      this.sparks.setMatrixAt(slot, this.dummy.matrix);
+      this.sparkNext = (slot + 1) % SPARK_COUNT;
     }
     this.sparks.count = SPARK_COUNT;
     this.sparks.instanceMatrix.needsUpdate = true;
@@ -149,7 +138,8 @@ export class CollisionParticleSystem {
     // Paint chips
     const paintCount = Math.floor(count * 0.7);
     for (let i = 0; i < paintCount; i++) {
-      const p = this.paintParticles[this.paintNext];
+      const slot = this.findFreeSlot(this.paintParticles, this.paintNext);
+      const p = this.paintParticles[slot];
       p.life = p.maxLife;
       p.velocity.set(
         (Math.random() - 0.5) * 18 + impactDir.x * 15 + velDir.x * 0.4 * speed,
@@ -160,9 +150,9 @@ export class CollisionParticleSystem {
       this.dummy.scale.set(1, 1, 1);
       this.dummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
       this.dummy.updateMatrix();
-      this.paintChips.setMatrixAt(this.paintNext, this.dummy.matrix);
-      this.paintChips.setColorAt(this.paintNext, color);
-      this.paintNext = (this.paintNext + 1) % PAINT_COUNT;
+      this.paintChips.setMatrixAt(slot, this.dummy.matrix);
+      this.paintChips.setColorAt(slot, color);
+      this.paintNext = (slot + 1) % PAINT_COUNT;
     }
     this.paintChips.count = PAINT_COUNT;
     this.paintChips.instanceMatrix.needsUpdate = true;
@@ -171,7 +161,8 @@ export class CollisionParticleSystem {
     // Shards
     const shardCount = Math.floor(count * 0.4);
     for (let i = 0; i < shardCount; i++) {
-      const p = this.shardParticles[this.shardNext];
+      const slot = this.findFreeSlot(this.shardParticles, this.shardNext);
+      const p = this.shardParticles[slot];
       p.life = p.maxLife;
       p.velocity.set(
         (Math.random() - 0.5) * 12 + impactDir.x * 12 + velDir.x * 0.2 * speed,
@@ -182,33 +173,15 @@ export class CollisionParticleSystem {
       this.dummy.scale.set(1, 1, 1);
       this.dummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
       this.dummy.updateMatrix();
-      this.shards.setMatrixAt(this.shardNext, this.dummy.matrix);
-      this.shardNext = (this.shardNext + 1) % SHARD_COUNT;
+      this.shards.setMatrixAt(slot, this.dummy.matrix);
+      this.shardNext = (slot + 1) % SHARD_COUNT;
     }
     this.shards.count = SHARD_COUNT;
     this.shards.instanceMatrix.needsUpdate = true;
 
-    // Smoke puffs — ~60% of count, slow grey rising puffs
+    // Collision smoke — delegate to TireSmokeSystem (darker, 30% bigger)
     const smokeCount = Math.floor(count * 0.6);
-    for (let i = 0; i < smokeCount; i++) {
-      const p = this.smokeParticles[this.smokeNext];
-      p.life = p.maxLife;
-      p.velocity.set(
-        (Math.random() - 0.5) * 6 + velDir.x * 0.1 * speed,
-        Math.random() * 3 + 1,
-        (Math.random() - 0.5) * 6 + velDir.z * 0.1 * speed,
-      );
-      this.dummy.position.copy(position);
-      this.dummy.position.x += (Math.random() - 0.5) * 4.5;
-      this.dummy.position.z += (Math.random() - 0.5) * 4.5;
-      this.dummy.scale.set(0.5, 0.5, 0.5);
-      this.dummy.rotation.set(-Math.PI / 2, 0, Math.random() * Math.PI * 2);
-      this.dummy.updateMatrix();
-      this.smokePuffs.setMatrixAt(this.smokeNext, this.dummy.matrix);
-      this.smokeNext = (this.smokeNext + 1) % SMOKE_COUNT;
-    }
-    this.smokePuffs.count = SMOKE_COUNT;
-    this.smokePuffs.instanceMatrix.needsUpdate = true;
+    this.tireSmokeSystem.emitCollisionSmoke(position, smokeCount);
   }
 
   update(dt: number): void {
@@ -216,7 +189,6 @@ export class CollisionParticleSystem {
     let sparkDirty = false;
     let paintDirty = false;
     let shardDirty = false;
-    let smokeDirty = false;
 
     // Update sparks
     for (let i = 0; i < SPARK_COUNT; i++) {
@@ -290,34 +262,9 @@ export class CollisionParticleSystem {
       shardDirty = true;
     }
 
-    // Update smoke puffs — rise slowly, expand scale 1× → 3×, fade out
-    for (let i = 0; i < SMOKE_COUNT; i++) {
-      const p = this.smokeParticles[i];
-      if (p.life <= 0) continue;
-      p.life -= dt;
-
-      this.smokePuffs.getMatrixAt(i, this.dummy.matrix);
-      this.dummy.matrix.decompose(this.dummy.position, this.dummy.quaternion, this.dummy.scale);
-
-      this.dummy.position.add(p.velocity.clone().multiplyScalar(dt));
-
-      if (p.life <= 0) {
-        this.dummy.scale.set(0, 0, 0);
-        p.life = 0;
-      } else {
-        const progress = 1 - p.life / p.maxLife; // 0→1 as particle ages
-        const sz = 0.5 + progress * 2.5; // 0.5 → 3.0
-        this.dummy.scale.set(sz, sz, sz);
-      }
-      this.dummy.updateMatrix();
-      this.smokePuffs.setMatrixAt(i, this.dummy.matrix);
-      smokeDirty = true;
-    }
-
     if (sparkDirty) this.sparks.instanceMatrix.needsUpdate = true;
     if (paintDirty) this.paintChips.instanceMatrix.needsUpdate = true;
     if (shardDirty) this.shards.instanceMatrix.needsUpdate = true;
-    if (smokeDirty) this.smokePuffs.instanceMatrix.needsUpdate = true;
   }
 
   dispose(): void {
@@ -327,7 +274,5 @@ export class CollisionParticleSystem {
     (this.paintChips.material as THREE.Material).dispose();
     this.shards.geometry.dispose();
     (this.shards.material as THREE.Material).dispose();
-    this.smokePuffs.geometry.dispose();
-    (this.smokePuffs.material as THREE.Material).dispose();
   }
 }

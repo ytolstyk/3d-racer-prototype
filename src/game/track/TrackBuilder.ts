@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import type { TrackDefinition } from './TrackDefinition.js';
+import type { TunnelSection } from '../../types/game.js';
 
 export class TrackBuilder {
-  build(track: TrackDefinition): THREE.Group {
+  build(track: TrackDefinition, tunnels: TunnelSection[] = []): THREE.Group {
     const group = new THREE.Group();
 
     // Build track surface (chunked for frustum culling)
@@ -28,7 +29,67 @@ export class TrackBuilder {
       group.add(gate);
     }
 
+    // Build tunnel sections
+    for (const tunnel of tunnels) {
+      group.add(this.buildTunnel(track, tunnel.tStart, tunnel.tEnd));
+    }
+
     return group;
+  }
+
+  private buildTunnel(track: TrackDefinition, tStart: number, tEnd: number): THREE.Mesh {
+    const N_SECTIONS = 80;
+    const N_ARCH = 9;
+    const halfW = (track.width + 8) / 2;
+    const archH = 30;
+
+    const pos: number[] = [];
+    const idx: number[] = [];
+
+    for (let si = 0; si <= N_SECTIONS; si++) {
+      const t = tStart + (tEnd - tStart) * si / N_SECTIONS;
+      const c = track.getPointAt(t);
+      const n = track.getNormalAt(t);
+      for (let j = 0; j < N_ARCH; j++) {
+        const angle = Math.PI * (1 - j / (N_ARCH - 1));
+        pos.push(
+          c.x + n.x * halfW * Math.cos(angle),
+          c.y + archH * Math.sin(angle),
+          c.z + n.z * halfW * Math.cos(angle),
+        );
+      }
+    }
+
+    // Arch quads
+    for (let si = 0; si < N_SECTIONS; si++) {
+      for (let j = 0; j < N_ARCH - 1; j++) {
+        const a = si * N_ARCH + j;
+        const b = si * N_ARCH + j + 1;
+        const c = (si + 1) * N_ARCH + j;
+        const d = (si + 1) * N_ARCH + j + 1;
+        idx.push(a, b, c, b, d, c);
+      }
+    }
+
+    // End caps (triangle fans from vertex 0 of each end)
+    for (const si of [0, N_SECTIONS]) {
+      const base = si * N_ARCH;
+      for (let j = 1; j < N_ARCH - 1; j++) {
+        idx.push(base, base + j, base + j + 1);
+      }
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+
+    const mat = new THREE.MeshStandardMaterial({
+      transparent: true, opacity: 0.3, color: 0x99ccff,
+      roughness: 0.4, side: THREE.DoubleSide, depthWrite: false,
+    });
+
+    return new THREE.Mesh(geo, mat);
   }
 
   private buildSurfaceChunked(track: TrackDefinition, chunkCount = 8): THREE.Group {
@@ -40,7 +101,6 @@ export class TrackBuilder {
       color: 0x4a4a4a,
       roughness: 0.85,
       metalness: 0.05,
-      side: THREE.DoubleSide,
     });
 
     for (let c = 0; c < chunkCount; c++) {
@@ -61,9 +121,15 @@ export class TrackBuilder {
 
         const local = i - start;
         if (local > 0) {
-          const base = (local - 1) * 2;
-          indices.push(base, base + 1, base + 2);
-          indices.push(base + 1, base + 3, base + 2);
+          const bpPrev = boundaries[i - 1];
+          // Signed area of first triangle in xz plane; positive = correct CCW winding from above.
+          const dx1 = bpPrev.right.x - bpPrev.left.x, dz1 = bpPrev.right.z - bpPrev.left.z;
+          const dx2 = bp.left.x - bpPrev.left.x,       dz2 = bp.left.z - bpPrev.left.z;
+          if (dx1 * dz2 - dz1 * dx2 > 0) {
+            const base = (local - 1) * 2;
+            indices.push(base, base + 1, base + 2);
+            indices.push(base + 1, base + 3, base + 2);
+          }
         }
       }
 
@@ -236,33 +302,30 @@ export class TrackBuilder {
 
   private buildBarrierSpline(track: TrackDefinition, side: 'left' | 'right'): THREE.Group {
     const group = new THREE.Group();
-    const boundaries = track.getBoundaryPoints();
-
     const barrierOutset = 3.25;
     const barrierH = 3.5;
-    const halfD = 1.2;        // half-depth (total width = 2.4 units)
+    const halfD = 0.6;        // half-depth (total width = 1.2 units)
     const stripeH = 0.8;
     const stripeY = 1.2;
     const RIB_INTERVAL = 6;   // cross-section rib every N sample points
 
-    // Collect spine points along barrier centerline
+    // Collect spine points along barrier centerline (high-res to smooth curves)
+    const BARRIER_SAMPLES = 2400;
     const spinePoints: THREE.Vector3[] = [];
     const spineRights: THREE.Vector3[] = [];
-    for (let bi = 0; bi < boundaries.length; bi++) {
-      const bp = boundaries[bi];
-      const base = side === 'left' ? bp.left : bp.right;
-      const normal = track.getNormalAt(bp.t);
-      const outward = side === 'left' ? normal : normal.clone().negate();
-      spinePoints.push(base.clone().add(outward.clone().multiplyScalar(barrierOutset)));
-
-      // Right = lateral direction (perpendicular to travel, horizontal)
-      const next = boundaries[(bi + 1) % boundaries.length];
-      const tangent = new THREE.Vector3().subVectors(next.center, bp.center).normalize();
+    for (let bi = 0; bi <= BARRIER_SAMPLES; bi++) {
+      const t = bi / BARRIER_SAMPLES;
+      const center = track.getPointAt(t);
+      const tangent = track.getTangentAt(t);
+      const trackNormal = track.getNormalAt(t);
+      const outward = side === 'left' ? trackNormal : trackNormal.clone().negate();
+      const edgePoint = center.clone().add(outward.clone().multiplyScalar(track.width / 2));
+      spinePoints.push(edgePoint.add(outward.clone().multiplyScalar(barrierOutset)));
       spineRights.push(new THREE.Vector3().crossVectors(tangent, new THREE.Vector3(0, 1, 0)).normalize());
     }
 
     const barrierMat = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.6, metalness: 0.0, side: THREE.DoubleSide });
-    const stripeMat  = new THREE.MeshStandardMaterial({ color: 0xcc1111, roughness: 0.7, metalness: 0.0, side: THREE.DoubleSide });
+    const stripeMat  = new THREE.MeshBasicMaterial({ color: 0xcc1111, side: THREE.DoubleSide });
     // Ribs face along the track direction — DoubleSide so visible from both travel directions
     const ribMat = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.6, metalness: 0.0, side: THREE.DoubleSide });
 
@@ -273,6 +336,25 @@ export class TrackBuilder {
     const ribVerts:    number[] = [], ribUVs:    number[] = [], ribIdx:    number[] = [];
 
     const total = spinePoints.length;
+
+    // Detect degenerate spine segments (self-intersecting at sharp inner turns)
+    const spineDegenerate: boolean[] = new Array(total - 1).fill(false);
+    let prevSegDir: THREE.Vector3 | null = null;
+    for (let i = 0; i < total - 1; i++) {
+      const d = new THREE.Vector3().subVectors(spinePoints[i + 1], spinePoints[i]);
+      const dist = d.length();
+      if (dist < 0.05) {
+        spineDegenerate[i] = true;
+        continue;
+      }
+      d.normalize();
+      if (prevSegDir !== null && prevSegDir.dot(d) < 0) {
+        spineDegenerate[i] = true;
+        // keep prevSegDir at last valid direction
+      } else {
+        prevSegDir = d;
+      }
+    }
 
     const pushQuad = (
       verts: number[], uvs: number[], idx: number[],
@@ -289,6 +371,7 @@ export class TrackBuilder {
     };
 
     for (let i = 0; i < total - 1; i++) {
+      if (spineDegenerate[i]) continue;
       const p0 = spinePoints[i],   r0 = spineRights[i];
       const p1 = spinePoints[i + 1], r1 = spineRights[i + 1];
       const u0 = i / total, u1 = (i + 1) / total;

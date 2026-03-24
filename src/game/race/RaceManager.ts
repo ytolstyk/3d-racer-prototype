@@ -7,6 +7,7 @@ export class RaceManager {
   private raceStartTime = 0;
   private raceActive = false;
   private finishOrder: string[] = [];
+  private wrongWayTimers = new Map<string, number>();
 
   constructor(track: TrackDefinition, totalLaps: number) {
     this.track = track;
@@ -27,7 +28,11 @@ export class RaceManager {
     return this.raceActive;
   }
 
-  update(cars: CarState[]): void {
+  isWrongWay(carId: string): boolean {
+    return (this.wrongWayTimers.get(carId) ?? 0) > 2.0;
+  }
+
+  update(cars: CarState[], dt: number): void {
     if (!this.raceActive) return;
 
     const now = performance.now();
@@ -39,6 +44,15 @@ export class RaceManager {
       car.currentT = this.track.getClosestT(car.position, car.currentT);
 
       if (car.finished) continue;
+
+      // Wrong way detection for player
+      if (car.isPlayer) {
+        const tDelta = car.currentT - car.previousT;
+        // Going backward: tDelta is negative and not a lap wrap
+        const isGoingBack = tDelta < -0.001 && Math.abs(tDelta) < 0.4;
+        const prev = this.wrongWayTimers.get(car.id) ?? 0;
+        this.wrongWayTimers.set(car.id, isGoingBack ? prev + dt : 0);
+      }
 
       // Track quarter point (anti-reverse guard)
       if (car.currentT > 0.25 && car.currentT < 0.75) {

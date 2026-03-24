@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { CarDefinition, CarState, GameState } from '../types/game.js';
 import { CAR_DEFINITIONS } from '../constants/cars.js';
 import { TRACKS } from '../constants/track.js';
+import type { TrackConfig } from '../constants/track.js';
 import { GameStateEmitter } from '../state/GameStateEmitter.js';
 import { InputManager } from './InputManager.js';
 import { TrackDefinition } from './track/TrackDefinition.js';
@@ -19,11 +20,10 @@ import { CollisionSystem } from './collision/CollisionSystem.js';
 import { RaceManager } from './race/RaceManager.js';
 import { StartSequence } from './race/StartSequence.js';
 import { Minimap } from './race/Minimap.js';
-import { TrackBoundaryObjects } from './scene/TrackBoundaryObjects.js';
 import { TireMarkSystem } from './scene/TireMarkSystem.js';
 import { CollisionParticleSystem } from './effects/CollisionParticleSystem.js';
 import { TireSmokeSystem } from './effects/TireSmokeSystem.js';
-import { KitchenItems } from './scene/KitchenItems.js';
+import { KITCHEN_ITEM_FACTORIES } from './scene/KitchenItems.js';
 
 interface CarHazardState {
   inHazard: boolean;
@@ -31,11 +31,13 @@ interface CarHazardState {
   drip: number;
 }
 
+
 export class GameEngine {
   private scene: THREE.Scene;
   private renderer: THREE.WebGLRenderer;
   private cameraController: TopDownCamera;
   private track: TrackDefinition;
+  private trackConfig: TrackConfig;
   private hazardSystem: HazardSystem;
   private carPhysics: CarPhysics;
   private playerController: CarController;
@@ -98,23 +100,27 @@ export class GameEngine {
       const stored = sessionStorage.getItem('editor_track');
       if (stored) trackConfig = JSON.parse(stored) as typeof TRACKS[0];
     }
+    this.trackConfig = trackConfig;
     this.track = new TrackDefinition(trackConfig);
     const trackBuilder = new TrackBuilder();
-    this.scene.add(trackBuilder.build(this.track));
+    this.scene.add(trackBuilder.build(this.track, this.trackConfig.tunnels ?? []));
 
     // Hazards
     this.hazardSystem = new HazardSystem(this.track);
     this.scene.add(this.hazardSystem.buildMeshes());
 
-    // Boundary decorations (bollards + spectators)
-    const boundaryObjects = new TrackBoundaryObjects(this.track);
-    this.scene.add(boundaryObjects.build());
+    // Placed objects from track config (editor-placed items)
+    for (const obj of (this.trackConfig.objects ?? [])) {
+      const factory = KITCHEN_ITEM_FACTORIES[obj.type];
+      if (!factory) continue;
+      const item = factory();
+      item.position.set(obj.x, obj.y ?? 0, obj.z);
+      item.rotation.y = obj.rotation;
+      item.scale.setScalar(obj.scale);
+      this.scene.add(item);
+    }
 
-    // Kitchen items at table corners
-    const kitchenItems = new KitchenItems();
-    this.scene.add(kitchenItems.build());
-
-    // Obstacles — none; decorative boundary objects replace track-edge decorations
+    // No obstacles
     this.obstacles = [];
 
     // Cars
@@ -123,11 +129,14 @@ export class GameEngine {
     const carFactory = new CarFactory();
     this.setupCars(carFactory, selectedCarId);
 
+    // Tire smoke (created before collision particles so it can be passed in)
+    this.tireSmoke = new TireSmokeSystem(this.scene);
+
     // Collision
     this.collisionSystem = new CollisionSystem(this.track, this.obstacles, this.carPhysics);
 
-    // Collision particles
-    this.collisionParticles = new CollisionParticleSystem(this.scene);
+    // Collision particles (uses TireSmokeSystem for smoke)
+    this.collisionParticles = new CollisionParticleSystem(this.scene, this.tireSmoke);
     this.collisionSystem.onCollision = (pos, dir, color, carVelocity) => {
       this.collisionParticles?.emit(pos, dir, color, carVelocity);
     };
@@ -139,9 +148,6 @@ export class GameEngine {
 
     // Tire marks
     this.tireMarks = new TireMarkSystem(this.scene);
-
-    // Tire smoke
-    this.tireSmoke = new TireSmokeSystem(this.scene);
 
     // Input
     this.inputManager = new InputManager();
@@ -169,16 +175,13 @@ export class GameEngine {
   private setupCars(factory: CarFactory, selectedCarId: string): void {
     const trackLength = this.track.getLength();
 
-    // Player is always index 0; AI fills from available cars
     const playerDef = CAR_DEFINITIONS.find((c) => c.id === selectedCarId) ?? CAR_DEFINITIONS[0];
     const aiDefs = CAR_DEFINITIONS.filter((c) => c.id !== selectedCarId);
 
-    // Splice player into a random grid slot
     const allDefs: { def: CarDefinition; isPlayer: boolean }[] = aiDefs.map((def) => ({ def, isPlayer: false }));
     const slot = Math.floor(Math.random() * (allDefs.length + 1));
     allDefs.splice(slot, 0, { def: playerDef, isPlayer: true });
 
-    // Staggered grid: left column at front, right column half a row behind
     const rowSpacing = 22;
     const staggerOffset = 11;
     const lateralSpacing = 16;
@@ -190,18 +193,15 @@ export class GameEngine {
 
       const carMesh = factory.createCar(def);
 
-      // Convert grid position to spline t-offset
       const backDist = row * rowSpacing + col * staggerOffset;
       const tOffset = backDist / trackLength;
       const carT = ((0 - tOffset) % 1 + 1) % 1;
 
-      // Get spline-based position and orientation
       const splinePos = this.track.getPointAt(carT);
       const splineTangent = this.track.getTangentAt(carT);
       const splineNormal = this.track.getNormalAt(carT);
       const carRotation = Math.atan2(splineTangent.x, splineTangent.z);
 
-      // Apply lateral lane offset along normal
       const sideOffset = splineNormal.clone().multiplyScalar((col - 0.5) * lateralSpacing);
       const pos = splinePos.clone().add(sideOffset);
       pos.y = 0.01;
@@ -210,7 +210,6 @@ export class GameEngine {
       carMesh.rotation.y = carRotation;
       this.scene.add(carMesh);
 
-      // Add nameplate for AI cars
       if (!isPlayer) {
         const nameplate = factory.createNameplate(def.name, def.color);
         carMesh.add(nameplate);
@@ -313,7 +312,7 @@ export class GameEngine {
       this.collisionSystem.update(this.cars, dt);
 
       // Race management
-      this.raceManager.update(this.cars);
+      this.raceManager.update(this.cars, dt);
 
       // Check if player just finished
       if (this.playerCar?.finished && !this.playerFinished) {
@@ -342,22 +341,18 @@ export class GameEngine {
     const effect = this.hazardSystem.getEffect(car.position, car.currentT);
 
     if (effect) {
-      // In hazard — apply physics effect, don't yet leave substance marks
       this.carPhysics.applyHazardEffect(car, effect, dt);
       const wasInHazard = hs.inHazard;
       hs.inHazard = true;
       hs.zoneType = effect.zoneType;
       if (!wasInHazard) {
-        // Just entered hazard
         hs.drip = 0;
       }
     } else {
       if (hs.inHazard) {
-        // Just exited hazard — start drip
         hs.inHazard = false;
         hs.drip = 60;
       }
-      // Drip substance marks after leaving hazard
       if (hs.drip > 0) {
         this.tireMarks?.addSubstanceMarks(car, hs.zoneType);
         hs.drip--;
@@ -398,6 +393,7 @@ export class GameEngine {
       checkpointSegmentTime: this.playerCar.lastCheckpointSegmentTime,
       checkpointBestTime: this.playerCar.lastCheckpointBestTime,
       checkpointFlashAge: flashAge,
+      isWrongWay: this.raceManager.isWrongWay(this.playerCar.id),
     };
 
     this.emitter.emit(state, countdown >= 0);
@@ -424,7 +420,6 @@ export class GameEngine {
     this.emitter.clear();
     this.renderer.dispose();
 
-    // Dispose all geometries and materials
     this.scene.traverse((obj) => {
       if (obj instanceof THREE.Mesh) {
         obj.geometry.dispose();

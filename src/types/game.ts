@@ -95,6 +95,7 @@ export interface GameState {
   checkpointSegmentTime: number;
   checkpointBestTime: number;
   checkpointFlashAge: number;
+  isWrongWay: boolean;
 }
 
 export interface MinimapCar {
@@ -114,4 +115,25 @@ export interface ObstacleDef {
   position: THREE.Vector3;
   rotation?: number;
   scale?: number;
+}
+
+export type KitchenItemType =
+  | 'mug' | 'spoon' | 'plate' | 'fork' | 'napkin'
+  | 'saltShaker' | 'glass' | 'butterDish' | 'donut'
+  | 'breadLoaf' | 'salami' | 'cheeseWedge' | 'apple'
+  | 'berryCluster' | 'notepad' | 'pen' | 'pencil'
+  | 'stickyNote' | 'cauliflower';
+
+export interface PlacedObject {
+  type: KitchenItemType;
+  x: number;
+  z: number;
+  y?: number;
+  rotation: number;
+  scale: number;
+}
+
+export interface TunnelSection {
+  tStart: number;
+  tEnd: number;
 }
