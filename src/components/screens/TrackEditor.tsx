@@ -75,6 +75,7 @@ const OBJECT_FOOTPRINTS: Record<KitchenItemType, { w: number; d: number; shape: 
 
 interface UndoSnapshot {
   points: [number, number][];
+  objects: PlacedObject[];
 }
 
 interface EditorState {
@@ -168,7 +169,7 @@ function getInitialState(): EditorState {
 }
 
 function makeSnapshot(state: EditorState): UndoSnapshot {
-  return { points: state.points };
+  return { points: state.points, objects: state.objects };
 }
 
 function pushHistory(state: EditorState): UndoSnapshot[] {
@@ -216,7 +217,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (state.past.length === 0) return state;
       const past = [...state.past];
       const snap = past.pop()!;
-      return { ...state, past, points: snap.points };
+      return { ...state, past, points: snap.points, objects: snap.objects, selectedObjectIndex: -1 };
     }
 
     case 'SET_START': {
@@ -311,12 +312,13 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         }
       }
       if (maxTopY > 0) newObj.y = maxTopY;
-      return { ...state, objects: [...state.objects, newObj], selectedObjectIndex: state.objects.length };
+      return { ...state, past: pushHistory(state), objects: [...state.objects, newObj], selectedObjectIndex: state.objects.length };
     }
 
     case 'DELETE_OBJECT':
       return {
         ...state,
+        past: pushHistory(state),
         objects: state.objects.filter((_, i) => i !== action.index),
         selectedObjectIndex: -1,
       };
@@ -333,14 +335,14 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         ...objects[action.index],
         rotation: objects[action.index].rotation + action.delta,
       };
-      return { ...state, objects };
+      return { ...state, past: pushHistory(state), objects };
     }
 
     case 'SCALE_OBJECT': {
       const objects = [...state.objects];
       const newScale = Math.max(0.5, Math.min(3.0, objects[action.index].scale + action.delta));
       objects[action.index] = { ...objects[action.index], scale: Math.round(newScale * 10) / 10 };
-      return { ...state, objects };
+      return { ...state, past: pushHistory(state), objects };
     }
 
     case 'SELECT_OBJECT':
@@ -1093,6 +1095,7 @@ export function TrackEditor() {
       const objIdx = findNearestObject(pos);
       if (objIdx !== -1) {
         // Select existing object; set up for drag
+        dispatch({ type: 'PUSH_HISTORY' });
         dispatch({ type: 'SELECT_OBJECT', index: objIdx });
         const obj = stateRef.current.objects[objIdx];
         const [ox, oy] = gameToCanvas(obj.x, obj.z, originX, originY);
