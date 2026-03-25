@@ -378,6 +378,9 @@ export class TrackBuilder {
       }
     }
 
+    // Clip self-intersecting loops at tight hairpins to a clean pointed apex.
+    this.fixSpineSelfIntersections(spinePoints, track.width);
+
     const barrierMat = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.6, metalness: 0.0, side: THREE.DoubleSide });
     const stripeMat  = new THREE.MeshBasicMaterial({
       map: this.makeRedTexture(),
@@ -399,20 +402,9 @@ export class TrackBuilder {
 
     // Detect degenerate spine segments (self-intersecting at sharp inner turns)
     const spineDegenerate: boolean[] = new Array(total - 1).fill(false);
-    let prevSegDir: THREE.Vector3 | null = null;
     for (let i = 0; i < total - 1; i++) {
-      const d = new THREE.Vector3().subVectors(spinePoints[i + 1], spinePoints[i]);
-      const dist = d.length();
-      if (dist < 0.05) {
-        spineDegenerate[i] = true;
-        continue;
-      }
-      d.normalize();
-      if (prevSegDir !== null && prevSegDir.dot(d) < 0.15) {
-        spineDegenerate[i] = true;
-      } else {
-        prevSegDir = d;
-      }
+      const dist = spinePoints[i + 1].distanceTo(spinePoints[i]);
+      if (dist < 0.05) spineDegenerate[i] = true;
     }
 
     const pushQuad = (
@@ -585,6 +577,52 @@ export class TrackBuilder {
     group.add(banner);
 
     return group;
+  }
+
+  private segmentIntersect2D(
+    ax: number, az: number, bx: number, bz: number,
+    cx: number, cz: number, dx: number, dz: number,
+  ): { x: number; z: number } | null {
+    const dABx = bx - ax, dABz = bz - az;
+    const dCDx = dx - cx, dCDz = dz - cz;
+    const denom = dABx * dCDz - dABz * dCDx;
+    if (Math.abs(denom) < 1e-10) return null;
+    const t = ((cx - ax) * dCDz - (cz - az) * dCDx) / denom;
+    const s = ((cx - ax) * dABz - (cz - az) * dABx) / denom;
+    if (t > 0 && t < 1 && s > 0 && s < 1) {
+      return { x: ax + t * dABx, z: az + t * dABz };
+    }
+    return null;
+  }
+
+  private fixSpineSelfIntersections(points: THREE.Vector3[], trackWidth: number): void {
+    const n = points.length - 1; // closed: points[0] ≈ points[n]
+    const WINDOW = 250;
+    for (let i = 0; i < n; i++) {
+      const a1 = points[i];
+      const a2 = points[(i + 1) % n];
+      for (let jOff = 2; jOff < WINDOW; jOff++) {
+        const j = (i + jOff) % n;
+        const jNext = (i + jOff + 1) % n;
+        const b1 = points[j];
+        const b2 = points[jNext];
+        if (a1.distanceTo(b1) > trackWidth * 4) continue;
+        const hit = this.segmentIntersect2D(
+          a1.x, a1.z, a2.x, a2.z,
+          b1.x, b1.z, b2.x, b2.z,
+        );
+        if (hit) {
+          // Collapse all loop points [i+1 .. j] to the intersection apex.
+          // The degenerate-segment filter will skip the zero-length quads.
+          for (let k = 1; k <= jOff; k++) {
+            const p = points[(i + k) % n];
+            p.set(hit.x, p.y, hit.z);
+          }
+          i += jOff;
+          break;
+        }
+      }
+    }
   }
 
   buildCheckpointGate(track: TrackDefinition, t: number, index: number): THREE.Group {

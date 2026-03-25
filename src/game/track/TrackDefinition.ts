@@ -92,6 +92,56 @@ export class TrackDefinition {
         }
       }
     }
+
+    this.fixBorderSelfIntersections();
+  }
+
+  private segmentIntersect2D(
+    ax: number, az: number, bx: number, bz: number,
+    cx: number, cz: number, dx: number, dz: number,
+  ): { x: number; z: number } | null {
+    const dABx = bx - ax, dABz = bz - az;
+    const dCDx = dx - cx, dCDz = dz - cz;
+    const denom = dABx * dCDz - dABz * dCDx;
+    if (Math.abs(denom) < 1e-10) return null; // parallel
+    const t = ((cx - ax) * dCDz - (cz - az) * dCDx) / denom;
+    const s = ((cx - ax) * dABz - (cz - az) * dABx) / denom;
+    if (t > 0 && t < 1 && s > 0 && s < 1) {
+      return { x: ax + t * dABx, z: az + t * dABz };
+    }
+    return null;
+  }
+
+  private fixBorderSelfIntersections(): void {
+    const pts = this.boundaryPoints;
+    const n = pts.length - 1; // closed: pts[0] === pts[n]
+    const WINDOW = 80;
+
+    for (const side of ['left', 'right'] as const) {
+      for (let i = 0; i < n; i++) {
+        const a1 = pts[i][side];
+        const a2 = pts[(i + 1) % n][side];
+        for (let jOff = 2; jOff < WINDOW; jOff++) {
+          const j = (i + jOff) % n;
+          const jNext = (i + jOff + 1) % n;
+          const b1 = pts[j][side];
+          const b2 = pts[jNext][side];
+          if (a1.distanceTo(b1) > this.width * 3) continue;
+          const hit = this.segmentIntersect2D(
+            a1.x, a1.z, a2.x, a2.z,
+            b1.x, b1.z, b2.x, b2.z,
+          );
+          if (hit) {
+            // Collapse all loop points [i+1 .. j] to the intersection tip
+            for (let k = 1; k <= jOff; k++) {
+              pts[(i + k) % n][side].set(hit.x, pts[(i + k) % n][side].y, hit.z);
+            }
+            i += jOff; // skip past the corrected region
+            break;
+          }
+        }
+      }
+    }
   }
 
   getBoundaryPoints(): BoundaryPoint[] {
