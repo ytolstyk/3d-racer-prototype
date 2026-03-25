@@ -125,7 +125,7 @@ export class TrackBuilder {
           // Signed area of first triangle in xz plane; positive = correct CCW winding from above.
           const dx1 = bpPrev.right.x - bpPrev.left.x, dz1 = bpPrev.right.z - bpPrev.left.z;
           const dx2 = bp.left.x - bpPrev.left.x,       dz2 = bp.left.z - bpPrev.left.z;
-          if (dx1 * dz2 - dz1 * dx2 > 0) {
+          if (dx1 * dz2 - dz1 * dx2 > 1.0) {
             const base = (local - 1) * 2;
             indices.push(base, base + 1, base + 2);
             indices.push(base + 1, base + 3, base + 2);
@@ -204,6 +204,17 @@ export class TrackBuilder {
     }
 
     return group;
+  }
+
+  private makeRedTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 4; canvas.height = 4;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#cc1111';
+    ctx.fillRect(0, 0, 4, 4);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
   }
 
   private makeCurbTexture(): THREE.CanvasTexture {
@@ -311,8 +322,8 @@ export class TrackBuilder {
 
     // Collect spine points along barrier centerline (high-res to smooth curves)
     const BARRIER_SAMPLES = 2400;
-    const spinePoints: THREE.Vector3[] = [];
-    const spineRights: THREE.Vector3[] = [];
+    const rawSpinePoints: THREE.Vector3[] = [];
+    const rawSpineRights: THREE.Vector3[] = [];
     for (let bi = 0; bi <= BARRIER_SAMPLES; bi++) {
       const t = bi / BARRIER_SAMPLES;
       const center = track.getPointAt(t);
@@ -320,12 +331,61 @@ export class TrackBuilder {
       const trackNormal = track.getNormalAt(t);
       const outward = side === 'left' ? trackNormal : trackNormal.clone().negate();
       const edgePoint = center.clone().add(outward.clone().multiplyScalar(track.width / 2));
-      spinePoints.push(edgePoint.add(outward.clone().multiplyScalar(barrierOutset)));
-      spineRights.push(new THREE.Vector3().crossVectors(tangent, new THREE.Vector3(0, 1, 0)).normalize());
+      rawSpinePoints.push(edgePoint.add(outward.clone().multiplyScalar(barrierOutset)));
+      rawSpineRights.push(new THREE.Vector3().crossVectors(tangent, new THREE.Vector3(0, 1, 0)).normalize());
+    }
+
+    // Post-process: two passes of midpoint insertion at high-curvature locations
+    // to smooth outer arcs at sharp turns.
+    let currentPoints = rawSpinePoints as THREE.Vector3[];
+    let currentRights = rawSpineRights as THREE.Vector3[];
+    for (let pass = 0; pass < 4; pass++) {
+      const nextPoints: THREE.Vector3[] = [currentPoints[0]];
+      const nextRights: THREE.Vector3[] = [currentRights[0]];
+      for (let i = 1; i < currentPoints.length; i++) {
+        if (i + 1 < currentPoints.length) {
+          const d0 = new THREE.Vector3().subVectors(currentPoints[i], currentPoints[i - 1]).normalize();
+          const d1 = new THREE.Vector3().subVectors(currentPoints[i + 1], currentPoints[i]).normalize();
+          if (d0.dot(d1) < 0.98) {
+            const mid = new THREE.Vector3().addVectors(currentPoints[i - 1], currentPoints[i]).multiplyScalar(0.5);
+            const midR = new THREE.Vector3().addVectors(currentRights[i - 1], currentRights[i]).multiplyScalar(0.5).normalize();
+            nextPoints.push(mid);
+            nextRights.push(midR);
+          }
+        }
+        nextPoints.push(currentPoints[i]);
+        nextRights.push(currentRights[i]);
+      }
+      currentPoints = nextPoints;
+      currentRights = nextRights;
+    }
+    const spinePoints = currentPoints;
+    const spineRights = currentRights;
+
+    // Laplacian smoothing on spine positions near high-curvature regions.
+    for (let pass = 0; pass < 3; pass++) {
+      const snap = spinePoints.map(p => p.clone());
+      for (let i = 1; i < spinePoints.length - 1; i++) {
+        const d0 = new THREE.Vector3().subVectors(snap[i], snap[i - 1]).normalize();
+        const d1 = new THREE.Vector3().subVectors(snap[i + 1], snap[i]).normalize();
+        if (d0.dot(d1) < 0.99) {
+          const w = Math.min(0.45, (1 - d0.dot(d1)) * 3);
+          spinePoints[i].copy(snap[i]).lerp(
+            new THREE.Vector3().addVectors(snap[i - 1], snap[i + 1]).multiplyScalar(0.5),
+            w,
+          );
+        }
+      }
     }
 
     const barrierMat = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.6, metalness: 0.0, side: THREE.DoubleSide });
-    const stripeMat  = new THREE.MeshBasicMaterial({ color: 0xcc1111, side: THREE.DoubleSide });
+    const stripeMat  = new THREE.MeshBasicMaterial({
+      map: this.makeRedTexture(),
+      side: THREE.DoubleSide,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    });
     // Ribs face along the track direction — DoubleSide so visible from both travel directions
     const ribMat = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.6, metalness: 0.0, side: THREE.DoubleSide });
 
@@ -348,9 +408,8 @@ export class TrackBuilder {
         continue;
       }
       d.normalize();
-      if (prevSegDir !== null && prevSegDir.dot(d) < 0) {
+      if (prevSegDir !== null && prevSegDir.dot(d) < 0.15) {
         spineDegenerate[i] = true;
-        // keep prevSegDir at last valid direction
       } else {
         prevSegDir = d;
       }
@@ -423,6 +482,24 @@ export class TrackBuilder {
           p0.x + r0.x *  halfD, 0.05 + barrierH, p0.z + r0.z *  halfD,  // inner-top
           p0.x - r0.x *  halfD, 0.05 + barrierH, p0.z - r0.z *  halfD,  // outer-top
           p0.x - r0.x *  halfD, 0.05,            p0.z - r0.z *  halfD,  // outer-bottom
+        );
+        ribUVs.push(0, 0,  0, 1,  1, 1,  1, 0);
+        ribIdx.push(b, b + 1, b + 2,  b, b + 2, b + 3);
+      }
+    }
+
+    // End caps at degenerate gap boundaries to close open barrier ends
+    for (let i = 0; i < total - 1; i++) {
+      const atGapStart = !spineDegenerate[i] && (i + 1 < total - 1) && spineDegenerate[i + 1];
+      const atGapEnd   = spineDegenerate[i]  && (i + 1 < total - 1) && !spineDegenerate[i + 1];
+      if (atGapStart || atGapEnd) {
+        const p = spinePoints[i + 1], r = spineRights[i + 1];
+        const b = ribVerts.length / 3;
+        ribVerts.push(
+          p.x + r.x *  halfD, 0.05,            p.z + r.z *  halfD,
+          p.x + r.x *  halfD, 0.05 + barrierH, p.z + r.z *  halfD,
+          p.x - r.x *  halfD, 0.05 + barrierH, p.z - r.z *  halfD,
+          p.x - r.x *  halfD, 0.05,            p.z - r.z *  halfD,
         );
         ribUVs.push(0, 0,  0, 1,  1, 1,  1, 0);
         ribIdx.push(b, b + 1, b + 2,  b, b + 2, b + 3);

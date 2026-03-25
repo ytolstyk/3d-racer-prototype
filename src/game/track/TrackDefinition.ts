@@ -29,18 +29,42 @@ export class TrackDefinition {
     const points = cfg.controlPoints.map(
       ([x, y, z]) => new THREE.Vector3(x, y, z)
     );
-    this.curve = new THREE.CatmullRomCurve3(points, true, 'catmullrom', 0.3);
+    this.curve = new THREE.CatmullRomCurve3(points, true, 'centripetal');
     this.computeBoundaries();
   }
 
   private computeBoundaries(): void {
     const up = new THREE.Vector3(0, 1, 0);
+
+    // Build base uniform t-values
+    const tValues: number[] = [];
     for (let i = 0; i <= TRACK_SAMPLES; i++) {
-      const t = i / TRACK_SAMPLES;
+      tValues.push(i / TRACK_SAMPLES);
+    }
+
+    // Insert extra t-values in high-curvature segments so sharp corners get
+    // more boundary points and produce tighter, spike-free quads.
+    const extra: number[] = [];
+    for (let i = 0; i < TRACK_SAMPLES; i++) {
+      const t0 = i / TRACK_SAMPLES;
+      const t1 = (i + 1) / TRACK_SAMPLES;
+      const dot = this.curve.getTangentAt(t0).normalize().dot(
+        this.curve.getTangentAt(t1).normalize()
+      );
+      if (dot < 0.99) {
+        const n = dot < 0.90 ? 16 : dot < 0.95 ? 8 : 4;
+        for (let j = 1; j < n; j++) extra.push(t0 + (t1 - t0) * j / n);
+      }
+    }
+
+    const allTs = [...tValues, ...extra].sort((a, b) => a - b);
+
+    for (let i = 0; i < allTs.length; i++) {
+      const t = allTs[i];
+      if (i > 0 && t - allTs[i - 1] < 1e-7) continue;
       const center = this.curve.getPointAt(t);
       const tangent = this.curve.getTangentAt(t).normalize();
       const normal = new THREE.Vector3().crossVectors(tangent, up).normalize();
-
       this.boundaryPoints.push({
         left: center.clone().add(normal.clone().multiplyScalar(this.width / 2)),
         right: center.clone().sub(normal.clone().multiplyScalar(this.width / 2)),
@@ -48,6 +72,25 @@ export class TrackDefinition {
         tangent: tangent.clone(),
         t,
       });
+    }
+
+    // Laplacian smoothing on left/right edge positions near high-curvature regions.
+    // Uses a snapshot of positions each pass so order of iteration doesn't matter.
+    const pts = this.boundaryPoints;
+    const count = pts.length - 1; // closed loop: pts[0] and pts[count] are the same position
+    for (let pass = 0; pass < 4; pass++) {
+      const snapL = pts.map(p => p.left.clone());
+      const snapR = pts.map(p => p.right.clone());
+      for (let i = 0; i < count; i++) {
+        const ip = (i - 1 + count) % count;
+        const inext = (i + 1) % count;
+        const dot = pts[i].tangent.dot(pts[inext].tangent);
+        if (dot < 0.99) {
+          const w = Math.min(0.45, (1 - dot) * 3);
+          pts[i].left.lerp(snapL[ip].clone().add(snapL[inext]).multiplyScalar(0.5), w);
+          pts[i].right.lerp(snapR[ip].clone().add(snapR[inext]).multiplyScalar(0.5), w);
+        }
+      }
     }
   }
 
