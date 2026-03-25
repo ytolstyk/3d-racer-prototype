@@ -723,6 +723,14 @@ export function TrackEditor() {
       ctx.strokeStyle = 'rgba(0,0,0,0.5)';
       ctx.lineWidth = 1.5 * invZoom;
       ctx.stroke();
+
+      // Point index label
+      const fontSize = Math.max(9, 11 * invZoom);
+      ctx.font = `bold ${fontSize}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = i === 0 ? '#fff' : '#000';
+      ctx.fillText(String(i), x, y);
     }
 
     // Highlight ring on first point when pen can close loop
