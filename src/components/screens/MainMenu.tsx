@@ -2,10 +2,11 @@ import { useNavigate } from 'react-router-dom';
 
 interface MainMenuProps {
   onStart: () => void;
+  onPractice?: () => void;
   onBackToEditor?: () => void;
 }
 
-export function MainMenu({ onStart, onBackToEditor }: MainMenuProps) {
+export function MainMenu({ onStart, onPractice, onBackToEditor }: MainMenuProps) {
   const navigate = useNavigate();
   return (
     <div className="screen main-menu">
@@ -17,7 +18,14 @@ export function MainMenu({ onStart, onBackToEditor }: MainMenuProps) {
             Start Race
           </button>
         </div>
-        <div style={{ marginTop: '1rem' }}>
+        {onPractice && (
+          <div style={{ marginTop: '0.75rem' }}>
+            <button className="btn btn-secondary" onClick={onPractice}>
+              Practice Map
+            </button>
+          </div>
+        )}
+        <div style={{ marginTop: '0.75rem' }}>
           {onBackToEditor ? (
             <button className="btn btn-secondary" onClick={onBackToEditor}>
               ← Back to Editor

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import type { MutableRefObject } from 'react';
 import { GameEngine } from '../game/GameEngine.js';
 import type { GameStateEmitter } from '../state/GameStateEmitter.js';
 
@@ -8,7 +9,7 @@ export function useGameEngine(
   selectedCarId: string,
   totalLaps: number,
   emitter: GameStateEmitter,
-): void {
+): MutableRefObject<GameEngine | null> {
   const engineRef = useRef<GameEngine | null>(null);
 
   useEffect(() => {
@@ -22,4 +23,6 @@ export function useGameEngine(
       engineRef.current = null;
     };
   }, [canvasRef, selectedTrackId, selectedCarId, totalLaps, emitter]);
+
+  return engineRef;
 }

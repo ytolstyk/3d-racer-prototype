@@ -52,25 +52,25 @@ const OBJECT_ABBREVS: Record<KitchenItemType, string> = {
 };
 
 const OBJECT_FOOTPRINTS: Record<KitchenItemType, { w: number; d: number; shape: 'rect' | 'oval' }> = {
-  mug:         { w: 6,   d: 6,   shape: 'oval' },
-  spoon:       { w: 1,   d: 8,   shape: 'rect' },
-  plate:       { w: 10,  d: 10,  shape: 'oval' },
-  fork:        { w: 1.5, d: 10,  shape: 'rect' },
-  napkin:      { w: 8,   d: 5,   shape: 'rect' },
-  saltShaker:  { w: 3,   d: 3,   shape: 'oval' },
-  glass:       { w: 5,   d: 5,   shape: 'oval' },
-  butterDish:  { w: 9,   d: 5,   shape: 'rect' },
-  donut:       { w: 7,   d: 7,   shape: 'oval' },
-  breadLoaf:   { w: 9,   d: 5,   shape: 'rect' },
-  salami:      { w: 6,   d: 6,   shape: 'oval' },
-  cheeseWedge: { w: 7,   d: 5,   shape: 'rect' },
-  apple:       { w: 4,   d: 4,   shape: 'oval' },
-  berryCluster:{ w: 8,   d: 8,   shape: 'oval' },
-  notepad:     { w: 7,   d: 5,   shape: 'rect' },
-  pen:         { w: 0.8, d: 12,  shape: 'rect' },
-  pencil:      { w: 0.8, d: 10,  shape: 'rect' },
-  stickyNote:  { w: 6,   d: 6,   shape: 'rect' },
-  cauliflower: { w: 10,  d: 10,  shape: 'oval' },
+  mug:         { w: 24,  d: 24,  shape: 'oval' },
+  spoon:       { w: 4,   d: 32,  shape: 'rect' },
+  plate:       { w: 40,  d: 40,  shape: 'oval' },
+  fork:        { w: 6,   d: 40,  shape: 'rect' },
+  napkin:      { w: 32,  d: 20,  shape: 'rect' },
+  saltShaker:  { w: 12,  d: 12,  shape: 'oval' },
+  glass:       { w: 20,  d: 20,  shape: 'oval' },
+  butterDish:  { w: 36,  d: 20,  shape: 'rect' },
+  donut:       { w: 28,  d: 28,  shape: 'oval' },
+  breadLoaf:   { w: 36,  d: 20,  shape: 'rect' },
+  salami:      { w: 24,  d: 24,  shape: 'oval' },
+  cheeseWedge: { w: 28,  d: 20,  shape: 'rect' },
+  apple:       { w: 16,  d: 16,  shape: 'oval' },
+  berryCluster:{ w: 32,  d: 32,  shape: 'oval' },
+  notepad:     { w: 28,  d: 20,  shape: 'rect' },
+  pen:         { w: 3.2, d: 48,  shape: 'rect' },
+  pencil:      { w: 3.2, d: 40,  shape: 'rect' },
+  stickyNote:  { w: 24,  d: 24,  shape: 'rect' },
+  cauliflower: { w: 40,  d: 40,  shape: 'oval' },
 };
 
 interface UndoSnapshot {
@@ -122,7 +122,9 @@ type EditorAction =
   | { type: 'SELECT_OBJECT'; index: number }
   | { type: 'SET_ACTIVE_OBJECT_TYPE'; objectType: KitchenItemType }
   | { type: 'ADD_TUNNEL'; tStart: number; tEnd: number }
-  | { type: 'DELETE_TUNNEL'; index: number };
+  | { type: 'DELETE_TUNNEL'; index: number }
+  | { type: 'SET_OBJECT_SCALE'; index: number; scale: number }
+  | { type: 'SET_OBJECT_ROTATION'; index: number; rotation: number };
 
 const initialState: EditorState = {
   points: [],
@@ -141,6 +143,14 @@ const initialState: EditorState = {
 };
 
 function getInitialState(): EditorState {
+  try {
+    const practiceObjects = sessionStorage.getItem('practice_objects');
+    if (practiceObjects) {
+      sessionStorage.removeItem('practice_objects');
+      const objects = JSON.parse(practiceObjects) as PlacedObject[];
+      return { ...initialState, objects };
+    }
+  } catch { /* ignore */ }
   try {
     const stored = sessionStorage.getItem('editor_draft');
     if (stored) {
@@ -357,6 +367,18 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case 'DELETE_TUNNEL':
       return { ...state, tunnels: state.tunnels.filter((_, i) => i !== action.index) };
 
+    case 'SET_OBJECT_SCALE': {
+      const objs = [...state.objects];
+      objs[action.index] = { ...objs[action.index], scale: Math.max(0.5, Math.min(3.0, action.scale)) };
+      return { ...state, objects: objs };
+    }
+
+    case 'SET_OBJECT_ROTATION': {
+      const objs = [...state.objects];
+      objs[action.index] = { ...objs[action.index], rotation: action.rotation };
+      return { ...state, objects: objs };
+    }
+
     default:
       return state;
   }
@@ -433,6 +455,8 @@ export function TrackEditor() {
   const dragHazardOffsetRef = useRef<[number, number]>([0, 0]);
   const dragObjectIndexRef = useRef<number>(-1);
   const dragObjectOffsetRef = useRef<[number, number]>([0, 0]);
+  const cornerDragRef = useRef<{ idx: number; startDist: number; startScale: number } | null>(null);
+  const rotateDragRef = useRef<{ idx: number; lastAngle: number } | null>(null);
   const lineStartRef = useRef<[number, number] | null>(null);
   const hoverPointRef = useRef<[number, number] | null>(null);
   const isDraggingRef = useRef(false);
@@ -624,8 +648,8 @@ export function TrackEditor() {
         const [cx2, cy2] = gameToCanvas(obj.x, obj.z, originX, originY);
         const isSelected = i === selectedObjectIndex;
         const fp = OBJECT_FOOTPRINTS[obj.type] ?? { w: 12, d: 12, shape: 'oval' as const };
-        const hw = fp.w * 0.5 * invZoom * obj.scale;
-        const hd = fp.d * 0.5 * invZoom * obj.scale;
+        const hw = fp.w * 0.5 * obj.scale;
+        const hd = fp.d * 0.5 * obj.scale;
 
         ctx.save();
         ctx.translate(cx2, cy2);
@@ -643,6 +667,23 @@ export function TrackEditor() {
         ctx.lineWidth = (isSelected ? 2.5 : 1.5) * invZoom;
         ctx.stroke();
         ctx.restore();
+
+        // Corner handles for selected object
+        if (isSelected) {
+          ctx.save();
+          ctx.translate(cx2, cy2);
+          ctx.rotate(obj.rotation);
+          for (const [hcx, hcy] of [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]] as [number, number][]) {
+            ctx.beginPath();
+            ctx.arc(hcx, hcy, 5 * invZoom, 0, Math.PI * 2);
+            ctx.fillStyle = '#64c8ff';
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1.5 * invZoom;
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
 
         // Label (unrotated)
         ctx.fillStyle = '#fff';
@@ -853,14 +894,6 @@ export function TrackEditor() {
     if (!canvas) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      const { activeTool, selectedObjectIndex } = stateRef.current;
-
-      if (activeTool === 'object' && selectedObjectIndex !== -1) {
-        // Rotate selected object ±15° per tick
-        const delta = e.deltaY > 0 ? Math.PI / 12 : -Math.PI / 12;
-        dispatch({ type: 'ROTATE_OBJECT', index: selectedObjectIndex, delta });
-        return;
-      }
 
       // Normal zoom
       const rect = canvas.getBoundingClientRect();
@@ -883,6 +916,16 @@ export function TrackEditor() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).tagName === 'INPUT') return;
+
+      if (e.key === '[' || e.key === ']') {
+        e.preventDefault();
+        const { selectedObjectIndex } = stateRef.current;
+        if (selectedObjectIndex !== -1) {
+          const delta = e.key === '[' ? -Math.PI / 12 : Math.PI / 12;
+          dispatch({ type: 'ROTATE_OBJECT', index: selectedObjectIndex, delta });
+        }
+        return;
+      }
 
       if (e.code === 'Space') {
         e.preventDefault();
@@ -1100,6 +1143,49 @@ export function TrackEditor() {
       const canvas = canvasRef.current!;
       const originX = canvas.width / 2;
       const originY = canvas.height / 2;
+
+      // Check corner/rotation handles on selected object first
+      const { selectedObjectIndex } = stateRef.current;
+      if (selectedObjectIndex !== -1) {
+        const selObj = stateRef.current.objects[selectedObjectIndex];
+        const [scx, scy] = gameToCanvas(selObj.x, selObj.z, originX, originY);
+        const sfp = OBJECT_FOOTPRINTS[selObj.type] ?? { w: 12, d: 12, shape: 'oval' as const };
+        const shw = sfp.w * 0.5 * selObj.scale;
+        const shd = sfp.d * 0.5 * selObj.scale;
+        const cosR = Math.cos(selObj.rotation);
+        const sinR = Math.sin(selObj.rotation);
+        const zoom = zoomRef.current;
+        const corners: [number, number][] = [[-shw, -shd], [shw, -shd], [shw, shd], [-shw, shd]];
+
+        let hitCorner = false;
+        for (const [lx, ly] of corners) {
+          const wx = scx + lx * cosR - ly * sinR;
+          const wy = scy + lx * sinR + ly * cosR;
+          const screenDist = Math.hypot(pos[0] - wx, pos[1] - wy) * zoom;
+          if (screenDist <= 8) {
+            dispatch({ type: 'PUSH_HISTORY' });
+            const distFromCenter = Math.hypot(pos[0] - scx, pos[1] - scy);
+            cornerDragRef.current = { idx: selectedObjectIndex, startDist: distFromCenter, startScale: selObj.scale };
+            hitCorner = true;
+            break;
+          }
+        }
+        if (!hitCorner) {
+          for (const [lx, ly] of corners) {
+            const wx = scx + lx * cosR - ly * sinR;
+            const wy = scy + lx * sinR + ly * cosR;
+            const screenDist = Math.hypot(pos[0] - wx, pos[1] - wy) * zoom;
+            if (screenDist <= 20) {
+              dispatch({ type: 'PUSH_HISTORY' });
+              const angle = Math.atan2(pos[1] - scy, pos[0] - scx);
+              rotateDragRef.current = { idx: selectedObjectIndex, lastAngle: angle };
+              break;
+            }
+          }
+        }
+        if (cornerDragRef.current || rotateDragRef.current) return;
+      }
+
       const objIdx = findNearestObject(pos);
       if (objIdx !== -1) {
         // Select existing object; set up for drag
@@ -1142,6 +1228,34 @@ export function TrackEditor() {
     const { activeTool } = stateRef.current;
 
     if (isDraggingRef.current) {
+      if (cornerDragRef.current !== null) {
+        const { idx, startDist, startScale } = cornerDragRef.current;
+        const canvas2 = canvasRef.current!;
+        const ox2 = canvas2.width / 2;
+        const oy2 = canvas2.height / 2;
+        const obj2 = stateRef.current.objects[idx];
+        const [cx3, cy3] = gameToCanvas(obj2.x, obj2.z, ox2, oy2);
+        const currentDist = Math.hypot(pos[0] - cx3, pos[1] - cy3);
+        if (startDist > 0) {
+          dispatch({ type: 'SET_OBJECT_SCALE', index: idx, scale: startScale * (currentDist / startDist) });
+        }
+        draw();
+        return;
+      }
+      if (rotateDragRef.current !== null) {
+        const { idx, lastAngle } = rotateDragRef.current;
+        const canvas2 = canvasRef.current!;
+        const ox2 = canvas2.width / 2;
+        const oy2 = canvas2.height / 2;
+        const obj2 = stateRef.current.objects[idx];
+        const [cx3, cy3] = gameToCanvas(obj2.x, obj2.z, ox2, oy2);
+        const currentAngle = Math.atan2(pos[1] - cy3, pos[0] - cx3);
+        const newRot = stateRef.current.objects[idx].rotation + (currentAngle - lastAngle);
+        dispatch({ type: 'SET_OBJECT_ROTATION', index: idx, rotation: newRot });
+        rotateDragRef.current = { idx, lastAngle: currentAngle };
+        draw();
+        return;
+      }
       if (activeTool === 'move' && dragIndexRef.current !== -1) {
         dispatch({ type: 'MOVE_POINT', index: dragIndexRef.current, point: pos });
         return;
@@ -1189,6 +1303,13 @@ export function TrackEditor() {
     const pos = getPos(e);
     const { activeTool } = stateRef.current;
     isDraggingRef.current = false;
+
+    if (cornerDragRef.current || rotateDragRef.current) {
+      cornerDragRef.current = null;
+      rotateDragRef.current = null;
+      draw();
+      return;
+    }
 
     if (activeTool === 'line' && lineStartRef.current) {
       dispatch({ type: 'ADD_LINE_SEGMENT', start: lineStartRef.current, end: pos });
@@ -1241,6 +1362,8 @@ export function TrackEditor() {
     panLastRef.current = null;
     dragHazardIndexRef.current = -1;
     dragObjectIndexRef.current = -1;
+    cornerDragRef.current = null;
+    rotateDragRef.current = null;
     draw();
   };
 
@@ -1477,7 +1600,7 @@ export function TrackEditor() {
                   >−</button>
                 </div>
                 <span style={{ fontSize: 9, opacity: 0.5, display: 'block', marginTop: 2 }}>
-                  Scroll=rotate · Del=delete · drag=move
+                  [/]=rotate · Del=delete · drag=move
                 </span>
               </div>
             )}

@@ -61,6 +61,7 @@ export class GameEngine {
   private raceStarted = false;
   private playerFinished = false;
   private disposed = false;
+  private paused = false;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -116,7 +117,7 @@ export class GameEngine {
       const item = factory();
       item.position.set(obj.x, obj.y ?? 0, obj.z);
       item.rotation.y = obj.rotation;
-      item.scale.setScalar(obj.scale);
+      item.scale.setScalar(obj.scale * 4);
       this.scene.add(item);
     }
 
@@ -265,6 +266,20 @@ export class GameEngine {
     }
   }
 
+  pause(): void {
+    this.paused = true;
+    this.inputManager.clearKeys();
+  }
+
+  resume(): void {
+    this.paused = false;
+    this.lastTime = performance.now();
+  }
+
+  getTrackConfig(): TrackConfig {
+    return this.trackConfig;
+  }
+
   private loop = (): void => {
     if (this.disposed) return;
 
@@ -274,6 +289,12 @@ export class GameEngine {
 
     // Update countdown
     const countdown = this.startSequence.update();
+
+    if (this.paused) {
+      this.renderer.render(this.scene, this.cameraController.camera);
+      this.animFrameId = requestAnimationFrame(this.loop);
+      return;
+    }
 
     if (this.raceStarted) {
       // Player input

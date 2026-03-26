@@ -125,7 +125,7 @@ export function makeFloorTileTexture(size = 512): THREE.CanvasTexture {
   const grooveThick = 8;
 
   // Apply soft blur filter before drawing fills for baked DOF-like softness
-  ctx.filter = 'blur(3px)';
+  ctx.filter = 'blur(6px)';
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -149,6 +149,23 @@ export function makeFloorTileTexture(size = 512): THREE.CanvasTexture {
   for (let c = 0; c <= cols; c++) {
     ctx.fillRect(c * tileW - grooveThick / 2, 0, grooveThick, size);
   }
+
+  ctx.filter = 'none';
+  const scuffRng = seededRng(501);
+  for (let i = 0; i < 35; i++) {
+    const sx = scuffRng() * size, sy = scuffRng() * size;
+    const sw = 3 + scuffRng() * 18, sh = 1 + scuffRng() * 4;
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(scuffRng() * Math.PI);
+    ctx.globalAlpha = 0.08 + scuffRng() * 0.14;
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, sw, sh, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;

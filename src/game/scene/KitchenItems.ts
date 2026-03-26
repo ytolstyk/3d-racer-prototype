@@ -333,27 +333,31 @@ export const OBJECT_HEIGHTS: Record<KitchenItemType, number> = {
   cauliflower: 6,
 };
 
-// Factory map: each function creates a kitchen item using shared materials
+function scaled4x(fn: () => THREE.Group): () => THREE.Group {
+  return () => { const g = fn(); g.scale.setScalar(4); return g; };
+}
+
+// Factory map: each function creates a kitchen item using shared materials (base 4× scale)
 export const KITCHEN_ITEM_FACTORIES: Record<KitchenItemType, () => THREE.Group> = {
-  mug:          () => makeMug(getSharedMats()),
-  spoon:        () => makeSpoon(getSharedMats()),
-  plate:        () => makePlate(getSharedMats()),
-  fork:         () => makeFork(getSharedMats()),
-  napkin:       () => makeNapkin(getSharedMats()),
-  saltShaker:   () => makeSaltShaker(getSharedMats()),
-  glass:        () => makeGlass(getSharedMats()),
-  butterDish:   () => makeButterDish(getSharedMats()),
-  donut:        () => makeDonut(getSharedMats()),
-  breadLoaf:    () => makeBreadLoaf(getSharedMats()),
-  salami:       () => makeSalami(getSharedMats()),
-  cheeseWedge:  () => makeCheeseWedge(getSharedMats()),
-  apple:        () => makeApple(getSharedMats()),
-  berryCluster: () => makeBerryCluster(getSharedMats()),
-  notepad:      () => makeNotepad(getSharedMats()),
-  pen:          () => makePen(getSharedMats()),
-  pencil:       () => makePencil(getSharedMats()),
-  stickyNote:   () => makeStickyNote(getSharedMats()),
-  cauliflower:  () => makeCauliflower(getSharedMats()),
+  mug:          scaled4x(() => makeMug(getSharedMats())),
+  spoon:        scaled4x(() => makeSpoon(getSharedMats())),
+  plate:        scaled4x(() => makePlate(getSharedMats())),
+  fork:         scaled4x(() => makeFork(getSharedMats())),
+  napkin:       scaled4x(() => makeNapkin(getSharedMats())),
+  saltShaker:   scaled4x(() => makeSaltShaker(getSharedMats())),
+  glass:        scaled4x(() => makeGlass(getSharedMats())),
+  butterDish:   scaled4x(() => makeButterDish(getSharedMats())),
+  donut:        scaled4x(() => makeDonut(getSharedMats())),
+  breadLoaf:    scaled4x(() => makeBreadLoaf(getSharedMats())),
+  salami:       scaled4x(() => makeSalami(getSharedMats())),
+  cheeseWedge:  scaled4x(() => makeCheeseWedge(getSharedMats())),
+  apple:        scaled4x(() => makeApple(getSharedMats())),
+  berryCluster: scaled4x(() => makeBerryCluster(getSharedMats())),
+  notepad:      scaled4x(() => makeNotepad(getSharedMats())),
+  pen:          scaled4x(() => makePen(getSharedMats())),
+  pencil:       scaled4x(() => makePencil(getSharedMats())),
+  stickyNote:   scaled4x(() => makeStickyNote(getSharedMats())),
+  cauliflower:  scaled4x(() => makeCauliflower(getSharedMats())),
 };
 
 export class KitchenItems {

@@ -50,7 +50,7 @@ export class TableScene {
     });
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
-    floor.position.set(0, -8, 0);
+    floor.position.set(0, -12, 0);
     floor.receiveShadow = true;
     group.add(floor);
 

@@ -32,6 +32,10 @@ export class InputManager {
     };
   }
 
+  clearKeys(): void {
+    this.keys.clear();
+  }
+
   dispose(): void {
     window.removeEventListener('keydown', this.boundKeyDown);
     window.removeEventListener('keyup', this.boundKeyUp);

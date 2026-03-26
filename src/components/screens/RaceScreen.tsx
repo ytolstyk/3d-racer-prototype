@@ -1,4 +1,4 @@
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useState, useEffect } from 'react';
 import { GameStateEmitter } from '../../state/GameStateEmitter.js';
 import { useGameEngine } from '../../hooks/useGameEngine.js';
 import { useGameState } from '../../hooks/useGameState.js';
@@ -20,12 +20,36 @@ interface RaceScreenProps {
   onBackToEditor?: () => void;
 }
 
+const pauseOverlayStyle: React.CSSProperties = {
+  position: 'absolute', inset: 0,
+  background: 'rgba(0,0,0,0.65)',
+  display: 'flex', flexDirection: 'column',
+  alignItems: 'center', justifyContent: 'center', gap: '12px',
+  zIndex: 100,
+};
+
 export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, onMainMenu, onRaceAgain, onBackToEditor }: RaceScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const emitter = useMemo(() => new GameStateEmitter(), []);
+  const [paused, setPaused] = useState(false);
 
-  useGameEngine(canvasRef, selectedTrackId, selectedCarId, totalLaps, emitter);
+  const engineRef = useGameEngine(canvasRef, selectedTrackId, selectedCarId, totalLaps, emitter);
   const state = useGameState(emitter);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code !== 'Escape') return;
+      e.preventDefault();
+      setPaused(prev => {
+        const next = !prev;
+        if (next) engineRef.current?.pause();
+        else engineRef.current?.resume();
+        return next;
+      });
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [engineRef]);
 
   return (
     <div className="race-screen">
@@ -35,6 +59,27 @@ export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, onMainMe
         <button className="btn-back-to-editor" onClick={onBackToEditor}>
           ← Editor
         </button>
+      )}
+
+      {paused && (
+        <div style={pauseOverlayStyle}>
+          <h2 style={{ color: '#fff', margin: 0 }}>Paused</h2>
+          <button className="btn btn-primary" onClick={() => { setPaused(false); engineRef.current?.resume(); }}>
+            Resume
+          </button>
+          {onBackToEditor && (
+            <button className="btn btn-secondary" onClick={() => {
+              const cfg = engineRef.current?.getTrackConfig();
+              if (cfg) sessionStorage.setItem('editor_track', JSON.stringify(cfg));
+              onBackToEditor();
+            }}>
+              Edit Current Track
+            </button>
+          )}
+          <button className="btn btn-secondary" onClick={onMainMenu}>
+            Main Menu
+          </button>
+        </div>
       )}
 
       {state.countdownActive && <Countdown value={state.countdown} />}

@@ -7,6 +7,7 @@ import { CarSelect } from './components/screens/CarSelect.js';
 import { LapSelect } from './components/screens/LapSelect.js';
 import { RaceScreen } from './components/screens/RaceScreen.js';
 import { TrackEditor } from './components/screens/TrackEditor.js';
+import { PracticeScreen } from './components/screens/PracticeScreen.js';
 import './App.css';
 
 function GameApp() {
@@ -41,6 +42,8 @@ function GameApp() {
     setSelectedTrackId('');
   };
 
+  const handlePractice = () => setPhase('practice');
+
   const handleRaceAgain = () => {
     // Re-mount RaceScreen by going through lapSelect briefly
     setPhase('lapSelect');
@@ -55,7 +58,16 @@ function GameApp() {
       return (
         <MainMenu
           onStart={() => setPhase('trackSelect')}
+          onPractice={handlePractice}
           onBackToEditor={isEditorTest ? handleBackToEditor : undefined}
+        />
+      );
+    case 'practice':
+      return (
+        <PracticeScreen
+          selectedCarId="racer-red"
+          onMainMenu={handleMainMenu}
+          onOpenInEditor={() => navigate('/track-editor')}
         />
       );
     case 'trackSelect':
