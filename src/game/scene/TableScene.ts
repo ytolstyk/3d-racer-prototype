@@ -1,5 +1,5 @@
-import * as THREE from 'three';
-import { makeFloorTileTexture } from './ProceduralTextures.js';
+import * as THREE from "three";
+import { makeFloorTileTexture } from "./ProceduralTextures.js";
 
 export class TableScene {
   build(): THREE.Group {
@@ -7,9 +7,9 @@ export class TableScene {
 
     const loader = new THREE.TextureLoader();
 
-    const colorMap = loader.load('/wood_color.jpg');
-    const normalMap = loader.load('/wood_normal.jpg');
-    const roughnessMap = loader.load('/wood_roughness.jpg');
+    const colorMap = loader.load("/wood_color.jpg");
+    const normalMap = loader.load("/wood_normal.jpg");
+    const roughnessMap = loader.load("/wood_roughness.jpg");
 
     // Tile the wood texture across the large surface
     const tilesX = 4;
@@ -39,7 +39,7 @@ export class TableScene {
 
     // Floor below table — tiled blue/white polished surface
     const floorTex = makeFloorTileTexture();
-    floorTex.repeat.set(20, 20);
+    floorTex.repeat.set(40, 40);
     const floorGeo = new THREE.PlaneGeometry(8000, 8000);
     const floorMat = new THREE.MeshStandardMaterial({
       map: floorTex,
@@ -50,7 +50,7 @@ export class TableScene {
     });
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
-    floor.position.set(0, -12, 0);
+    floor.position.set(0, -48, 0);
     floor.receiveShadow = true;
     group.add(floor);
 
