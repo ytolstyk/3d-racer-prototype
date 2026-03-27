@@ -28,9 +28,9 @@ export const DRIFT_PHYSICS = {
   counterSteerBonus: 1.6,     // multiplied when steering against slip
   corneringDragFactor: 0.18,  // speed loss per radian of slip per second
   tractionLossMin: 0.35,      // accel fraction remaining at 90° slip
-  throttleInertiaTime: 0.18,  // seconds to ramp up throttle (~63%)
-  brakeInertiaTime: 0.08,
-  frontAxleOffset: 2.8,       // distance center → front axle (for pivot shift)
+  throttleInertiaTime: 0.40,  // seconds to ramp up throttle (~63%)
+  brakeInertiaTime: 0.28,
+  frontAxleOffset: 2.0,       // distance center → front axle (for pivot shift)
   skidSlipThreshold: 0.25,    // radians above which isSkidding = true
 } as const;
 
