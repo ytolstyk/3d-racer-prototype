@@ -1,11 +1,11 @@
 import type { HazardEffect } from "../types/game.js";
 
 export const PHYSICS = {
-  drag: 0.988,
+  drag: 0.994, // per-frame speed multiplier when coasting (0.994^60 ≈ 0.70 — gradual coast-down)
   steeringSpeed: 22.0,
-  maxSteeringAngle: 3.0,   // rotation rate (rad/s at full speed) — ~20 unit turn radius
+  maxSteeringAngle: 3.0, // rotation rate (rad/s at full speed) — ~20 unit turn radius
   steeringReturnSpeed: 60.0,
-  speedSteeringFactor: 0.2, // less speed-penalty on steering
+  speedSteeringFactor: 0.5, // how much speed reduces steering effectiveness (0.5 → 50% at max speed)
   boundaryBounceSpeedLoss: 0.5,
   carCollisionSpeedLoss: 0.3,
   carCollisionPushForce: 2.0,
@@ -15,23 +15,40 @@ export const PHYSICS = {
 
 export const HAZARD_EFFECTS: Record<string, HazardEffect> = {
   juice: { speedMultiplier: 0.5, steeringMultiplier: 1.0, lateralDrift: 0 },
-  oil:   { speedMultiplier: 1.0, steeringMultiplier: 0.3, lateralDrift: 0.5 },
-  food:  { speedMultiplier: 0.7, steeringMultiplier: 1.0, lateralDrift: 0 },
-  milk:  { speedMultiplier: 0.65, steeringMultiplier: 0.8, lateralDrift: 0.2 },
+  oil: { speedMultiplier: 1.0, steeringMultiplier: 0.3, lateralDrift: 0.5 },
+  food: { speedMultiplier: 0.7, steeringMultiplier: 1.0, lateralDrift: 0 },
+  milk: { speedMultiplier: 0.65, steeringMultiplier: 0.8, lateralDrift: 0.2 },
   butter: { speedMultiplier: 0.9, steeringMultiplier: 0.15, lateralDrift: 1.2 },
 };
 
 export const DRIFT_PHYSICS = {
-  gripHigh: 8.0,              // grip alignment rate (rad/s) at zero speed
-  gripLow: 2.8,               // grip alignment rate at max speed
-  handbrakeGripMultiplier: 0.12, // rear wheels locked
-  counterSteerBonus: 1.6,     // multiplied when steering against slip
-  corneringDragFactor: 0.18,  // speed loss per radian of slip per second
-  tractionLossMin: 0.35,      // accel fraction remaining at 90° slip
-  throttleInertiaTime: 0.40,  // seconds to ramp up throttle (~63%)
+  gripHigh: 8.0, // grip alignment rate (rad/s) at zero speed
+  gripLow: 2.8, // grip alignment rate at max speed
+  handbrakeGripMultiplier: 0.12, // rear wheels locked — low = more drift
+  counterSteerBonus: 1.6, // multiplied when steering against slip
+  corneringDragFactor: 0.18, // speed loss per radian of slip per second
+  tractionLossMin: 0.35, // accel fraction remaining at 90° slip
+  throttleInertiaTime: 0.4, // seconds to ramp up throttle (~63%)
   brakeInertiaTime: 0.28,
-  frontAxleOffset: 2.0,       // distance center → front axle (for pivot shift)
-  skidSlipThreshold: 0.25,    // radians above which isSkidding = true
+  frontAxleOffset: 2.0, // distance center → front axle (for pivot shift)
+  skidSlipThreshold: 0.25, // radians above which isSkidding = true
+
+  // CarPhysics internal constants
+  handbrakeDrag: 0.992, // per-frame speed multiplier when handbrake active (vs 0.994 normal)
+  maxReverseSpeedFraction: 0.3, // max reverse speed as fraction of maxSpeed
+  hardBrakingThreshold: 0.3, // speed fraction above which hard braking triggers skid
+  handbrakeRotationMultiplier: 1.8, // rotation rate multiplier when handbraking above slip threshold
+  highSpeedRatioThreshold: 0.75, // speedRatio above which high-speed slip activates
+  highSpeedSteerThreshold: 0.8, // steeringAngle (rad) above which high-speed slip activates
+  spinoutRotationFactor: 0.015, // extra rotation added per unit of high-speed slip extra
+} as const;
+
+export const CONTROLLER_PHYSICS = {
+  directionReversalBrakeThreshold: 2.0, // speed below which direction-change braking is skipped
+  directionReversalBrakeForce: 0.4, // gentle braking throttle when reversing at speed
+  handbrakeSpeedCap: 0.4, // fraction of maxSpeed at which handbrake stops actively braking
+  handbrakeBrakeThrottle: -0.2, // active throttle applied when handbrake + forward and above cap
+  postDriftBoostFraction: 0.04, // maxSpeed fraction added as boost on handbrake release
 } as const;
 
 export const AI_CONFIG = {

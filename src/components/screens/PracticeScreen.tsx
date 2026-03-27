@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import type { KitchenItemType } from '../../types/game.js';
 import { PracticeEngine, PRACTICE_DEFAULT_OBJECTS } from '../../game/PracticeEngine.js';
+import { CAR_DEFINITIONS } from '../../constants/cars.js';
 
 const KITCHEN_ITEM_TYPES: KitchenItemType[] = [
   'mug', 'spoon', 'plate', 'fork', 'napkin',
@@ -19,7 +20,6 @@ const ITEM_LABELS: Record<KitchenItemType, string> = {
 };
 
 interface PracticeScreenProps {
-  selectedCarId: string;
   onMainMenu: () => void;
   onOpenInEditor: () => void;
 }
@@ -39,9 +39,10 @@ const panelStyle: React.CSSProperties = {
   borderRadius: 6, padding: 8, zIndex: 10,
 };
 
-export function PracticeScreen({ selectedCarId, onMainMenu, onOpenInEditor }: PracticeScreenProps) {
+export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<PracticeEngine | null>(null);
+  const [selectedCarId, setSelectedCarId] = useState('racer-red');
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState(0);
   const [maxSpeed, setMaxSpeed] = useState(1);
@@ -118,6 +119,12 @@ export function PracticeScreen({ selectedCarId, onMainMenu, onOpenInEditor }: Pr
     setSelectedObjIdx(-1);
   };
 
+  const handleClearAll = () => {
+    engineRef.current?.removeAllObjects();
+    setObjectCount(0);
+    setSelectedObjIdx(-1);
+  };
+
   const handleExport = () => {
     const objects = engineRef.current?.getObjects() ?? [];
     setExportJson(JSON.stringify(objects, null, 2));
@@ -148,7 +155,7 @@ export function PracticeScreen({ selectedCarId, onMainMenu, onOpenInEditor }: Pr
       {/* Palette toggle */}
       <button
         style={{ ...btnStyle, position: 'absolute', top: 10, right: 10, zIndex: 10 }}
-        onClick={() => setPaletteOpen(p => !p)}
+        onClick={() => setPaletteOpen(p => { if (p) setActiveType(null); return !p; })}
       >
         {paletteOpen ? '× Close' : '+ Objects'}
       </button>
@@ -202,13 +209,32 @@ export function PracticeScreen({ selectedCarId, onMainMenu, onOpenInEditor }: Pr
       {/* Bottom bar */}
       <div style={{
         position: 'absolute', bottom: 10, left: 10,
-        display: 'flex', gap: 8, zIndex: 10,
+        display: 'flex', flexDirection: 'column', gap: 6, zIndex: 10,
       }}>
-        <button style={btnStyle} onClick={handleExport}>Export JSON</button>
-        <button style={primaryBtnStyle} onClick={handleEditInEditor}>Edit in Track Editor</button>
-        <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, alignSelf: 'center' }}>
-          {objectCount} object{objectCount !== 1 ? 's' : ''}
-        </span>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button style={btnStyle} onClick={handleExport}>Export JSON</button>
+          <button style={primaryBtnStyle} onClick={handleEditInEditor}>Edit in Track Editor</button>
+          <button style={{ ...btnStyle, borderColor: '#ff6644', color: '#ffaa88' }} onClick={handleClearAll}>Clear All</button>
+          <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, alignSelf: 'center' }}>
+            {objectCount} object{objectCount !== 1 ? 's' : ''}
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', maxWidth: 400 }}>
+          {CAR_DEFINITIONS.map(car => (
+            <button
+              key={car.id}
+              onClick={() => setSelectedCarId(car.id)}
+              style={{
+                ...btnStyle,
+                fontSize: 10, padding: '2px 8px',
+                background: selectedCarId === car.id ? `rgba(${((car.color >> 16) & 0xff)},${((car.color >> 8) & 0xff)},${car.color & 0xff},0.4)` : 'rgba(255,255,255,0.08)',
+                borderColor: selectedCarId === car.id ? `rgb(${((car.color >> 16) & 0xff)},${((car.color >> 8) & 0xff)},${car.color & 0xff})` : 'rgba(255,255,255,0.25)',
+              }}
+            >
+              {car.name}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Speed indicator */}

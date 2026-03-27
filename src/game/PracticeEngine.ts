@@ -15,32 +15,7 @@ import { TireSmokeSystem } from './effects/TireSmokeSystem.js';
 const BOUND_X = 600;
 const BOUND_Z = 450;
 
-export const PRACTICE_DEFAULT_OBJECTS: PlacedObject[] = [
-  // 7 salt shakers for slalom along X at Z=0
-  ...Array.from({ length: 7 }, (_, i): PlacedObject => ({
-    type: 'saltShaker',
-    x: (i - 3) * 100,
-    z: 0,
-    rotation: 0,
-    scale: 1.0,
-  })),
-  // 5 bread loaves as wall at X=200
-  ...Array.from({ length: 5 }, (_, i): PlacedObject => ({
-    type: 'breadLoaf',
-    x: 200,
-    z: (i - 2) * 100,
-    rotation: 0,
-    scale: 1.0,
-  })),
-  // 12 mugs in an ellipse 150×120 units
-  ...Array.from({ length: 12 }, (_, i): PlacedObject => ({
-    type: 'mug',
-    x: Math.round(150 * Math.cos((i / 12) * Math.PI * 2)),
-    z: Math.round(120 * Math.sin((i / 12) * Math.PI * 2)),
-    rotation: 0,
-    scale: 1.0,
-  })),
-];
+export const PRACTICE_DEFAULT_OBJECTS: PlacedObject[] = [];
 
 export class PracticeEngine {
   private scene: THREE.Scene;
@@ -160,6 +135,17 @@ export class PracticeEngine {
     });
     this.objects.splice(idx, 1);
     this.objectMeshes.splice(idx, 1);
+  }
+
+  removeAllObjects(): void {
+    this.objectMeshes.forEach(mesh => {
+      this.scene.remove(mesh);
+      mesh.traverse(child => {
+        if (child instanceof THREE.Mesh) child.geometry.dispose();
+      });
+    });
+    this.objects = [];
+    this.objectMeshes = [];
   }
 
   getObjects(): PlacedObject[] {

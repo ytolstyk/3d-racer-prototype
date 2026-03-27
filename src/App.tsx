@@ -10,6 +10,16 @@ import { TrackEditor } from './components/screens/TrackEditor.js';
 import { PracticeScreen } from './components/screens/PracticeScreen.js';
 import './App.css';
 
+function PracticeRoute() {
+  const navigate = useNavigate();
+  return (
+    <PracticeScreen
+      onMainMenu={() => navigate('/')}
+      onOpenInEditor={() => navigate('/track-editor')}
+    />
+  );
+}
+
 function GameApp() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -42,8 +52,6 @@ function GameApp() {
     setSelectedTrackId('');
   };
 
-  const handlePractice = () => setPhase('practice');
-
   const handleRaceAgain = () => {
     // Re-mount RaceScreen by going through lapSelect briefly
     setPhase('lapSelect');
@@ -58,16 +66,8 @@ function GameApp() {
       return (
         <MainMenu
           onStart={() => setPhase('trackSelect')}
-          onPractice={handlePractice}
+          onPractice={() => navigate('/practice')}
           onBackToEditor={isEditorTest ? handleBackToEditor : undefined}
-        />
-      );
-    case 'practice':
-      return (
-        <PracticeScreen
-          selectedCarId="racer-red"
-          onMainMenu={handleMainMenu}
-          onOpenInEditor={() => navigate('/track-editor')}
         />
       );
     case 'trackSelect':
@@ -96,6 +96,7 @@ function App() {
   return (
     <Routes>
       <Route path="/track-editor" element={<TrackEditor />} />
+      <Route path="/practice" element={<PracticeRoute />} />
       <Route path="/*" element={<GameApp />} />
     </Routes>
   );

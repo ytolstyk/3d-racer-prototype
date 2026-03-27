@@ -1,6 +1,6 @@
 import type * as THREE from 'three';
 
-export type RacePhase = 'menu' | 'trackSelect' | 'carSelect' | 'lapSelect' | 'racing' | 'finished' | 'practice';
+export type RacePhase = 'menu' | 'trackSelect' | 'carSelect' | 'lapSelect' | 'racing' | 'finished';
 
 export interface CarDefinition {
   id: string;
