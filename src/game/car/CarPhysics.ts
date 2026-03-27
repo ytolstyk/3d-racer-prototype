@@ -1,17 +1,29 @@
 import * as THREE from "three";
 import type { CarState, HazardEffect } from "../../types/game.js";
-import { PHYSICS } from "../../constants/physics.js";
+import { PHYSICS, DRIFT_PHYSICS } from "../../constants/physics.js";
 
 export class CarPhysics {
+  private lastSteerSign = 0;
+
+  private normalizeAngle(a: number): number {
+    return ((a % (Math.PI * 2)) + Math.PI * 3) % (Math.PI * 2) - Math.PI;
+  }
+
   applyAcceleration(car: CarState, throttle: number, dt: number): void {
     const def = car.definition;
-    const accel =
-      throttle > 0 ? def.acceleration * throttle : def.braking * throttle;
-    car.speed += accel * dt;
-    car.speed = Math.max(
-      -def.maxSpeed * 0.3,
-      Math.min(def.maxSpeed, car.speed),
-    );
+    const tau = throttle > 0 ? DRIFT_PHYSICS.throttleInertiaTime : DRIFT_PHYSICS.brakeInertiaTime;
+    const blend = 1 - Math.exp(-dt / tau);
+
+    let tractionFactor = 1.0;
+    if (throttle > 0) {
+      const slip = this.normalizeAngle(car.velocityAngle - car.rotation);
+      const slipFraction = Math.min(1, Math.abs(slip) / (Math.PI / 2));
+      tractionFactor = 1 - slipFraction * (1 - DRIFT_PHYSICS.tractionLossMin);
+    }
+
+    const force = throttle > 0 ? def.acceleration * throttle : def.braking * throttle;
+    car.speed += force * blend * tractionFactor;
+    car.speed = Math.max(-def.maxSpeed * 0.3, Math.min(car.speed, def.maxSpeed));
   }
 
   applySteering(car: CarState, steerInput: number, dt: number): void {
@@ -39,6 +51,7 @@ export class CarPhysics {
         car.steeringAngle -= Math.sign(car.steeringAngle) * returnAmount;
       }
     }
+    this.lastSteerSign = steerInput;
   }
 
   applyHazardEffect(car: CarState, effect: HazardEffect, dt: number): void {
@@ -57,45 +70,63 @@ export class CarPhysics {
   }
 
   updatePosition(car: CarState, dt: number, handbrake = false): void {
-    // Speed drag: handbrake locks rear wheels (slightly more resistance), otherwise normal drag
-    car.speed *= handbrake ? 0.975 : PHYSICS.drag;
+    // 1. Drag
+    car.speed *= handbrake ? 0.972 : PHYSICS.drag;
 
-    // Lateral (skid) physics
+    // 2. Slip angle
+    const slip = this.normalizeAngle(car.velocityAngle - car.rotation);
+
+    // 3. Grip factor
     const speedRatio = Math.abs(car.speed) / car.definition.maxSpeed;
-    const normalizedSteer = car.steeringAngle / PHYSICS.maxSteeringAngle;
+    const baseGrip = DRIFT_PHYSICS.gripHigh + (DRIFT_PHYSICS.gripLow - DRIFT_PHYSICS.gripHigh) * speedRatio;
+    const hbMult = handbrake ? DRIFT_PHYSICS.handbrakeGripMultiplier : 1.0;
+    const isCounterSteer = this.lastSteerSign !== 0 && Math.sign(this.lastSteerSign) !== Math.sign(slip);
+    const csMult = isCounterSteer ? DRIFT_PHYSICS.counterSteerBonus * car.definition.handling : 1.0;
+    const effectiveGrip = baseGrip * hbMult * csMult * car.hazardSteerFactor;
 
-    // Centripetal force — sqrt scaling suppresses low-speed slide without amplifying high-speed
-    // hazardSteerFactor suppresses grip on oil/butter so car slides mostly straight
-    car.lateralVelocity += normalizedSteer * car.speed * 0.45 * Math.pow(speedRatio, 0.5) * dt * car.hazardSteerFactor;
+    // 4. Align velocityAngle → rotation
+    const maxRot = effectiveGrip * dt;
+    const alignDelta = Math.max(-maxRot, Math.min(maxRot, slip));
+    car.velocityAngle -= alignDelta;
 
-    // Recover hazard steer factor toward 1.0 over ~0.4s
-    car.hazardSteerFactor = Math.min(1.0, car.hazardSteerFactor + dt * 2.5);
+    // 5. Cornering drag
+    car.speed *= 1 - Math.abs(slip) * DRIFT_PHYSICS.corneringDragFactor * dt;
 
-    // Grip band tightened — car stays planted, slight looseness only at top speed
-    const grip = handbrake ? 0.6 : 10 - speedRatio * 2;
-    car.lateralVelocity -= car.lateralVelocity * grip * dt;
+    // 6. Rotation from steering
+    const rotRate = car.steeringAngle * dt * (car.speed / car.definition.maxSpeed);
+    const rotDelta = (handbrake && Math.abs(slip) > DRIFT_PHYSICS.skidSlipThreshold)
+      ? rotRate * 3.5
+      : rotRate;
 
-    // Lateral cap — wider during handbrake for more dramatic slide arc
-    const maxLateral = car.definition.maxSpeed * (handbrake ? 0.65 : 0.35);
-    car.lateralVelocity = Math.max(-maxLateral, Math.min(maxLateral, car.lateralVelocity));
-
-    car.isSkidding = Math.abs(car.lateralVelocity) > 1.5 || (handbrake && Math.abs(car.speed) > 3);
-
-    // Update rotation based on steering (only when moving)
-    // Handbrake during skid: multiply rotation rate for nose-flick effect
-    if (Math.abs(car.speed) > 0.1) {
-      const rotRate = car.steeringAngle * dt * (car.speed / car.definition.maxSpeed);
-      car.rotation += (handbrake && car.isSkidding) ? rotRate * 3.5 : rotRate;
+    // 7. Handbrake pivot correction (simulates front-axle rotation center)
+    if (handbrake && Math.abs(rotDelta) > 0.001) {
+      const pivotShift = DRIFT_PHYSICS.frontAxleOffset * Math.sin(rotDelta);
+      const rightX = Math.cos(car.rotation);
+      const rightZ = -Math.sin(car.rotation);
+      const steerSign = Math.sign(car.steeringAngle);
+      car.position.x -= rightX * pivotShift * steerSign;
+      car.position.z -= rightZ * pivotShift * steerSign;
     }
 
-    // Update position: forward + lateral (right = (cosR, 0, -sinR))
-    const sinR = Math.sin(car.rotation);
-    const cosR = Math.cos(car.rotation);
-    car.position.x += sinR * car.speed * dt + cosR * car.lateralVelocity * dt;
-    car.position.z += cosR * car.speed * dt - sinR * car.lateralVelocity * dt;
+    // 8. Apply rotation
+    car.rotation += rotDelta;
+
+    // 9. Derive lateralVelocity (backward compat with TireMarkSystem, TireSmokeSystem)
+    const slipAfter = this.normalizeAngle(car.velocityAngle - car.rotation);
+    car.lateralVelocity = Math.sin(slipAfter) * Math.abs(car.speed);
+
+    // 10. Skid flag
+    car.isSkidding = Math.abs(slip) > DRIFT_PHYSICS.skidSlipThreshold || (handbrake && Math.abs(car.speed) > 3);
+
+    // 11. Position update (velocity vector, not heading)
+    car.position.x += Math.sin(car.velocityAngle) * car.speed * dt;
+    car.position.z += Math.cos(car.velocityAngle) * car.speed * dt;
     car.position.y = 0.01;
 
-    // Update mesh
+    // 12. Hazard factor recovery
+    car.hazardSteerFactor = Math.min(1.0, car.hazardSteerFactor + dt * 2.5);
+
+    // 13. Mesh sync
     car.mesh.position.copy(car.position);
     car.mesh.rotation.y = car.rotation;
   }
@@ -126,5 +157,10 @@ export class CarPhysics {
 
     // Absorb lateral velocity on wall contact
     car.lateralVelocity *= 0.4;
+
+    // Reflect velocity angle toward wall normal so redirect persists next frame
+    const wallNormalAngle = Math.atan2(toCenterDir.x, toCenterDir.z);
+    const vaDiff = this.normalizeAngle(wallNormalAngle - car.velocityAngle);
+    car.velocityAngle += vaDiff * 0.5 * impactComponent;
   }
 }

@@ -92,6 +92,7 @@ export class PracticeEngine {
       mesh: carMesh,
       position: new THREE.Vector3(0, 0.01, 0),
       rotation: 0,
+      velocityAngle: 0,
       speed: 0,
       lateralVelocity: 0,
       isSkidding: false,

@@ -23,6 +23,7 @@ export class TireMarkSystem {
   private lastSubstancePos = new Map<string, THREE.Vector3>();
   private markCreationTime: Float32Array;
   private substanceCreationTime: Float32Array;
+  private substanceColors: THREE.Color[];
   private elapsed = 0;
   private baseColor = new THREE.Color(0x111111);
   private transparent = new THREE.Color(0x000000);
@@ -74,6 +75,7 @@ export class TireMarkSystem {
 
     this.markCreationTime = new Float32Array(MAX_MARKS).fill(-100);
     this.substanceCreationTime = new Float32Array(MAX_SUBSTANCE_MARKS).fill(-100);
+    this.substanceColors = Array.from({ length: MAX_SUBSTANCE_MARKS }, () => new THREE.Color());
   }
 
   addMarks(car: CarState): void {
@@ -144,6 +146,7 @@ export class TireMarkSystem {
       this.dummy.updateMatrix();
       this.substanceMesh.setMatrixAt(this.substanceNextIndex, this.dummy.matrix);
       this.substanceMesh.setColorAt(this.substanceNextIndex, color);
+      this.substanceColors[this.substanceNextIndex].copy(color);
       this.substanceCreationTime[this.substanceNextIndex] = this.elapsed;
       this.substanceNextIndex = (this.substanceNextIndex + 1) % MAX_SUBSTANCE_MARKS;
       if (this.substanceCount < MAX_SUBSTANCE_MARKS) {
@@ -161,11 +164,12 @@ export class TireMarkSystem {
     let dirty = false;
     let subDirty = false;
 
-    // Fade regular marks: start fading at 10s, fully transparent at 14s
+    // Fade regular marks: start fading at 10s, fully transparent at 15s (smooth-step)
     for (let i = 0; i < this.count; i++) {
       const age = this.elapsed - this.markCreationTime[i];
       if (age > 10 && age < 15) {
-        const fade = 1 - Math.min(1, (age - 10) / 4);
+        const t = Math.min(1, (age - 10) / 5);
+        const fade = 1 - (t * t * (3 - 2 * t)); // smooth-step
         const c = this.baseColor.clone().lerp(this.transparent, 1 - fade);
         this.mesh.setColorAt(i, c);
         dirty = true;
@@ -176,13 +180,14 @@ export class TireMarkSystem {
       }
     }
 
-    // Fade substance marks: start at 8s, gone at 12s
+    // Fade substance marks: start at 8s, gone at 13s (smooth-step)
     for (let i = 0; i < this.substanceCount; i++) {
       const age = this.elapsed - this.substanceCreationTime[i];
       if (age > 8 && age < 13) {
-        const fade = 1 - Math.min(1, (age - 8) / 4);
-        const c = new THREE.Color(0x000000);
-        this.substanceMesh.setColorAt(i, c.lerp(new THREE.Color(0x000000), 1 - fade));
+        const t = Math.min(1, (age - 8) / 5);
+        const fade = 1 - (t * t * (3 - 2 * t)); // smooth-step
+        const c = this.substanceColors[i].clone().lerp(this.transparent, 1 - fade);
+        this.substanceMesh.setColorAt(i, c);
         subDirty = true;
       } else if (age >= 13 && this.substanceCreationTime[i] > -50) {
         this.substanceMesh.setColorAt(i, this.transparent);

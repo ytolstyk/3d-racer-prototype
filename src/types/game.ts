@@ -19,8 +19,9 @@ export interface CarState {
   mesh: THREE.Group;
   position: THREE.Vector3;
   rotation: number; // heading in radians
+  velocityAngle: number; // direction of actual motion vector, in radians
   speed: number;
-  lateralVelocity: number; // sideways slip velocity
+  lateralVelocity: number; // sideways slip velocity (derived each frame)
   isSkidding: boolean;
   isBraking: boolean;
   steeringAngle: number;

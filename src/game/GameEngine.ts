@@ -223,6 +223,7 @@ export class GameEngine {
         mesh: carMesh,
         position: pos.clone(),
         rotation: carRotation,
+        velocityAngle: carRotation,
         speed: 0,
         lateralVelocity: 0,
         isSkidding: false,

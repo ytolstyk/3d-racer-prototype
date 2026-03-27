@@ -28,7 +28,7 @@ export class CarController {
     // Post-drift boost on handbrake release
     if (this.wasHandbraking && !input.handbrake) {
       if (Math.abs(car.lateralVelocity) > 5) {
-        car.speed = Math.min(car.speed + 4, car.definition.maxSpeed);
+        car.speed = Math.min(car.speed + car.definition.maxSpeed * 0.04, car.definition.maxSpeed);
       }
     }
     this.wasHandbraking = input.handbrake;
