@@ -37,3 +37,27 @@ This is a React 19 + TypeScript + Vite 3D racing game prototype using **Three.js
 - `src/assets/tracks/` — track preview images
 
 The Three.js game loop runs independently of React; React handles UI overlays (HUD, menus). `GameEngine` is instantiated imperatively inside `RaceScreen`.
+
+## Physics & Driving Mechanics
+
+### Physics pipeline (per frame)
+`CarController.update()` → computes throttle (with direction-reversal and handbrake overrides) → `applyAcceleration()` → `applySteering()` → `updatePosition()` → post-physics floor enforcement
+
+### Key constants (`src/constants/physics.ts` → `DRIFT_PHYSICS`)
+| Constant | Value | Effect |
+|---|---|---|
+| `throttleInertiaTime` | 0.40 | Seconds to ramp throttle to 63% — higher = slower acceleration |
+| `brakeInertiaTime` | 0.28 | Same for braking — higher = longer stopping distance |
+| `frontAxleOffset` | 2.0 | Pivot shift distance during handbrake turns |
+| `handbrakeGripMultiplier` | 0.12 | Grip fraction when handbrake held — low = lots of drift |
+| `corneringDragFactor` | 0.18 | Speed bleed per radian of slip — higher = more speed loss in corners |
+| `skidSlipThreshold` | 0.25 rad | Slip angle above which `isSkidding = true` (triggers smoke/marks) |
+
+### Handbrake behavior (`CarController` + `CarPhysics`)
+- **Drag**: `0.985` per frame (vs `0.988` normal) — gradual speed bleed
+- **Forward held**: brakes toward 25% max speed with `throttle = -0.6`, then holds a 25% floor post-physics
+- **No input**: `throttle = 0`, drag brings car to full stop gradually
+- **Rotation**: `rotRate * 1.8` (was 3.5) when slip > threshold — gentler rear swing
+
+### High-speed cornering
+When `speedRatio > 0.75` and `|steeringAngle| > 0.8 rad`, grip is reduced and a small spinout rotation is added. Slip exceeds `skidSlipThreshold`, triggering tire smoke + marks automatically.
