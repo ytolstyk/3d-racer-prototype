@@ -9,6 +9,8 @@ import { CarController } from './car/CarController.js';
 import { InputManager } from './InputManager.js';
 import { TopDownCamera } from './camera/TopDownCamera.js';
 import { KITCHEN_ITEM_FACTORIES } from './scene/KitchenItems.js';
+import { TireMarkSystem } from './scene/TireMarkSystem.js';
+import { TireSmokeSystem } from './effects/TireSmokeSystem.js';
 
 const BOUND_X = 600;
 const BOUND_Z = 450;
@@ -50,6 +52,8 @@ export class PracticeEngine {
   private playerCar: CarState | null = null;
   private objects: PlacedObject[] = [];
   private objectMeshes: THREE.Group[] = [];
+  private tireMarks: TireMarkSystem;
+  private tireSmoke: TireSmokeSystem;
   private animFrameId = 0;
   private lastTime = 0;
   private paused = false;
@@ -76,6 +80,9 @@ export class PracticeEngine {
 
     new LightingSetup().setup(this.scene);
     this.scene.add(new TableScene().build());
+
+    this.tireMarks = new TireMarkSystem(this.scene);
+    this.tireSmoke = new TireSmokeSystem(this.scene);
 
     this.carPhysics = new CarPhysics();
     this.playerController = new CarController(this.carPhysics);
@@ -159,6 +166,14 @@ export class PracticeEngine {
     return [...this.objects];
   }
 
+  getSpeed(): number {
+    return this.playerCar?.speed ?? 0;
+  }
+
+  getMaxSpeed(): number {
+    return this.playerCar?.definition.maxSpeed ?? 1;
+  }
+
   screenToWorld(sx: number, sy: number, W: number, H: number): { x: number; z: number } {
     const camera = this.cameraController.camera;
     const ndcX = (sx / W) * 2 - 1;
@@ -208,6 +223,12 @@ export class PracticeEngine {
       car.mesh.position.copy(car.position);
       car.mesh.rotation.y = car.rotation;
 
+      if (car.isSkidding || car.isBraking) this.tireMarks.addMarks(car);
+      if (car.isSkidding) this.tireSmoke.emitForCar(car, dt);
+
+      this.tireMarks.update(dt);
+      this.tireSmoke.update(dt);
+
       this.cameraController.update(car.position, car.speed, car.definition.maxSpeed, car.rotation);
     }
 
@@ -230,6 +251,8 @@ export class PracticeEngine {
     cancelAnimationFrame(this.animFrameId);
     window.removeEventListener('resize', this.boundHandleResize);
     this.inputManager.dispose();
+    this.tireMarks.dispose();
+    this.tireSmoke.dispose();
     this.renderer.dispose();
     this.scene.traverse(obj => {
       if (obj instanceof THREE.Mesh) {

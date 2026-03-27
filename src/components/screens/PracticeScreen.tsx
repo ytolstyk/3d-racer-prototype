@@ -43,6 +43,8 @@ export function PracticeScreen({ selectedCarId, onMainMenu, onOpenInEditor }: Pr
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<PracticeEngine | null>(null);
   const [paused, setPaused] = useState(false);
+  const [speed, setSpeed] = useState(0);
+  const [maxSpeed, setMaxSpeed] = useState(1);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [activeType, setActiveType] = useState<KitchenItemType | null>(null);
   const [selectedObjIdx, setSelectedObjIdx] = useState(-1);
@@ -54,11 +56,19 @@ export function PracticeScreen({ selectedCarId, onMainMenu, onOpenInEditor }: Pr
     const canvas = canvasRef.current;
     if (!canvas) return;
     engineRef.current = new PracticeEngine(canvas, selectedCarId);
+    setMaxSpeed(engineRef.current.getMaxSpeed());
     return () => {
       engineRef.current?.dispose();
       engineRef.current = null;
     };
   }, [selectedCarId]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (engineRef.current) setSpeed(engineRef.current.getSpeed());
+    }, 50);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -199,6 +209,32 @@ export function PracticeScreen({ selectedCarId, onMainMenu, onOpenInEditor }: Pr
         <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, alignSelf: 'center' }}>
           {objectCount} object{objectCount !== 1 ? 's' : ''}
         </span>
+      </div>
+
+      {/* Speed indicator */}
+      <div style={{
+        position: 'absolute', bottom: 10, right: 10, zIndex: 10,
+        background: 'rgba(0,0,0,0.7)',
+        border: '1px solid rgba(255,255,255,0.15)',
+        borderRadius: 6, padding: '6px 12px',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+        minWidth: 80,
+      }}>
+        <div style={{ color: '#fff', fontSize: 22, fontWeight: 'bold', lineHeight: 1 }}>
+          {Math.round(speed)}
+        </div>
+        <div style={{
+          width: '100%', height: 4,
+          background: 'rgba(255,255,255,0.15)', borderRadius: 2, overflow: 'hidden',
+        }}>
+          <div style={{
+            height: '100%',
+            width: `${Math.min((speed / maxSpeed) * 100, 100)}%`,
+            background: speed / maxSpeed > 0.8 ? '#ff4444' : speed / maxSpeed > 0.5 ? '#ffaa00' : '#44aaff',
+            borderRadius: 2, transition: 'width 0.05s',
+          }} />
+        </div>
+        <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 9, letterSpacing: 1 }}>SPEED</div>
       </div>
 
       {/* ESC hint */}
