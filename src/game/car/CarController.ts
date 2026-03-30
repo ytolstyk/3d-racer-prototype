@@ -30,7 +30,7 @@ export class CarController {
         if (car.speed * targetDir > speedCap) {
           throttle = targetDir * CONTROLLER_PHYSICS.handbrakeBrakeThrottle;
         } else {
-          throttle = 0; // at/below cap — hold via floor enforced below
+          throttle = targetDir; // let handbrakeAccelMultiplier in applyAcceleration limit the force
         }
       } else {
         throttle = 0; // no input — coast to stop via drag
@@ -52,15 +52,6 @@ export class CarController {
       if (Math.abs(slip) > Math.PI / 2) {
         const correction = Math.sign(slip) * Math.min(Math.abs(slip) - Math.PI / 2, dt * 10);
         car.velocityAngle -= correction;
-      }
-    }
-
-    // Enforce speed floor when handbrake + directional input (prevents drag pulling below cap)
-    if (input.handbrake && (input.forward || input.backward)) {
-      const speedFloor = car.definition.maxSpeed * CONTROLLER_PHYSICS.handbrakeSpeedCap;
-      const targetDir = input.forward ? 1 : -1;
-      if (car.speed * targetDir > 0.5 && car.speed * targetDir < speedFloor) {
-        car.speed = targetDir * speedFloor;
       }
     }
 
