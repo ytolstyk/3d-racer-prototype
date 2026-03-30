@@ -33,17 +33,17 @@ export const DRIFT_PHYSICS = {
   frontAxleOffset: 2.0, // distance center → front axle (for pivot shift)
   skidSlipThreshold: 0.1, // radians above which isSkidding = true
 
-  minLowSpeedFactor: 0.35,        // floor on speed ratio in rotation calc
+  minLowSpeedFactor: 0.35, // floor on speed ratio in rotation calc
   handbrakeAccelMultiplier: 0.25, // accel force fraction when HB held
-  handbrakeDragNoThrottle: 0.982, // ~3s to stop at 60fps (0.982^60 ≈ 0.33)
-  burnoutDuration: 1.5,           // seconds of burnout after HB release
-  burnoutTractionFactor: 0.6,     // accel fraction during burnout
+  handbrakeDragNoThrottle: 0.998, // gradual drag: HB held + no throttle
+  burnoutDuration: 1, // seconds of burnout after HB release
+  burnoutTractionFactor: 0.6, // accel fraction during burnout
 
   // CarPhysics internal constants
-  handbrakeDrag: 0.992, // per-frame speed multiplier when handbrake active (vs 0.994 normal)
+  handbrakeDrag: 0.994, // per-frame speed multiplier when handbrake active + throttle
   maxReverseSpeedFraction: 0.3, // max reverse speed as fraction of maxSpeed
   hardBrakingThreshold: 0.3, // speed fraction above which hard braking triggers skid
-  handbrakeRotationMultiplier: 1.4, // rotation rate multiplier when handbraking above slip threshold
+  handbrakeRotationMultiplier: 1.2, // rotation rate multiplier when handbraking above slip threshold
   highSpeedRatioThreshold: 0.75, // speedRatio above which high-speed slip activates
   highSpeedSteerThreshold: 0.8, // steeringAngle (rad) above which high-speed slip activates
   spinoutRotationFactor: 0.015, // extra rotation added per unit of high-speed slip extra

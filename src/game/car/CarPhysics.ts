@@ -164,7 +164,11 @@ export class CarPhysics {
     car.speed *= 1 - Math.abs(slip) * DRIFT_PHYSICS.corneringDragFactor * dt;
 
     // 7. Rotation from steering
-    const speedFactor = Math.max(DRIFT_PHYSICS.minLowSpeedFactor, Math.abs(car.speed) / car.definition.maxSpeed);
+    const rawSpeedRatio = Math.abs(car.speed) / car.definition.maxSpeed;
+    const isMoving = Math.abs(car.speed) > 0.5;
+    const speedFactor = isMoving
+      ? Math.max(DRIFT_PHYSICS.minLowSpeedFactor, rawSpeedRatio)
+      : rawSpeedRatio;
     const signedSpeedFactor = Math.sign(car.speed) * speedFactor;
     let rotRate = car.steeringAngle * dt * signedSpeedFactor;
     // High-speed turn: add slight spinout rotation
