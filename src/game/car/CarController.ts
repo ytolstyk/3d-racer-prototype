@@ -42,9 +42,9 @@ export class CarController {
     if (input.left) steer = 1;
     else if (input.right) steer = -1;
 
-    this.physics.applyAcceleration(car, throttle, dt);
+    this.physics.applyAcceleration(car, throttle, dt, input.handbrake);
     this.physics.applySteering(car, steer, dt);
-    this.physics.updatePosition(car, dt, input.handbrake);
+    this.physics.updatePosition(car, dt, input.handbrake, throttle);
 
     // Post-physics: prevent backward drift while accelerating forward
     if (input.forward && !input.handbrake && car.speed > 0) {

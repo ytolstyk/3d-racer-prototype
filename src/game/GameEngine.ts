@@ -246,6 +246,7 @@ export class GameEngine {
         lastCheckpointBestTime: 0,
         lastCheckpointCrossedAt: 0,
         hazardSteerFactor: 1.0,
+        burnoutTimer: 0,
       };
 
       this.cars.push(car);

@@ -5,12 +5,13 @@ import { PHYSICS, DRIFT_PHYSICS } from "../../constants/physics.js";
 export class CarPhysics {
   private lastSteerSign = 0;
   private driftResidual = 0;
+  private wasHandbraking = false;
 
   private normalizeAngle(a: number): number {
     return (((a % (Math.PI * 2)) + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
   }
 
-  applyAcceleration(car: CarState, throttle: number, dt: number): void {
+  applyAcceleration(car: CarState, throttle: number, dt: number, handbrake = false): void {
     const def = car.definition;
     const tau =
       throttle > 0
@@ -25,13 +26,31 @@ export class CarPhysics {
       tractionFactor = 1 - slipFraction * (1 - DRIFT_PHYSICS.tractionLossMin);
     }
 
+    // Burnout traction
+    if (throttle > 0 && car.burnoutTimer > 0) {
+      tractionFactor *= DRIFT_PHYSICS.burnoutTractionFactor;
+    }
+
+    const hbAccelMult = (handbrake && throttle > 0) ? DRIFT_PHYSICS.handbrakeAccelMultiplier : 1.0;
     const force =
       throttle > 0 ? def.acceleration * throttle : def.braking * throttle;
-    car.speed += force * blend * tractionFactor;
+    car.speed += force * blend * tractionFactor * hbAccelMult;
     car.speed = Math.max(
       -def.maxSpeed * DRIFT_PHYSICS.maxReverseSpeedFraction,
       Math.min(car.speed, def.maxSpeed),
     );
+
+    // Burnout trigger: HB released while driftResidual high and throttle applied
+    const handbrakeJustReleased = this.wasHandbraking && !handbrake;
+    if (handbrakeJustReleased && throttle > 0 && this.driftResidual > 0.4 && car.burnoutTimer <= 0) {
+      car.burnoutTimer = DRIFT_PHYSICS.burnoutDuration;
+    }
+    this.wasHandbraking = handbrake;
+
+    // Tick burnout timer
+    if (car.burnoutTimer > 0) {
+      car.burnoutTimer = Math.max(0, car.burnoutTimer - dt);
+    }
   }
 
   applySteering(car: CarState, steerInput: number, dt: number): void {
@@ -83,9 +102,12 @@ export class CarPhysics {
     }
   }
 
-  updatePosition(car: CarState, dt: number, handbrake = false): void {
+  updatePosition(car: CarState, dt: number, handbrake = false, throttle = 0): void {
     // 1. Drag
-    car.speed *= handbrake ? DRIFT_PHYSICS.handbrakeDrag : PHYSICS.drag;
+    const drag = handbrake
+      ? (throttle <= 0 ? DRIFT_PHYSICS.handbrakeDragNoThrottle : DRIFT_PHYSICS.handbrakeDrag)
+      : PHYSICS.drag;
+    car.speed *= drag;
 
     // 2. Slip angle
     const slip = this.normalizeAngle(car.velocityAngle - car.rotation);
@@ -142,8 +164,9 @@ export class CarPhysics {
     car.speed *= 1 - Math.abs(slip) * DRIFT_PHYSICS.corneringDragFactor * dt;
 
     // 7. Rotation from steering
-    let rotRate =
-      car.steeringAngle * dt * (car.speed / car.definition.maxSpeed);
+    const speedFactor = Math.max(DRIFT_PHYSICS.minLowSpeedFactor, Math.abs(car.speed) / car.definition.maxSpeed);
+    const signedSpeedFactor = Math.sign(car.speed) * speedFactor;
+    let rotRate = car.steeringAngle * dt * signedSpeedFactor;
     // High-speed turn: add slight spinout rotation
     if (highSpeedSlipExtra > 0) {
       rotRate += Math.sign(car.steeringAngle) * highSpeedSlipExtra * DRIFT_PHYSICS.spinoutRotationFactor;
@@ -178,7 +201,8 @@ export class CarPhysics {
     car.isSkidding =
       Math.abs(slip) > DRIFT_PHYSICS.skidSlipThreshold ||
       (handbrake && Math.abs(car.speed) > 3) ||
-      hardBraking;
+      hardBraking ||
+      car.burnoutTimer > 0;
 
     // 12. Position update (velocity vector, not heading)
     car.position.x += Math.sin(car.velocityAngle) * car.speed * dt;

@@ -37,6 +37,7 @@ export interface CarState {
   finishTime: number;
   isPlayer: boolean;
   hazardSteerFactor: number; // 0-1, 1=normal, decays back each frame
+  burnoutTimer: number;
   // Checkpoint state
   checkpointBests: number[];
   lastCheckpointTime: number;

@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
-import type { GameState } from '../types/game.js';
-import type { GameStateEmitter } from '../state/GameStateEmitter.js';
+import { useEffect, useState } from "react";
+import type { GameState } from "../types/game.js";
+import type { GameStateEmitter } from "../state/GameStateEmitter.js";
 
 const DEFAULT_STATE: GameState = {
   playerSpeed: 0,

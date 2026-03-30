@@ -92,6 +92,7 @@ export class PracticeEngine {
       finishTime: 0,
       isPlayer: true,
       hazardSteerFactor: 1.0,
+      burnoutTimer: 0,
       checkpointBests: [],
       lastCheckpointTime: 0,
       lastCheckpointSegmentTime: 0,

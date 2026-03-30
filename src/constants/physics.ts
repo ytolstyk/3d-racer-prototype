@@ -2,8 +2,8 @@ import type { HazardEffect } from "../types/game.js";
 
 export const PHYSICS = {
   drag: 0.994, // per-frame speed multiplier when coasting (0.994^60 ≈ 0.70 — gradual coast-down)
-  steeringSpeed: 22.0,
-  maxSteeringAngle: 3.0, // rotation rate (rad/s at full speed) — ~20 unit turn radius
+  steeringSpeed: 60.0,
+  maxSteeringAngle: 5.5, // rotation rate (rad/s at full speed) — ~20 unit turn radius
   steeringReturnSpeed: 60.0,
   speedSteeringFactor: 0.5, // how much speed reduces steering effectiveness (0.5 → 50% at max speed)
   boundaryBounceSpeedLoss: 0.5,
@@ -28,16 +28,22 @@ export const DRIFT_PHYSICS = {
   counterSteerBonus: 1.6, // multiplied when steering against slip
   corneringDragFactor: 0.18, // speed loss per radian of slip per second
   tractionLossMin: 0.35, // accel fraction remaining at 90° slip
-  throttleInertiaTime: 0.4, // seconds to ramp up throttle (~63%)
-  brakeInertiaTime: 0.28,
+  throttleInertiaTime: 0.7, // seconds to ramp up throttle (~63%)
+  brakeInertiaTime: 0.5,
   frontAxleOffset: 2.0, // distance center → front axle (for pivot shift)
-  skidSlipThreshold: 0.25, // radians above which isSkidding = true
+  skidSlipThreshold: 0.1, // radians above which isSkidding = true
+
+  minLowSpeedFactor: 0.35,        // floor on speed ratio in rotation calc
+  handbrakeAccelMultiplier: 0.25, // accel force fraction when HB held
+  handbrakeDragNoThrottle: 0.96,  // aggressive drag: HB held + no throttle (~1s to stop)
+  burnoutDuration: 1.5,           // seconds of burnout after HB release
+  burnoutTractionFactor: 0.4,     // accel fraction during burnout
 
   // CarPhysics internal constants
   handbrakeDrag: 0.992, // per-frame speed multiplier when handbrake active (vs 0.994 normal)
   maxReverseSpeedFraction: 0.3, // max reverse speed as fraction of maxSpeed
   hardBrakingThreshold: 0.3, // speed fraction above which hard braking triggers skid
-  handbrakeRotationMultiplier: 1.8, // rotation rate multiplier when handbraking above slip threshold
+  handbrakeRotationMultiplier: 1.4, // rotation rate multiplier when handbraking above slip threshold
   highSpeedRatioThreshold: 0.75, // speedRatio above which high-speed slip activates
   highSpeedSteerThreshold: 0.8, // steeringAngle (rad) above which high-speed slip activates
   spinoutRotationFactor: 0.015, // extra rotation added per unit of high-speed slip extra
@@ -48,7 +54,7 @@ export const CONTROLLER_PHYSICS = {
   directionReversalBrakeForce: 0.4, // gentle braking throttle when reversing at speed
   handbrakeSpeedCap: 0.4, // fraction of maxSpeed at which handbrake stops actively braking
   handbrakeBrakeThrottle: -0.2, // active throttle applied when handbrake + forward and above cap
-  postDriftBoostFraction: 0.04, // maxSpeed fraction added as boost on handbrake release
+  postDriftBoostFraction: 0.0, // maxSpeed fraction added as boost on handbrake release
 } as const;
 
 export const AI_CONFIG = {
