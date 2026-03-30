@@ -139,3 +139,19 @@ export interface TunnelSection {
   tStart: number;
   tEnd: number;
 }
+
+export interface PhysicsTelemetry {
+  speed: number;
+  speedRatio: number;
+  slipAngle: number;
+  lateralVelocity: number;
+  steeringAngle: number;
+  driftResidual: number;
+  gripFactor: number;
+  throttleBlend: number;
+  isSkidding: boolean;
+  isBraking: boolean;
+  burnoutTimer: number;
+}
+
+export type PhysicsGroup = 'physics' | 'drift' | 'controller';

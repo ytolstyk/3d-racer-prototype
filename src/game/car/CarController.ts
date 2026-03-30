@@ -6,29 +6,41 @@ import { CONTROLLER_PHYSICS } from '../../constants/physics.js';
 export class CarController {
   private physics: CarPhysics;
   private wasHandbraking = false;
+  private readonly _ctrlOv: Partial<Record<keyof typeof CONTROLLER_PHYSICS, number>> = {};
 
   constructor(physics: CarPhysics) {
     this.physics = physics;
   }
 
+  private _cp<K extends keyof typeof CONTROLLER_PHYSICS>(k: K): number {
+    return (this._ctrlOv[k] ?? CONTROLLER_PHYSICS[k]) as number;
+  }
+
+  setOverride(key: string, value: number): void {
+    (this._ctrlOv as Record<string, number>)[key] = value;
+  }
+  resetOverrides(): void {
+    for (const k in this._ctrlOv) delete (this._ctrlOv as Record<string, number>)[k];
+  }
+
   update(car: CarState, input: InputState, dt: number): void {
     // Throttle — prevent instant direction reversal
-    const goingForward = car.speed > CONTROLLER_PHYSICS.directionReversalBrakeThreshold;
-    const goingBackward = car.speed < -CONTROLLER_PHYSICS.directionReversalBrakeThreshold;
+    const goingForward = car.speed > this._cp('directionReversalBrakeThreshold');
+    const goingBackward = car.speed < -this._cp('directionReversalBrakeThreshold');
     let throttle = 0;
     if (input.forward) {
-      throttle = goingBackward ? CONTROLLER_PHYSICS.directionReversalBrakeForce : 1;
+      throttle = goingBackward ? this._cp('directionReversalBrakeForce') : 1;
     } else if (input.backward) {
-      throttle = goingForward ? -CONTROLLER_PHYSICS.directionReversalBrakeForce : -1;
+      throttle = goingForward ? -this._cp('directionReversalBrakeForce') : -1;
     }
 
     // Handbrake: override throttle — brake to cap if above it, coast to stop if no input
     if (input.handbrake) {
-      const speedCap = car.definition.maxSpeed * CONTROLLER_PHYSICS.handbrakeSpeedCap;
+      const speedCap = car.definition.maxSpeed * this._cp('handbrakeSpeedCap');
       if (input.forward || input.backward) {
         const targetDir = input.forward ? 1 : -1;
         if (car.speed * targetDir > speedCap) {
-          throttle = targetDir * CONTROLLER_PHYSICS.handbrakeBrakeThrottle;
+          throttle = targetDir * this._cp('handbrakeBrakeThrottle');
         } else {
           throttle = targetDir; // let handbrakeAccelMultiplier in applyAcceleration limit the force
         }
@@ -59,7 +71,7 @@ export class CarController {
     if (this.wasHandbraking && !input.handbrake) {
       if (Math.abs(car.lateralVelocity) > 5) {
         car.speed = Math.min(
-          car.speed + car.definition.maxSpeed * CONTROLLER_PHYSICS.postDriftBoostFraction,
+          car.speed + car.definition.maxSpeed * this._cp('postDriftBoostFraction'),
           car.definition.maxSpeed
         );
       }

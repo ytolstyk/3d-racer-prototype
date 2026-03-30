@@ -7,6 +7,34 @@ export class CarPhysics {
   private driftResidual = 0;
   private wasHandbraking = false;
 
+  private readonly _driftOv: Partial<Record<keyof typeof DRIFT_PHYSICS, number>> = {};
+  private readonly _physOv: Partial<Record<keyof typeof PHYSICS, number>> = {};
+
+  readonly debugState = {
+    slipAngle: 0,
+    driftResidual: 0,
+    gripFactor: 0,
+    throttleBlend: 0,
+    speedRatio: 0,
+    currentThrottle: 0,
+  };
+
+  private _dp<K extends keyof typeof DRIFT_PHYSICS>(k: K): number {
+    return (this._driftOv[k] ?? DRIFT_PHYSICS[k]) as number;
+  }
+  private _ph<K extends keyof typeof PHYSICS>(k: K): number {
+    return (this._physOv[k] ?? PHYSICS[k]) as number;
+  }
+
+  setOverride(group: 'physics' | 'drift', key: string, value: number): void {
+    const target = group === 'drift' ? this._driftOv : this._physOv;
+    (target as Record<string, number>)[key] = value;
+  }
+  resetOverrides(): void {
+    for (const k in this._driftOv) delete (this._driftOv as Record<string, number>)[k];
+    for (const k in this._physOv) delete (this._physOv as Record<string, number>)[k];
+  }
+
   private normalizeAngle(a: number): number {
     return (((a % (Math.PI * 2)) + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
   }
@@ -15,35 +43,38 @@ export class CarPhysics {
     const def = car.definition;
     const tau =
       throttle > 0
-        ? DRIFT_PHYSICS.throttleInertiaTime
-        : DRIFT_PHYSICS.brakeInertiaTime;
+        ? this._dp('throttleInertiaTime')
+        : this._dp('brakeInertiaTime');
     const blend = 1 - Math.exp(-dt / tau);
+
+    this.debugState.throttleBlend = blend;
+    this.debugState.currentThrottle = throttle;
 
     let tractionFactor = 1.0;
     if (throttle > 0) {
       const slip = this.normalizeAngle(car.velocityAngle - car.rotation);
       const slipFraction = Math.min(1, Math.abs(slip) / (Math.PI / 2));
-      tractionFactor = 1 - slipFraction * (1 - DRIFT_PHYSICS.tractionLossMin);
+      tractionFactor = 1 - slipFraction * (1 - this._dp('tractionLossMin'));
     }
 
     // Burnout traction
     if (throttle > 0 && car.burnoutTimer > 0) {
-      tractionFactor *= DRIFT_PHYSICS.burnoutTractionFactor;
+      tractionFactor *= this._dp('burnoutTractionFactor');
     }
 
-    const hbAccelMult = (handbrake && throttle > 0) ? DRIFT_PHYSICS.handbrakeAccelMultiplier : 1.0;
+    const hbAccelMult = (handbrake && throttle > 0) ? this._dp('handbrakeAccelMultiplier') : 1.0;
     const force =
       throttle > 0 ? def.acceleration * throttle : def.braking * throttle;
     car.speed += force * blend * tractionFactor * hbAccelMult;
     car.speed = Math.max(
-      -def.maxSpeed * DRIFT_PHYSICS.maxReverseSpeedFraction,
+      -def.maxSpeed * this._dp('maxReverseSpeedFraction'),
       Math.min(car.speed, def.maxSpeed),
     );
 
     // Burnout trigger: HB released while driftResidual high and throttle applied
     const handbrakeJustReleased = this.wasHandbraking && !handbrake;
     if (handbrakeJustReleased && throttle > 0 && this.driftResidual > 0.4 && car.burnoutTimer <= 0) {
-      car.burnoutTimer = DRIFT_PHYSICS.burnoutDuration;
+      car.burnoutTimer = this._dp('burnoutDuration');
     }
     this.wasHandbraking = handbrake;
 
@@ -65,16 +96,16 @@ export class CarPhysics {
       }
       const speedRatio = Math.abs(car.speed) / def.maxSpeed;
       const steerEffect =
-        def.handling * (1.0 - speedRatio * PHYSICS.speedSteeringFactor);
+        def.handling * (1.0 - speedRatio * this._ph('speedSteeringFactor'));
       car.steeringAngle +=
-        steerInput * PHYSICS.steeringSpeed * steerEffect * dt;
+        steerInput * this._ph('steeringSpeed') * steerEffect * dt;
       car.steeringAngle = Math.max(
-        -PHYSICS.maxSteeringAngle,
-        Math.min(PHYSICS.maxSteeringAngle, car.steeringAngle),
+        -this._ph('maxSteeringAngle'),
+        Math.min(this._ph('maxSteeringAngle'), car.steeringAngle),
       );
     } else {
       // Return steering to center
-      const returnAmount = PHYSICS.steeringReturnSpeed * dt;
+      const returnAmount = this._ph('steeringReturnSpeed') * dt;
       if (Math.abs(car.steeringAngle) < returnAmount) {
         car.steeringAngle = 0;
       } else {
@@ -105,47 +136,51 @@ export class CarPhysics {
   updatePosition(car: CarState, dt: number, handbrake = false, throttle = 0): void {
     // 1. Drag
     const drag = handbrake
-      ? (throttle <= 0 ? DRIFT_PHYSICS.handbrakeDragNoThrottle : DRIFT_PHYSICS.handbrakeDrag)
-      : PHYSICS.drag;
+      ? (throttle <= 0 ? this._dp('handbrakeDragNoThrottle') : this._dp('handbrakeDrag'))
+      : this._ph('drag');
     car.speed *= drag;
 
     // 2. Slip angle
     const slip = this.normalizeAngle(car.velocityAngle - car.rotation);
+    this.debugState.slipAngle = slip;
 
     // 3. Drift residual — builds up while actively drifting, decays on release
-    if (handbrake && Math.abs(slip) > DRIFT_PHYSICS.skidSlipThreshold) {
+    if (handbrake && Math.abs(slip) > this._dp('skidSlipThreshold')) {
       this.driftResidual = Math.min(1.0, this.driftResidual + dt * 4);
     } else {
       this.driftResidual = Math.max(0, this.driftResidual - dt * 1.2);
     }
+    this.debugState.driftResidual = this.driftResidual;
 
     // 4. Grip factor
     const speedRatio = Math.abs(car.speed) / car.definition.maxSpeed;
+    this.debugState.speedRatio = speedRatio;
     const baseGrip =
-      DRIFT_PHYSICS.gripHigh +
-      (DRIFT_PHYSICS.gripLow - DRIFT_PHYSICS.gripHigh) * speedRatio;
+      this._dp('gripHigh') +
+      (this._dp('gripLow') - this._dp('gripHigh')) * speedRatio;
     const hbMult = handbrake
-      ? DRIFT_PHYSICS.handbrakeGripMultiplier
+      ? this._dp('handbrakeGripMultiplier')
       : Math.max(
-          DRIFT_PHYSICS.handbrakeGripMultiplier * 4,
-          1.0 - this.driftResidual * (1 - DRIFT_PHYSICS.handbrakeGripMultiplier * 4)
+          this._dp('handbrakeGripMultiplier') * 4,
+          1.0 - this.driftResidual * (1 - this._dp('handbrakeGripMultiplier') * 4)
         );
     const isCounterSteer =
       this.lastSteerSign !== 0 &&
       Math.sign(this.lastSteerSign) !== Math.sign(slip);
     const csMult = isCounterSteer
-      ? DRIFT_PHYSICS.counterSteerBonus * car.definition.handling
+      ? this._dp('counterSteerBonus') * car.definition.handling
       : 1.0;
 
     // High-speed turn slip: reduce grip and add slight spinout rotation
     let highSpeedSlipExtra = 0;
-    if (speedRatio > DRIFT_PHYSICS.highSpeedRatioThreshold && Math.abs(car.steeringAngle) > DRIFT_PHYSICS.highSpeedSteerThreshold) {
+    if (speedRatio > this._dp('highSpeedRatioThreshold') && Math.abs(car.steeringAngle) > this._dp('highSpeedSteerThreshold')) {
       highSpeedSlipExtra =
-        ((speedRatio - DRIFT_PHYSICS.highSpeedRatioThreshold) / (1 - DRIFT_PHYSICS.highSpeedRatioThreshold)) *
-        (Math.abs(car.steeringAngle) / PHYSICS.maxSteeringAngle) *
+        ((speedRatio - this._dp('highSpeedRatioThreshold')) / (1 - this._dp('highSpeedRatioThreshold'))) *
+        (Math.abs(car.steeringAngle) / this._ph('maxSteeringAngle')) *
         0.4;
     }
     const gripFactor = 1 - highSpeedSlipExtra * 0.5;
+    this.debugState.gripFactor = gripFactor;
     const effectiveGrip =
       baseGrip * hbMult * csMult * car.hazardSteerFactor * gripFactor;
 
@@ -161,28 +196,28 @@ export class CarPhysics {
     car.velocityAngle -= alignDelta;
 
     // 6. Cornering drag
-    car.speed *= 1 - Math.abs(slip) * DRIFT_PHYSICS.corneringDragFactor * dt;
+    car.speed *= 1 - Math.abs(slip) * this._dp('corneringDragFactor') * dt;
 
     // 7. Rotation from steering
     const rawSpeedRatio = Math.abs(car.speed) / car.definition.maxSpeed;
     const isMoving = Math.abs(car.speed) > 0.5;
     const speedFactor = isMoving
-      ? Math.max(DRIFT_PHYSICS.minLowSpeedFactor, rawSpeedRatio)
+      ? Math.max(this._dp('minLowSpeedFactor'), rawSpeedRatio)
       : rawSpeedRatio;
     const signedSpeedFactor = Math.sign(car.speed) * speedFactor;
     let rotRate = car.steeringAngle * dt * signedSpeedFactor;
     // High-speed turn: add slight spinout rotation
     if (highSpeedSlipExtra > 0) {
-      rotRate += Math.sign(car.steeringAngle) * highSpeedSlipExtra * DRIFT_PHYSICS.spinoutRotationFactor;
+      rotRate += Math.sign(car.steeringAngle) * highSpeedSlipExtra * this._dp('spinoutRotationFactor');
     }
     const rotDelta =
-      handbrake && Math.abs(slip) > DRIFT_PHYSICS.skidSlipThreshold
-        ? rotRate * DRIFT_PHYSICS.handbrakeRotationMultiplier
+      handbrake && Math.abs(slip) > this._dp('skidSlipThreshold')
+        ? rotRate * this._dp('handbrakeRotationMultiplier')
         : rotRate;
 
     // 8. Handbrake pivot correction (simulates front-axle rotation center)
     if (handbrake && Math.abs(rotDelta) > 0.001) {
-      const pivotShift = DRIFT_PHYSICS.frontAxleOffset * Math.sin(rotDelta);
+      const pivotShift = this._dp('frontAxleOffset') * Math.sin(rotDelta);
       const rightX = Math.cos(car.rotation);
       const rightZ = -Math.sin(car.rotation);
       const steerSign = Math.sign(car.steeringAngle);
@@ -201,9 +236,9 @@ export class CarPhysics {
     const hardBraking =
       !handbrake &&
       car.isBraking &&
-      Math.abs(car.speed) > car.definition.maxSpeed * DRIFT_PHYSICS.hardBrakingThreshold;
+      Math.abs(car.speed) > car.definition.maxSpeed * this._dp('hardBrakingThreshold');
     car.isSkidding =
-      Math.abs(slip) > DRIFT_PHYSICS.skidSlipThreshold ||
+      Math.abs(slip) > this._dp('skidSlipThreshold') ||
       (handbrake && Math.abs(car.speed) > 3) ||
       hardBraking ||
       car.burnoutTimer > 0;

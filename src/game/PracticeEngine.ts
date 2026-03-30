@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import type { PlacedObject, CarState } from '../types/game.js';
+import type { PlacedObject, CarState, PhysicsTelemetry, PhysicsGroup } from '../types/game.js';
 import { CAR_DEFINITIONS } from '../constants/cars.js';
+import { PHYSICS, DRIFT_PHYSICS, CONTROLLER_PHYSICS } from '../constants/physics.js';
 import { LightingSetup } from './scene/LightingSetup.js';
 import { TableScene } from './scene/TableScene.js';
 import { CarFactory } from './car/CarFactory.js';
@@ -34,6 +35,7 @@ export class PracticeEngine {
   private paused = false;
   private disposed = false;
   private boundHandleResize: () => void;
+  private readonly _overrideMirror = new Map<string, number>();
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -173,6 +175,76 @@ export class PracticeEngine {
       return { x: target.x, z: target.z };
     }
     return { x: 0, z: 0 };
+  }
+
+  getTelemetry(): PhysicsTelemetry {
+    const car = this.playerCar;
+    if (!car) return {
+      speed: 0, speedRatio: 0, slipAngle: 0, lateralVelocity: 0,
+      steeringAngle: 0, driftResidual: 0, gripFactor: 0, throttleBlend: 0,
+      isSkidding: false, isBraking: false, burnoutTimer: 0,
+    };
+    const ds = this.carPhysics.debugState;
+    return {
+      speed: car.speed, speedRatio: ds.speedRatio, slipAngle: ds.slipAngle,
+      lateralVelocity: car.lateralVelocity, steeringAngle: car.steeringAngle,
+      driftResidual: ds.driftResidual, gripFactor: ds.gripFactor,
+      throttleBlend: ds.throttleBlend, isSkidding: car.isSkidding,
+      isBraking: car.isBraking, burnoutTimer: car.burnoutTimer,
+    };
+  }
+
+  setPhysicsOverride(group: PhysicsGroup, key: string, value: number): void {
+    if (group === 'controller') this.playerController.setOverride(key, value);
+    else this.carPhysics.setOverride(group, key, value);
+    this._overrideMirror.set(`${group}:${key}`, value);
+  }
+
+  resetPhysics(): void {
+    this.carPhysics.resetOverrides();
+    this.playerController.resetOverrides();
+    this._overrideMirror.clear();
+  }
+
+  getPhysicsDefaults(): Record<PhysicsGroup, Record<string, number>> {
+    return { physics: { ...PHYSICS }, drift: { ...DRIFT_PHYSICS }, controller: { ...CONTROLLER_PHYSICS } };
+  }
+
+  exportPhysicsTS(): string {
+    const defaults = this.getPhysicsDefaults();
+    const merged = (group: PhysicsGroup) => {
+      const result: Record<string, number> = { ...defaults[group] };
+      for (const [k, v] of this._overrideMirror) {
+        const [g, key] = k.split(':');
+        if (g === group) result[key] = v;
+      }
+      return result;
+    };
+    const fmt = (obj: Record<string, number>, name: string) =>
+      `export const ${name} = {\n${Object.entries(obj).map(([k, v]) => `  ${k}: ${v},`).join('\n')}\n} as const;`;
+
+    const hazardBlock = `export const HAZARD_EFFECTS: Record<string, HazardEffect> = {
+  juice: { speedMultiplier: 0.5, steeringMultiplier: 1.0, lateralDrift: 0 },
+  oil: { speedMultiplier: 1.0, steeringMultiplier: 0.3, lateralDrift: 0.5 },
+  food: { speedMultiplier: 0.7, steeringMultiplier: 1.0, lateralDrift: 0 },
+  milk: { speedMultiplier: 0.65, steeringMultiplier: 0.8, lateralDrift: 0.2 },
+  butter: { speedMultiplier: 0.9, steeringMultiplier: 0.15, lateralDrift: 1.2 },
+};`;
+    const aiBlock = `export const AI_CONFIG = {\n  lookAhead: 0.03,\n  steeringGain: 3.0,\n  brakeAngleThreshold: 0.5,\n  brakeFactor: 0.65,\n  lateralVariation: 1.5,\n  minSkillLevel: 0.7,\n  maxSkillLevel: 1.0,\n} as const;`;
+
+    return [
+      `import type { HazardEffect } from "../types/game.js";`,
+      '',
+      fmt(merged('physics'), 'PHYSICS'),
+      '',
+      hazardBlock,
+      '',
+      fmt(merged('drift'), 'DRIFT_PHYSICS'),
+      '',
+      fmt(merged('controller'), 'CONTROLLER_PHYSICS'),
+      '',
+      aiBlock,
+    ].join('\n');
   }
 
   pause(): void {
