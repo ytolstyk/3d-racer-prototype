@@ -311,7 +311,7 @@ export class PracticeEngine {
       this.tireMarks.update(dt);
       this.tireSmoke.update(dt);
 
-      this.cameraController.update(car.position, car.speed, car.definition.maxSpeed);
+      this.cameraController.update(car.position, car.speed, car.definition.maxSpeed, car.rotation);
     }
 
     this.renderer.render(this.scene, this.cameraController.camera);

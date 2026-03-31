@@ -3,28 +3,14 @@ export const CAMERA = {
   near: 0.1,
   far: 1000,
 
-  // Height above car (Y offset)
   baseHeight: 75,
   maxZoomHeight: 131,
-
-  // Distance behind car along its velocity direction
-  baseBack: 41,
-  maxZoomBack: 64,
-
-  // Height/back lerp speed (zoom-in/out smoothing)
   heightLerp: 0.05,
-  backLerp: 0.05,
 
-  // Position lerp at speed=0 and speed=max
-  positionLerpBase: 0.2,
-  positionLerpMax: 0.7,
+  // Lead panning: camera shifts toward car's heading so car appears on trailing edge
+  leadDist: 30, // max units of lead at full speed
+  leadLerp: 0.02, // how fast lead responds to direction/speed changes
 
-  // How fast the camera rotates around the car to match velocity direction (per frame, 0–1)
-  rotationLerp: 0.06,
-
-  // Look-at target lerp
-  lookAtLerp: 0.6,
-
-  // Pitch angle in degrees (63 = looks at car, 90 = straight down, lower = more horizon tilt)
-  angle: 55,
+  // Pitch angle: 90 = straight down, lower = more horizon tilt
+  angle: 60,
 };
