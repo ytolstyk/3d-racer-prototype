@@ -36,8 +36,8 @@ export function MinimapDisplay({ trackPoints, carPositions }: MinimapDisplayProp
     const scale = Math.min(scaleX, scaleZ);
 
     const toScreen = (x: number, z: number): [number, number] => [
-      PADDING + (maxX - x) * scale,
-      PADDING + (maxZ - z) * scale,
+      PADDING + (x - minX) * scale,
+      PADDING + (z - minZ) * scale,
     ];
 
     ctx.clearRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
