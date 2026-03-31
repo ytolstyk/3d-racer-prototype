@@ -7,7 +7,7 @@ export const CAMERA = {
   baseHeight: 75,
   maxZoomHeight: 131,
 
-  // Distance behind car in world-Z (fixed orientation, independent of car heading)
+  // Distance behind car along its velocity direction
   baseBack: 41,
   maxZoomBack: 64,
 
@@ -18,6 +18,9 @@ export const CAMERA = {
   // Position lerp at speed=0 and speed=max
   positionLerpBase: 0.2,
   positionLerpMax: 0.7,
+
+  // How fast the camera rotates around the car to match velocity direction (per frame, 0–1)
+  rotationLerp: 0.06,
 
   // Look-at target lerp
   lookAtLerp: 0.6,

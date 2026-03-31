@@ -3,10 +3,10 @@ import { CAMERA } from '../../constants/camera.js';
 
 export class TopDownCamera {
   readonly camera: THREE.PerspectiveCamera;
-  private targetPosition = new THREE.Vector3();
   private smoothLookAt = new THREE.Vector3();
   private currentHeight: number;
   private currentBack: number;
+  private smoothedAngle = 0;
   private initialized = false;
   private overrides = new Map<string, number>();
 
@@ -26,7 +26,7 @@ export class TopDownCamera {
   resetOverrides(): void { this.overrides.clear(); }
   getOverrides(): Map<string, number> { return this.overrides; }
 
-  update(playerPosition: THREE.Vector3, speed = 0, maxSpeed = 80): void {
+  update(playerPosition: THREE.Vector3, speed = 0, maxSpeed = 80, velocityAngle = 0): void {
     const speedRatio = Math.min(Math.abs(speed) / maxSpeed, 1);
 
     const targetHeight = this.cfg('baseHeight') + (this.cfg('maxZoomHeight') - this.cfg('baseHeight')) * speedRatio;
@@ -35,31 +35,44 @@ export class TopDownCamera {
     this.currentHeight += (targetHeight - this.currentHeight) * this.cfg('heightLerp');
     this.currentBack += (targetBack - this.currentBack) * this.cfg('backLerp');
 
-    // Fixed world-space offset — camera orientation never depends on car heading
-    this.targetPosition.set(
-      playerPosition.x,
-      playerPosition.y + this.currentHeight,
-      playerPosition.z + this.currentBack,
-    );
-
-    const posLerp = this.cfg('positionLerpBase') + (this.cfg('positionLerpMax') - this.cfg('positionLerpBase')) * speedRatio;
-    this.camera.position.lerp(this.targetPosition, posLerp);
-
-    // Derive look-at point from pitch angle.
-    // angle=63° ≈ looks at car, 90°=straight down, lower=more horizon tilt.
-    // Formula: at pitch θ, the ground-plane intersection of the camera ray is
-    //   pz + (back - height / tan(θ))
-    const angleDeg = Math.max(5, Math.min(89, this.cfg('angle')));
-    const angleRad = angleDeg * (Math.PI / 180);
-    const lookOffsetZ = this.currentBack - this.currentHeight / Math.tan(angleRad);
-    const desiredLookAt = new THREE.Vector3(playerPosition.x, playerPosition.y, playerPosition.z + lookOffsetZ);
-
+    // Smooth the velocity angle via shortest-arc interpolation so the camera
+    // orbits around the car rather than lerping through it in world space.
     if (!this.initialized) {
-      this.smoothLookAt.copy(desiredLookAt);
+      this.smoothedAngle = velocityAngle;
       this.initialized = true;
     } else {
-      this.smoothLookAt.lerp(desiredLookAt, this.cfg('lookAtLerp'));
+      let diff = velocityAngle - this.smoothedAngle;
+      // Wrap to [-π, π] so we always take the short way around
+      while (diff > Math.PI) diff -= 2 * Math.PI;
+      while (diff < -Math.PI) diff += 2 * Math.PI;
+      this.smoothedAngle += diff * this.cfg('rotationLerp');
     }
+
+    // Backward direction from car (opposite of velocity forward)
+    // Convention: forward = (sin(angle), 0, cos(angle))
+    const backX = -Math.sin(this.smoothedAngle);
+    const backZ = -Math.cos(this.smoothedAngle);
+
+    // Camera sits behind the car at the smoothed angle
+    this.camera.position.set(
+      playerPosition.x + backX * this.currentBack,
+      playerPosition.y + this.currentHeight,
+      playerPosition.z + backZ * this.currentBack,
+    );
+
+    // Look-at point: offset from car along back axis.
+    // angle=55° → lookOffset ≈ -11.5 → look-at is ~11.5 units ahead of car.
+    const angleDeg = Math.max(5, Math.min(89, this.cfg('angle')));
+    const angleRad = angleDeg * (Math.PI / 180);
+    const lookOffset = this.currentBack - this.currentHeight / Math.tan(angleRad);
+
+    const desiredLookAt = new THREE.Vector3(
+      playerPosition.x + backX * lookOffset,
+      playerPosition.y,
+      playerPosition.z + backZ * lookOffset,
+    );
+
+    this.smoothLookAt.lerp(desiredLookAt, this.cfg('lookAtLerp'));
     this.camera.lookAt(this.smoothLookAt);
   }
 
