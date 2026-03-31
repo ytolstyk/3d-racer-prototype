@@ -345,7 +345,7 @@ export class GameEngine {
 
     // Camera follows player
     if (this.playerCar) {
-      this.cameraController.update(this.playerCar.position, this.playerCar.speed, this.playerCar.definition.maxSpeed, this.playerCar.rotation);
+      this.cameraController.update(this.playerCar.position, this.playerCar.speed, this.playerCar.definition.maxSpeed);
     }
 
     // Render

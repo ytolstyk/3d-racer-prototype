@@ -71,6 +71,13 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
   const [showPhysicsExport, setShowPhysicsExport] = useState(false);
   const [physicsExportTs, setPhysicsExportTs] = useState('');
 
+  // Camera tuner state
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraDefaults, setCameraDefaults] = useState<Record<string, number> | null>(null);
+  const [cameraOverrideMap, setCameraOverrideMap] = useState<Record<string, number>>({});
+  const [showCameraExport, setShowCameraExport] = useState(false);
+  const [cameraExportTs, setCameraExportTs] = useState('');
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -78,6 +85,8 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
     setMaxSpeed(engineRef.current.getMaxSpeed());
     setPhysicsDefaults(engineRef.current.getPhysicsDefaults());
     setOverrideMap({});
+    setCameraDefaults(engineRef.current.getCameraDefaults());
+    setCameraOverrideMap({});
     return () => {
       engineRef.current?.dispose();
       engineRef.current = null;
@@ -177,12 +186,33 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
     setShowPhysicsExport(true);
   }, []);
 
+  const handleCameraOverride = useCallback((key: string, raw: string) => {
+    const value = parseFloat(raw);
+    if (isNaN(value)) return;
+    engineRef.current?.setCameraOverride(key, value);
+    setCameraOverrideMap(prev => ({ ...prev, [key]: value }));
+  }, []);
+
+  const handleResetCamera = useCallback(() => {
+    engineRef.current?.resetCamera();
+    setCameraOverrideMap({});
+  }, []);
+
+  const handleCameraExport = useCallback(() => {
+    setCameraExportTs(engineRef.current?.exportCameraTS() ?? '');
+    setShowCameraExport(true);
+  }, []);
+
   const toggleTelemetry = useCallback(() => {
-    setTelemetryOpen(p => { if (!p) setTunerOpen(false); return !p; });
+    setTelemetryOpen(p => { if (!p) { setTunerOpen(false); setCameraOpen(false); } return !p; });
   }, []);
 
   const toggleTuner = useCallback(() => {
-    setTunerOpen(p => { if (!p) setTelemetryOpen(false); return !p; });
+    setTunerOpen(p => { if (!p) { setTelemetryOpen(false); setCameraOpen(false); } return !p; });
+  }, []);
+
+  const toggleCamera = useCallback(() => {
+    setCameraOpen(p => { if (!p) { setTelemetryOpen(false); setTunerOpen(false); } return !p; });
   }, []);
 
   const btnStyle: React.CSSProperties = {
@@ -337,6 +367,15 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
         >
           ⚙ Physics
         </button>
+        <button
+          style={{
+            ...btnStyle, fontSize: 10, padding: '2px 8px',
+            background: cameraOpen ? 'rgba(180,100,255,0.3)' : 'rgba(255,255,255,0.08)',
+          }}
+          onClick={toggleCamera}
+        >
+          📷 Camera
+        </button>
       </div>
 
       {/* Telemetry panel */}
@@ -436,6 +475,69 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
           <div style={{ display: 'flex', gap: 6, marginTop: 8, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
             <button style={{ ...btnStyle, fontSize: 10, padding: '3px 8px' }} onClick={handleResetPhysics}>↺ Reset All</button>
             <button style={{ ...btnStyle, fontSize: 10, padding: '3px 8px', background: 'rgba(100,200,100,0.2)' }} onClick={handlePhysicsExport}>Export as TypeScript</button>
+          </div>
+        </div>
+      )}
+
+      {/* Camera tuner panel */}
+      {cameraOpen && cameraDefaults && (
+        <div style={{
+          position: 'absolute', top: 40, left: 10, zIndex: 20,
+          background: 'rgba(0,0,0,0.88)', border: '1px solid rgba(180,100,255,0.25)',
+          borderRadius: 6, padding: '8px 10px', width: 260,
+          maxHeight: '75vh', overflowY: 'auto',
+        }}>
+          <div style={{ color: 'rgba(180,100,255,0.9)', fontSize: 10, marginBottom: 8, letterSpacing: 1, textTransform: 'uppercase' }}>
+            Camera Constants
+          </div>
+          {Object.keys(cameraDefaults).map(key => {
+            const isModified = key in cameraOverrideMap;
+            const defaultVal = cameraDefaults[key];
+            return (
+              <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ color: isModified ? '#cc88ff' : 'rgba(255,255,255,0.55)', fontSize: 10, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={key}>
+                  {key}
+                </span>
+                <input
+                  type="number"
+                  defaultValue={defaultVal}
+                  step="any"
+                  onBlur={e => handleCameraOverride(key, e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleCameraOverride(key, (e.target as HTMLInputElement).value); }}
+                  style={{
+                    width: 90, fontSize: 10, fontFamily: 'monospace',
+                    background: '#0d0d1a', color: '#fff',
+                    border: `1px solid ${isModified ? '#cc88ff' : 'rgba(255,255,255,0.2)'}`,
+                    borderRadius: 3, padding: '2px 4px', textAlign: 'right',
+                  }}
+                />
+              </div>
+            );
+          })}
+          <div style={{ display: 'flex', gap: 6, marginTop: 8, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+            <button style={{ ...btnStyle, fontSize: 10, padding: '3px 8px' }} onClick={handleResetCamera}>↺ Reset All</button>
+            <button style={{ ...btnStyle, fontSize: 10, padding: '3px 8px', background: 'rgba(100,200,100,0.2)' }} onClick={handleCameraExport}>Export as TypeScript</button>
+          </div>
+        </div>
+      )}
+
+      {/* Camera export modal */}
+      {showCameraExport && (
+        <div style={{ ...overlayStyle, background: 'rgba(0,0,0,0.85)' }}>
+          <div style={{
+            background: '#1a1a2e', padding: 16, borderRadius: 8,
+            width: '80%', maxWidth: 700, display: 'flex', flexDirection: 'column', gap: 8,
+          }}>
+            <h3 style={{ color: '#fff', margin: 0 }}>camera.ts</h3>
+            <textarea
+              value={cameraExportTs}
+              readOnly
+              style={{ width: '100%', height: 400, fontFamily: 'monospace', fontSize: 11, background: '#0d0d1a', color: '#ccc', border: '1px solid #333', borderRadius: 4, padding: 8, boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button style={primaryBtnStyle} onClick={() => navigator.clipboard.writeText(cameraExportTs)}>Copy to Clipboard</button>
+              <button style={btnStyle} onClick={() => setShowCameraExport(false)}>Close</button>
+            </div>
           </div>
         </div>
       )}

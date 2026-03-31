@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { PlacedObject, CarState, PhysicsTelemetry, PhysicsGroup } from '../types/game.js';
 import { CAR_DEFINITIONS } from '../constants/cars.js';
 import { PHYSICS, DRIFT_PHYSICS, CONTROLLER_PHYSICS } from '../constants/physics.js';
+import { CAMERA } from '../constants/camera.js';
 import { LightingSetup } from './scene/LightingSetup.js';
 import { TableScene } from './scene/TableScene.js';
 import { CarFactory } from './car/CarFactory.js';
@@ -36,6 +37,7 @@ export class PracticeEngine {
   private disposed = false;
   private boundHandleResize: () => void;
   private readonly _overrideMirror = new Map<string, number>();
+  private readonly _cameraOverrideMirror = new Map<string, number>();
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -210,6 +212,27 @@ export class PracticeEngine {
     return { physics: { ...PHYSICS }, drift: { ...DRIFT_PHYSICS }, controller: { ...CONTROLLER_PHYSICS } };
   }
 
+  getCameraDefaults(): Record<string, number> {
+    return { ...CAMERA };
+  }
+
+  setCameraOverride(key: string, value: number): void {
+    this.cameraController.setOverride(key, value);
+    this._cameraOverrideMirror.set(key, value);
+  }
+
+  resetCamera(): void {
+    this.cameraController.resetOverrides();
+    this._cameraOverrideMirror.clear();
+  }
+
+  exportCameraTS(): string {
+    const merged: Record<string, number> = { ...CAMERA };
+    for (const [k, v] of this._cameraOverrideMirror) merged[k] = v;
+    const lines = Object.entries(merged).map(([k, v]) => `  ${k}: ${v},`).join('\n');
+    return `export const CAMERA = {\n${lines}\n};\n`;
+  }
+
   exportPhysicsTS(): string {
     const defaults = this.getPhysicsDefaults();
     const merged = (group: PhysicsGroup) => {
@@ -288,7 +311,7 @@ export class PracticeEngine {
       this.tireMarks.update(dt);
       this.tireSmoke.update(dt);
 
-      this.cameraController.update(car.position, car.speed, car.definition.maxSpeed, car.rotation);
+      this.cameraController.update(car.position, car.speed, car.definition.maxSpeed);
     }
 
     this.renderer.render(this.scene, this.cameraController.camera);
