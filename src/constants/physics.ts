@@ -2,10 +2,10 @@ import type { HazardEffect } from "../types/game.js";
 
 export const PHYSICS = {
   drag: 0.994, // per-frame speed multiplier when coasting (0.994^60 ≈ 0.70 — gradual coast-down)
-  steeringSpeed: 60.0,
-  maxSteeringAngle: 5.5, // rotation rate (rad/s at full speed) — ~20 unit turn radius
+  steeringSpeed: 40.0,
+  maxSteeringAngle: 3.5, // rotation rate (rad/s at full speed) — ~20 unit turn radius
   steeringReturnSpeed: 60.0,
-  speedSteeringFactor: 0.5, // how much speed reduces steering effectiveness (0.5 → 50% at max speed)
+  speedSteeringFactor: 0.7, // how much speed reduces steering effectiveness (0.5 → 50% at max speed)
   boundaryBounceSpeedLoss: 0.5,
   carCollisionSpeedLoss: 0.3,
   carCollisionPushForce: 2.0,
