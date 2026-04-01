@@ -35,7 +35,8 @@ export const DRIFT_PHYSICS = {
 
   minLowSpeedFactor: 0.35, // floor on speed ratio in rotation calc
   handbrakeAccelMultiplier: 0.25, // accel force fraction when HB held
-  handbrakeDragNoThrottle: 0.998, // gradual drag: HB held + no throttle
+  handbrakeDragNoThrottle: 0.998, // gradual drag: HB held + no throttle (high speed)
+  handbrakeLowSpeedDrag: 0.978, // stronger drag blended in below 50% speed when HB + no throttle
   burnoutDuration: 1, // seconds of burnout after HB release
   burnoutTractionFactor: 0.6, // accel fraction during burnout
 

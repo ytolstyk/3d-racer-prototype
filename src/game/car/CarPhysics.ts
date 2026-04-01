@@ -135,9 +135,14 @@ export class CarPhysics {
 
   updatePosition(car: CarState, dt: number, handbrake = false, throttle = 0): void {
     // 1. Drag
-    const drag = handbrake
-      ? (throttle <= 0 ? this._dp('handbrakeDragNoThrottle') : this._dp('handbrakeDrag'))
-      : this._ph('drag');
+    let drag: number;
+    if (handbrake && throttle <= 0) {
+      const speedRatio = Math.abs(car.speed) / car.definition.maxSpeed;
+      const lowSpeedBlend = Math.max(0, 1 - speedRatio / 0.5); // 0 at ≥50%, 1 at 0%
+      drag = this._dp('handbrakeDragNoThrottle') + (this._dp('handbrakeLowSpeedDrag') - this._dp('handbrakeDragNoThrottle')) * lowSpeedBlend;
+    } else {
+      drag = handbrake ? this._dp('handbrakeDrag') : this._ph('drag');
+    }
     car.speed *= drag;
 
     // 2. Slip angle
