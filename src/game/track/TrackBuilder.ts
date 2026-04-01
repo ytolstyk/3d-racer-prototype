@@ -145,66 +145,6 @@ export class TrackBuilder {
     return group;
   }
 
-  private buildCurbDecals(track: TrackDefinition, side: 'left' | 'right'): THREE.Group {
-    const group = new THREE.Group();
-    const boundaries = track.getBoundaryPoints();
-    const total = boundaries.length;
-
-    const curbWidth = 1.8;
-    const curbTex = this.makeCurbTexture();
-    const material = new THREE.MeshBasicMaterial({
-      map: curbTex,
-      transparent: true,
-      depthWrite: false,
-      renderOrder: 1,
-      side: THREE.DoubleSide,
-    });
-
-    for (let i = 0; i < total - 1; i++) {
-      const bp = boundaries[i];
-      const bpNext = boundaries[i + 1];
-
-      // Skip quads at very tight turns to avoid overlap artifacts
-      const iPrev = (i - 1 + total) % total;
-      const iNext = (i + 1) % total;
-      const tPrev = boundaries[iPrev].tangent;
-      const tNext = boundaries[iNext].tangent;
-      const curvature = Math.max(0, 1 - tPrev.dot(tNext));
-      if (curvature > 0.35) continue;
-
-      const base = side === 'left' ? bp.left : bp.right;
-      const baseNext = side === 'left' ? bpNext.left : bpNext.right;
-
-      const normal = track.getNormalAt(bp.t);
-      const outward = side === 'left' ? normal : normal.clone().negate();
-
-      const innerA = base.clone();
-      const outerA = base.clone().add(outward.clone().multiplyScalar(curbWidth));
-      const innerB = baseNext.clone();
-      const outerB = baseNext.clone().add(outward.clone().multiplyScalar(curbWidth));
-
-      const verts = new Float32Array([
-        innerA.x, 0.06, innerA.z,
-        outerA.x, 0.06, outerA.z,
-        innerB.x, 0.06, innerB.z,
-        outerB.x, 0.06, outerB.z,
-      ]);
-      const uvArr = new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]);
-      const idx = new Uint16Array([0, 1, 2, 1, 3, 2]);
-
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
-      geo.setIndex(new THREE.BufferAttribute(idx, 1));
-      geo.computeVertexNormals();
-
-      const mesh = new THREE.Mesh(geo, material);
-      mesh.renderOrder = 1;
-      group.add(mesh);
-    }
-
-    return group;
-  }
 
   private makeRedTexture(): THREE.CanvasTexture {
     const canvas = document.createElement('canvas');
@@ -217,43 +157,6 @@ export class TrackBuilder {
     return tex;
   }
 
-  private makeCurbTexture(): THREE.CanvasTexture {
-    const w = 512, h = 64;
-    const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d')!;
-
-    // Alternating red/white vertical stripes
-    const numStripes = 8;
-    const stripeW = w / numStripes;
-    for (let i = 0; i < numStripes; i++) {
-      ctx.fillStyle = i % 2 === 0 ? '#cc2020' : '#f0f0f0';
-      ctx.fillRect(i * stripeW, 0, stripeW, h);
-    }
-
-    // Scattered dark scratch/dent lines
-    for (let s = 0; s < 25; s++) {
-      ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-      ctx.lineWidth = 0.6 + Math.random() * 1.4;
-      ctx.globalAlpha = 0.2 + Math.random() * 0.2;
-      const x1 = Math.random() * w;
-      const y1 = Math.random() * h;
-      const x2 = x1 + (Math.random() - 0.5) * 50;
-      const y2 = y1 + (Math.random() - 0.5) * 25;
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.stroke();
-    }
-    ctx.globalAlpha = 1;
-
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.wrapS = THREE.RepeatWrapping;
-    tex.wrapT = THREE.RepeatWrapping;
-    return tex;
-  }
 
   private makeCheckerTexture(): THREE.CanvasTexture {
     const sq = 32, cols = 8, rows = 2;

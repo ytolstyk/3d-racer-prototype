@@ -19,6 +19,10 @@ const DEFAULT_STATE: GameState = {
   carPositions: [],
   trackPoints: [],
   playerFinished: false,
+  checkpointSegmentTime: 0,
+  checkpointBestTime: 0,
+  checkpointFlashAge: 0,
+  isWrongWay: false,
 };
 
 export function useGameState(emitter: GameStateEmitter): GameState {

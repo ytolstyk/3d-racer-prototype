@@ -115,7 +115,7 @@ export class TireSmokeSystem {
     return this.nextParticle;
   }
 
-  private emitOne(x: number, y: number, z: number): void {
+  private emitOne(x: number, _y: number, z: number): void {
     const idx = this.findFreeSlot();
     const p = this.particles[idx];
     p.life = p.maxLife;
