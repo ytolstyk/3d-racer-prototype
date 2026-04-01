@@ -61,6 +61,8 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
   const [exportJson, setExportJson] = useState('');
   const [objectCount, setObjectCount] = useState(PRACTICE_DEFAULT_OBJECTS.length);
 
+  const [carPos, setCarPos] = useState({ x: 0, y: 0, z: 0 });
+
   // Telemetry + tuner state
   const [telemetry, setTelemetry] = useState<PhysicsTelemetry | null>(null);
   const [telemetryOpen, setTelemetryOpen] = useState(false);
@@ -98,6 +100,7 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
       if (engineRef.current) {
         setSpeed(engineRef.current.getSpeed());
         setTelemetry(engineRef.current.getTelemetry());
+        setCarPos(engineRef.current.getCarPosition());
       }
     }, 50);
     return () => clearInterval(id);
@@ -314,6 +317,33 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
               {car.name}
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* Coordinate display */}
+      <div style={{
+        position: 'absolute', bottom: 120, right: 10, zIndex: 10,
+        background: 'rgba(0,0,0,0.7)',
+        border: '1px solid rgba(255,255,255,0.15)',
+        borderRadius: 6, padding: '6px 10px',
+        fontFamily: 'monospace', fontSize: 11,
+        display: 'flex', flexDirection: 'column', gap: 2, minWidth: 110,
+      }}>
+        <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 9, letterSpacing: 1, marginBottom: 2 }}>POSITION</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+          <span style={{ color: '#ff6666' }}>X</span>
+          <span style={{ color: '#fff' }}>{carPos.x.toFixed(1)}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+          <span style={{ color: '#66ff66' }}>Y</span>
+          <span style={{ color: '#fff' }}>{carPos.y.toFixed(2)}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+          <span style={{ color: '#6688ff' }}>Z</span>
+          <span style={{ color: '#fff' }}>{carPos.z.toFixed(1)}</span>
+        </div>
+        <div style={{ marginTop: 4, paddingTop: 4, borderTop: '1px solid rgba(255,255,255,0.1)', fontSize: 9, color: 'rgba(255,255,255,0.3)', lineHeight: 1.4 }}>
+          <span style={{ color: '#ff6666' }}>X</span> east&nbsp;·&nbsp;<span style={{ color: '#66ff66' }}>Y</span> up&nbsp;·&nbsp;<span style={{ color: '#6688ff' }}>Z</span> south
         </div>
       </div>
 

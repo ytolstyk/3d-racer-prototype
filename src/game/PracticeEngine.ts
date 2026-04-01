@@ -1,18 +1,27 @@
-import * as THREE from 'three';
-import type { PlacedObject, CarState, PhysicsTelemetry, PhysicsGroup } from '../types/game.js';
-import { CAR_DEFINITIONS } from '../constants/cars.js';
-import { PHYSICS, DRIFT_PHYSICS, CONTROLLER_PHYSICS } from '../constants/physics.js';
-import { CAMERA } from '../constants/camera.js';
-import { LightingSetup } from './scene/LightingSetup.js';
-import { TableScene } from './scene/TableScene.js';
-import { CarFactory } from './car/CarFactory.js';
-import { CarPhysics } from './car/CarPhysics.js';
-import { CarController } from './car/CarController.js';
-import { InputManager } from './InputManager.js';
-import { TopDownCamera } from './camera/TopDownCamera.js';
-import { KITCHEN_ITEM_FACTORIES } from './scene/KitchenItems.js';
-import { TireMarkSystem } from './scene/TireMarkSystem.js';
-import { TireSmokeSystem } from './effects/TireSmokeSystem.js';
+import * as THREE from "three";
+import type {
+  PlacedObject,
+  CarState,
+  PhysicsTelemetry,
+  PhysicsGroup,
+} from "../types/game.js";
+import { CAR_DEFINITIONS } from "../constants/cars.js";
+import {
+  PHYSICS,
+  DRIFT_PHYSICS,
+  CONTROLLER_PHYSICS,
+} from "../constants/physics.js";
+import { CAMERA } from "../constants/camera.js";
+import { LightingSetup } from "./scene/LightingSetup.js";
+import { TableScene } from "./scene/TableScene.js";
+import { CarFactory } from "./car/CarFactory.js";
+import { CarPhysics } from "./car/CarPhysics.js";
+import { CarController } from "./car/CarController.js";
+import { InputManager } from "./InputManager.js";
+import { TopDownCamera } from "./camera/TopDownCamera.js";
+import { KITCHEN_ITEM_FACTORIES } from "./scene/KitchenItems.js";
+import { TireMarkSystem } from "./scene/TireMarkSystem.js";
+import { TireSmokeSystem } from "./effects/TireSmokeSystem.js";
 
 const BOUND_X = 600;
 const BOUND_Z = 450;
@@ -31,6 +40,8 @@ export class PracticeEngine {
   private objectMeshes: THREE.Group[] = [];
   private tireMarks: TireMarkSystem;
   private tireSmoke: TireSmokeSystem;
+  private _axisXMarker!: THREE.Mesh;
+  private _axisZMarker!: THREE.Mesh;
   private animFrameId = 0;
   private lastTime = 0;
   private paused = false;
@@ -60,6 +71,11 @@ export class PracticeEngine {
     new LightingSetup().setup(this.scene);
     this.scene.add(new TableScene().build());
 
+    const { group: axesGroup, xMarker, zMarker } = this._buildLabeledAxes();
+    this.scene.add(axesGroup);
+    this._axisXMarker = xMarker;
+    this._axisZMarker = zMarker;
+
     this.tireMarks = new TireMarkSystem(this.scene);
     this.tireSmoke = new TireSmokeSystem(this.scene);
 
@@ -67,7 +83,8 @@ export class PracticeEngine {
     this.playerController = new CarController(this.carPhysics);
     this.inputManager = new InputManager();
 
-    const carDef = CAR_DEFINITIONS.find(c => c.id === selectedCarId) ?? CAR_DEFINITIONS[0];
+    const carDef =
+      CAR_DEFINITIONS.find((c) => c.id === selectedCarId) ?? CAR_DEFINITIONS[0];
     const carMesh = new CarFactory().createCar(carDef);
     carMesh.position.set(0, 0.01, 0);
     this.scene.add(carMesh);
@@ -109,7 +126,7 @@ export class PracticeEngine {
     }
 
     this.boundHandleResize = this._handleResize.bind(this);
-    window.addEventListener('resize', this.boundHandleResize);
+    window.addEventListener("resize", this.boundHandleResize);
 
     this.lastTime = performance.now();
     this._loop();
@@ -135,7 +152,7 @@ export class PracticeEngine {
     if (idx < 0 || idx >= this.objects.length) return;
     const mesh = this.objectMeshes[idx];
     this.scene.remove(mesh);
-    mesh.traverse(child => {
+    mesh.traverse((child) => {
       if (child instanceof THREE.Mesh) child.geometry.dispose();
     });
     this.objects.splice(idx, 1);
@@ -143,9 +160,9 @@ export class PracticeEngine {
   }
 
   removeAllObjects(): void {
-    this.objectMeshes.forEach(mesh => {
+    this.objectMeshes.forEach((mesh) => {
       this.scene.remove(mesh);
-      mesh.traverse(child => {
+      mesh.traverse((child) => {
         if (child instanceof THREE.Mesh) child.geometry.dispose();
       });
     });
@@ -161,11 +178,21 @@ export class PracticeEngine {
     return this.playerCar?.speed ?? 0;
   }
 
+  getCarPosition(): { x: number; y: number; z: number } {
+    const p = this.playerCar?.position;
+    return p ? { x: p.x, y: p.y, z: p.z } : { x: 0, y: 0, z: 0 };
+  }
+
   getMaxSpeed(): number {
     return this.playerCar?.definition.maxSpeed ?? 1;
   }
 
-  screenToWorld(sx: number, sy: number, W: number, H: number): { x: number; z: number } {
+  screenToWorld(
+    sx: number,
+    sy: number,
+    W: number,
+    H: number,
+  ): { x: number; z: number } {
     const camera = this.cameraController.camera;
     const ndcX = (sx / W) * 2 - 1;
     const ndcY = -(sy / H) * 2 + 1;
@@ -181,23 +208,38 @@ export class PracticeEngine {
 
   getTelemetry(): PhysicsTelemetry {
     const car = this.playerCar;
-    if (!car) return {
-      speed: 0, speedRatio: 0, slipAngle: 0, lateralVelocity: 0,
-      steeringAngle: 0, driftResidual: 0, gripFactor: 0, throttleBlend: 0,
-      isSkidding: false, isBraking: false, burnoutTimer: 0,
-    };
+    if (!car)
+      return {
+        speed: 0,
+        speedRatio: 0,
+        slipAngle: 0,
+        lateralVelocity: 0,
+        steeringAngle: 0,
+        driftResidual: 0,
+        gripFactor: 0,
+        throttleBlend: 0,
+        isSkidding: false,
+        isBraking: false,
+        burnoutTimer: 0,
+      };
     const ds = this.carPhysics.debugState;
     return {
-      speed: car.speed, speedRatio: ds.speedRatio, slipAngle: ds.slipAngle,
-      lateralVelocity: car.lateralVelocity, steeringAngle: car.steeringAngle,
-      driftResidual: ds.driftResidual, gripFactor: ds.gripFactor,
-      throttleBlend: ds.throttleBlend, isSkidding: car.isSkidding,
-      isBraking: car.isBraking, burnoutTimer: car.burnoutTimer,
+      speed: car.speed,
+      speedRatio: ds.speedRatio,
+      slipAngle: ds.slipAngle,
+      lateralVelocity: car.lateralVelocity,
+      steeringAngle: car.steeringAngle,
+      driftResidual: ds.driftResidual,
+      gripFactor: ds.gripFactor,
+      throttleBlend: ds.throttleBlend,
+      isSkidding: car.isSkidding,
+      isBraking: car.isBraking,
+      burnoutTimer: car.burnoutTimer,
     };
   }
 
   setPhysicsOverride(group: PhysicsGroup, key: string, value: number): void {
-    if (group === 'controller') this.playerController.setOverride(key, value);
+    if (group === "controller") this.playerController.setOverride(key, value);
     else this.carPhysics.setOverride(group, key, value);
     this._overrideMirror.set(`${group}:${key}`, value);
   }
@@ -209,7 +251,11 @@ export class PracticeEngine {
   }
 
   getPhysicsDefaults(): Record<PhysicsGroup, Record<string, number>> {
-    return { physics: { ...PHYSICS }, drift: { ...DRIFT_PHYSICS }, controller: { ...CONTROLLER_PHYSICS } };
+    return {
+      physics: { ...PHYSICS },
+      drift: { ...DRIFT_PHYSICS },
+      controller: { ...CONTROLLER_PHYSICS },
+    };
   }
 
   getCameraDefaults(): Record<string, number> {
@@ -229,7 +275,9 @@ export class PracticeEngine {
   exportCameraTS(): string {
     const merged: Record<string, number> = { ...CAMERA };
     for (const [k, v] of this._cameraOverrideMirror) merged[k] = v;
-    const lines = Object.entries(merged).map(([k, v]) => `  ${k}: ${v},`).join('\n');
+    const lines = Object.entries(merged)
+      .map(([k, v]) => `  ${k}: ${v},`)
+      .join("\n");
     return `export const CAMERA = {\n${lines}\n};\n`;
   }
 
@@ -238,13 +286,15 @@ export class PracticeEngine {
     const merged = (group: PhysicsGroup) => {
       const result: Record<string, number> = { ...defaults[group] };
       for (const [k, v] of this._overrideMirror) {
-        const [g, key] = k.split(':');
+        const [g, key] = k.split(":");
         if (g === group) result[key] = v;
       }
       return result;
     };
     const fmt = (obj: Record<string, number>, name: string) =>
-      `export const ${name} = {\n${Object.entries(obj).map(([k, v]) => `  ${k}: ${v},`).join('\n')}\n} as const;`;
+      `export const ${name} = {\n${Object.entries(obj)
+        .map(([k, v]) => `  ${k}: ${v},`)
+        .join("\n")}\n} as const;`;
 
     const hazardBlock = `export const HAZARD_EFFECTS: Record<string, HazardEffect> = {
   juice: { speedMultiplier: 0.5, steeringMultiplier: 1.0, lateralDrift: 0 },
@@ -257,17 +307,17 @@ export class PracticeEngine {
 
     return [
       `import type { HazardEffect } from "../types/game.js";`,
-      '',
-      fmt(merged('physics'), 'PHYSICS'),
-      '',
+      "",
+      fmt(merged("physics"), "PHYSICS"),
+      "",
       hazardBlock,
-      '',
-      fmt(merged('drift'), 'DRIFT_PHYSICS'),
-      '',
-      fmt(merged('controller'), 'CONTROLLER_PHYSICS'),
-      '',
+      "",
+      fmt(merged("drift"), "DRIFT_PHYSICS"),
+      "",
+      fmt(merged("controller"), "CONTROLLER_PHYSICS"),
+      "",
       aiBlock,
-    ].join('\n');
+    ].join("\n");
   }
 
   pause(): void {
@@ -305,13 +355,22 @@ export class PracticeEngine {
       car.mesh.position.copy(car.position);
       car.mesh.rotation.y = car.rotation;
 
+      // Update axis position markers
+      this._axisXMarker.position.set(car.position.x, 1.5, 0);
+      this._axisZMarker.position.set(0, 1.5, car.position.z);
+
       if (car.isSkidding || car.isBraking) this.tireMarks.addMarks(car);
       if (car.isSkidding) this.tireSmoke.emitForCar(car, dt);
 
       this.tireMarks.update(dt);
       this.tireSmoke.update(dt);
 
-      this.cameraController.update(car.position, car.speed, car.definition.maxSpeed, car.rotation);
+      this.cameraController.update(
+        car.position,
+        car.speed,
+        car.definition.maxSpeed,
+        car.rotation,
+      );
     }
 
     this.renderer.render(this.scene, this.cameraController.camera);
@@ -328,18 +387,151 @@ export class PracticeEngine {
     this.cameraController.resize(w / h);
   }
 
+  private _buildLabeledAxes(): {
+    group: THREE.Group;
+    xMarker: THREE.Mesh;
+    zMarker: THREE.Mesh;
+  } {
+    const group = new THREE.Group();
+    group.position.y = 1;
+
+    const AXIS_LEN = 220;
+    const TICK = 50;
+    const TICK_H = 7;
+    const LABEL_Y = 2;
+
+    const makeSprite = (
+      text: string,
+      color: string,
+      size = 1.0,
+    ): THREE.Sprite => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 128;
+      canvas.height = 64;
+      const ctx = canvas.getContext("2d")!;
+      ctx.clearRect(0, 0, 128, 64);
+      ctx.font = "bold 40px monospace";
+      ctx.fillStyle = color;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, 64, 32);
+      const tex = new THREE.CanvasTexture(canvas);
+      const mat = new THREE.SpriteMaterial({
+        map: tex,
+        depthTest: false,
+        transparent: true,
+      });
+      const sprite = new THREE.Sprite(mat);
+      sprite.scale.set(24 * size, 12 * size, 1);
+      return sprite;
+    };
+
+    const addLines = (pts: number[], hex: number) => {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
+      group.add(
+        new THREE.LineSegments(
+          geo,
+          new THREE.LineBasicMaterial({ color: hex, depthTest: false }),
+        ),
+      );
+    };
+
+    // X axis (red)
+    {
+      const c = "#ff5555";
+      const h = 0xff5555;
+      const pts: number[] = [-AXIS_LEN, 0, 0, AXIS_LEN, 0, 0];
+      for (let t = -AXIS_LEN; t <= AXIS_LEN; t += TICK) {
+        if (t === 0) continue;
+        pts.push(t, -TICK_H, 0, t, TICK_H, 0);
+        const s = makeSprite(String(t), c, 0.65);
+        s.position.set(t, LABEL_Y, 22);
+        group.add(s);
+      }
+      addLines(pts, h);
+      const lbl = makeSprite("X", c, 1.6);
+      lbl.position.set(AXIS_LEN + 28, LABEL_Y, 0);
+      group.add(lbl);
+    }
+
+    // Z axis (blue)
+    {
+      const c = "#5588ff";
+      const h = 0x5588ff;
+      const pts: number[] = [0, 0, -AXIS_LEN, 0, 0, AXIS_LEN];
+      for (let t = -AXIS_LEN; t <= AXIS_LEN; t += TICK) {
+        if (t === 0) continue;
+        pts.push(-TICK_H, 0, t, TICK_H, 0, t);
+        const s = makeSprite(String(t), c, 0.65);
+        s.position.set(22, LABEL_Y, t);
+        group.add(s);
+      }
+      addLines(pts, h);
+      const lbl = makeSprite("Z", c, 1.6);
+      lbl.position.set(0, LABEL_Y, AXIS_LEN + 28);
+      group.add(lbl);
+    }
+
+    // Y axis (green) — positive only, shorter
+    {
+      const c = "#44ee66";
+      const h = 0x44ee66;
+      const Y_LEN = 100;
+      const pts: number[] = [0, 0, 0, 0, Y_LEN, 0];
+      for (let t = TICK; t <= Y_LEN; t += TICK) {
+        pts.push(-TICK_H, t, 0, TICK_H, t, 0);
+        const s = makeSprite(String(t), c, 0.65);
+        s.position.set(22, t, 0);
+        group.add(s);
+      }
+      addLines(pts, h);
+      const lbl = makeSprite("Y", c, 1.6);
+      lbl.position.set(0, Y_LEN + 18, 0);
+      group.add(lbl);
+    }
+
+    // Origin dot
+    const originGeo = new THREE.SphereGeometry(3, 8, 8);
+    const originMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      depthTest: false,
+    });
+    group.add(new THREE.Mesh(originGeo, originMat));
+
+    // X position marker (bright red sphere on X axis)
+    const markerGeo = new THREE.SphereGeometry(2, 8, 8);
+    const xMarker = new THREE.Mesh(
+      markerGeo,
+      new THREE.MeshBasicMaterial({ color: 0xff2222, depthTest: false }),
+    );
+    xMarker.position.set(0, 1.5, 0);
+    group.add(xMarker);
+
+    // Z position marker (bright blue sphere on Z axis)
+    const zMarker = new THREE.Mesh(
+      markerGeo.clone(),
+      new THREE.MeshBasicMaterial({ color: 0x2244ff, depthTest: false }),
+    );
+    zMarker.position.set(0, 1.5, 0);
+    group.add(zMarker);
+
+    return { group, xMarker, zMarker };
+  }
+
   dispose(): void {
     this.disposed = true;
     cancelAnimationFrame(this.animFrameId);
-    window.removeEventListener('resize', this.boundHandleResize);
+    window.removeEventListener("resize", this.boundHandleResize);
     this.inputManager.dispose();
     this.tireMarks.dispose();
     this.tireSmoke.dispose();
     this.renderer.dispose();
-    this.scene.traverse(obj => {
+    this.scene.traverse((obj) => {
       if (obj instanceof THREE.Mesh) {
         obj.geometry.dispose();
-        if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+        if (Array.isArray(obj.material))
+          obj.material.forEach((m) => m.dispose());
         else obj.material.dispose();
       }
     });
