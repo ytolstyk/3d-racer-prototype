@@ -595,7 +595,7 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
                   {(['speedMultiplier', 'steeringMultiplier', 'lateralDrift'] as const).map(key => {
                     const mapKey = `${type}:${key}`;
                     const isModified = mapKey in hazardOverrideMap;
-                    const defaultVal = (HAZARD_EFFECTS[type] as Record<string, number>)[key];
+                    const defaultVal = (HAZARD_EFFECTS[type] as unknown as Record<string, number>)[key];
                     return (
                       <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3, paddingLeft: 16 }}>
                         <span style={{ color: isModified ? '#ffaa00' : 'rgba(255,255,255,0.5)', fontSize: 10 }}>{key}</span>

@@ -321,7 +321,7 @@ export class PracticeEngine {
 
   setHazardEffectOverride(type: string, key: string, value: number): void {
     if (HAZARD_EFFECTS[type]) {
-      (HAZARD_EFFECTS[type] as Record<string, number>)[key] = value;
+      (HAZARD_EFFECTS[type] as unknown as Record<string, number>)[key] = value;
     }
     this._hazardOverrideMirror.set(`${type}:${key}`, value);
   }
