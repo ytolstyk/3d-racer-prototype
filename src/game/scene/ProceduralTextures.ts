@@ -18,7 +18,13 @@ function seededRng(seed: number) {
 }
 
 /** Irregular blob splat with alpha — used for hazard zone overlays. */
-function makeSplatTexture(size: number, baseColor: string, blobColor: string, seed: number): THREE.CanvasTexture {
+function makeSplatTexture(
+  size: number,
+  baseColor: string,
+  blobColor: string,
+  seed: number,
+  kind?: 'juice' | 'oil' | 'milk' | 'butter' | 'food',
+): THREE.CanvasTexture {
   const [canvas, ctx] = makeCanvas(size);
   const rng = seededRng(seed);
 
@@ -27,10 +33,10 @@ function makeSplatTexture(size: number, baseColor: string, blobColor: string, se
   const center = size / 2;
   const baseRadius = center * 0.42;
 
-  // Main organic blob via bezier curves
+  // Main organic blob via bezier curves (14 control points for more organic shape)
   ctx.globalAlpha = 0.75;
   ctx.fillStyle = baseColor;
-  const blobPts = 10;
+  const blobPts = 14;
   const angles: number[] = [];
   const radii: number[] = [];
   for (let i = 0; i < blobPts; i++) {
@@ -110,7 +116,55 @@ function makeSplatTexture(size: number, baseColor: string, blobColor: string, se
     ctx.restore();
   }
 
+  // Type-specific extras
+  if (kind === 'milk') {
+    // Foam dots at blob edges
+    for (let i = 0; i < 20; i++) {
+      const angle = rng() * Math.PI * 2;
+      const dist = baseRadius * (0.55 + rng() * 0.3);
+      const fx = center + Math.cos(angle) * dist;
+      const fy = center + Math.sin(angle) * dist;
+      ctx.globalAlpha = 0.6 + rng() * 0.35;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(fx, fy, 3 + rng() * 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (kind === 'juice') {
+    // Pulp specks (tiny orange/red dots)
+    for (let i = 0; i < 35; i++) {
+      const angle = rng() * Math.PI * 2;
+      const dist = baseRadius * rng() * 0.9;
+      const px = center + Math.cos(angle) * dist;
+      const py = center + Math.sin(angle) * dist;
+      ctx.globalAlpha = 0.5 + rng() * 0.4;
+      ctx.fillStyle = rng() > 0.5 ? '#cc4400' : '#ff6600';
+      ctx.beginPath();
+      ctx.arc(px, py, 1.5 + rng() * 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (kind === 'oil') {
+    // Iridescent color layer (thin purple/green overlay at low alpha)
+    ctx.globalAlpha = 0.12;
+    const iridGrad = ctx.createRadialGradient(center * 0.8, center * 0.7, 0, center, center, baseRadius * 1.1);
+    iridGrad.addColorStop(0, '#cc44ff');
+    iridGrad.addColorStop(0.4, '#44ffaa');
+    iridGrad.addColorStop(0.7, '#4488ff');
+    iridGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = iridGrad;
+    ctx.fillRect(0, 0, size, size);
+  }
+
+  // Alpha fade at splat edge (radial alpha mask)
+  ctx.globalCompositeOperation = 'destination-in';
+  const alphaMask = ctx.createRadialGradient(center, center, baseRadius * 0.35, center, center, center * 0.95);
+  alphaMask.addColorStop(0, 'rgba(0,0,0,1)');
+  alphaMask.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = alphaMask;
   ctx.globalAlpha = 1;
+  ctx.fillRect(0, 0, size, size);
+  ctx.globalCompositeOperation = 'source-over';
+
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
@@ -124,28 +178,23 @@ export function makeFloorTileTexture(size = 512): THREE.CanvasTexture {
   const tileH = size / rows;
   const grooveThick = 8;
 
-  // Apply soft blur filter before drawing fills for baked DOF-like softness
   ctx.filter = 'blur(6px)';
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const x = c * tileW;
       const y = r * tileH;
-      // Alternate blue and white tiles in checkerboard-ish pattern
       const isBlue = (r + c) % 2 === 0;
       ctx.fillStyle = isBlue ? '#4a7ab5' : '#e8eef7';
       ctx.fillRect(x, y, tileW, tileH);
     }
   }
 
-  // Grooves
   ctx.filter = 'none';
   ctx.fillStyle = '#111827';
-  // Horizontal grooves
   for (let r = 0; r <= rows; r++) {
     ctx.fillRect(0, r * tileH - grooveThick / 2, size, grooveThick);
   }
-  // Vertical grooves
   for (let c = 0; c <= cols; c++) {
     ctx.fillRect(c * tileW - grooveThick / 2, 0, grooveThick, size);
   }
@@ -175,39 +224,48 @@ export function makeFloorTileTexture(size = 512): THREE.CanvasTexture {
 }
 
 export function makeOilSplatTexture(size = 512): THREE.CanvasTexture {
-  return makeSplatTexture(size, '#3a3a10', '#555520', 201);
+  return makeSplatTexture(size, '#3a3a10', '#555520', 201, 'oil');
 }
 
 export function makeJuiceSplatTexture(size = 512): THREE.CanvasTexture {
-  return makeSplatTexture(size, '#ff8800', '#ffaa33', 202);
+  return makeSplatTexture(size, '#ff8800', '#ffaa33', 202, 'juice');
 }
 
 export function makeFoodSplatTexture(size = 512): THREE.CanvasTexture {
-  return makeSplatTexture(size, '#6a9930', '#88cc44', 203);
+  return makeSplatTexture(size, '#6a9930', '#88cc44', 203, 'food');
 }
 
 export function makeMilkSplatTexture(size = 512): THREE.CanvasTexture {
-  return makeSplatTexture(size, '#dde8ff', '#f0f5ff', 204);
+  return makeSplatTexture(size, '#dde8ff', '#f0f5ff', 204, 'milk');
 }
 
 export function makeButterSplatTexture(size = 512): THREE.CanvasTexture {
-  return makeSplatTexture(size, '#f5d020', '#ffe55a', 205);
+  return makeSplatTexture(size, '#f5d020', '#ffe55a', 205, 'butter');
 }
 
-/** Ceramic texture for kitchen items — white/cream with subtle speckles. */
-export function makeCeramicTexture(size = 256): THREE.CanvasTexture {
+/** Ceramic texture — white/cream with radial center highlight and subtle speckles. */
+export function makeCeramicTexture(size = 512): THREE.CanvasTexture {
   const [canvas, ctx] = makeCanvas(size);
   const rng = seededRng(301);
 
   ctx.fillStyle = '#f5f0e8';
   ctx.fillRect(0, 0, size, size);
 
-  // Subtle speckles
-  for (let i = 0; i < 60; i++) {
-    ctx.globalAlpha = 0.05 + rng() * 0.08;
-    ctx.fillStyle = rng() > 0.5 ? '#ddd8d0' : '#e8e4dc';
+  // Radial gradient (center slightly brighter)
+  const radGrad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size * 0.7);
+  radGrad.addColorStop(0, 'rgba(255,255,255,0.18)');
+  radGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = radGrad;
+  ctx.fillRect(0, 0, size, size);
+
+  // More speckle variation
+  for (let i = 0; i < 120; i++) {
+    ctx.globalAlpha = 0.04 + rng() * 0.1;
+    const pick = rng();
+    ctx.fillStyle = pick > 0.66 ? '#c8c4bc' : pick > 0.33 ? '#e8e4dc' : '#ddd8d0';
     ctx.beginPath();
-    ctx.arc(rng() * size, rng() * size, 2 + rng() * 4, 0, Math.PI * 2);
+    ctx.arc(rng() * size, rng() * size, 1 + rng() * 5, 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -217,8 +275,8 @@ export function makeCeramicTexture(size = 256): THREE.CanvasTexture {
   return tex;
 }
 
-/** Silver/metallic texture for utensils. */
-export function makeSilverTexture(size = 256): THREE.CanvasTexture {
+/** Silver/metallic texture with anisotropic-like highlights. */
+export function makeSilverTexture(size = 512): THREE.CanvasTexture {
   const [canvas, ctx] = makeCanvas(size);
   const rng = seededRng(302);
 
@@ -228,6 +286,15 @@ export function makeSilverTexture(size = 256): THREE.CanvasTexture {
   grad.addColorStop(1, '#b0b0b0');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, size, size);
+
+  // Anisotropic-like highlights (thin bright horizontal bands)
+  for (let i = 0; i < 8; i++) {
+    const y = rng() * size;
+    const h = 1 + rng() * 3;
+    ctx.globalAlpha = 0.12 + rng() * 0.15;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, y, size, h);
+  }
 
   // Scratches
   for (let i = 0; i < 20; i++) {
@@ -258,7 +325,6 @@ export function makeDonutGlazeTexture(size = 256): THREE.CanvasTexture {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, size, size);
 
-  // Sprinkle dots
   const sprinkleColors = ['#ff6699', '#66ccff', '#ffdd33', '#88ee44', '#ff8833', '#cc66ff'];
   for (let i = 0; i < 60; i++) {
     const x = rng() * size;
@@ -281,7 +347,7 @@ export function makeDonutGlazeTexture(size = 256): THREE.CanvasTexture {
   return tex;
 }
 
-/** Bread crust — golden-brown with score lines. */
+/** Bread crust — golden-brown with score lines and grain noise. */
 export function makeBreadCrustTexture(size = 256): THREE.CanvasTexture {
   const [canvas, ctx] = makeCanvas(size);
   const rng = seededRng(402);
@@ -293,7 +359,6 @@ export function makeBreadCrustTexture(size = 256): THREE.CanvasTexture {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, size, size);
 
-  // Score lines
   ctx.strokeStyle = '#5c3000';
   ctx.lineWidth = 2;
   for (let i = 0; i < 4; i++) {
@@ -305,7 +370,6 @@ export function makeBreadCrustTexture(size = 256): THREE.CanvasTexture {
     ctx.stroke();
   }
 
-  // Grain noise
   const imgData = ctx.getImageData(0, 0, size, size);
   const d = imgData.data;
   for (let i = 0; i < d.length; i += 4) {
@@ -322,15 +386,14 @@ export function makeBreadCrustTexture(size = 256): THREE.CanvasTexture {
   return tex;
 }
 
-/** Salami cross-section — pink/red base with white fat dots. */
-export function makeSalamiTexture(size = 256): THREE.CanvasTexture {
+/** Salami cross-section — pink/red base with white fat dots and circular vignette. */
+export function makeSalamiTexture(size = 512): THREE.CanvasTexture {
   const [canvas, ctx] = makeCanvas(size);
   const rng = seededRng(403);
 
   ctx.fillStyle = '#c84040';
   ctx.fillRect(0, 0, size, size);
 
-  // White fat dots
   for (let i = 0; i < 40; i++) {
     const x = rng() * size;
     const y = rng() * size;
@@ -342,7 +405,6 @@ export function makeSalamiTexture(size = 256): THREE.CanvasTexture {
     ctx.fill();
   }
 
-  // Grain noise
   const imgData = ctx.getImageData(0, 0, size, size);
   const d = imgData.data;
   for (let i = 0; i < d.length; i += 4) {
@@ -352,6 +414,14 @@ export function makeSalamiTexture(size = 256): THREE.CanvasTexture {
     d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n * 0.5));
   }
   ctx.putImageData(imgData, 0, 0);
+
+  // Circular vignette (darker edges = cross-section depth)
+  const vigGrad = ctx.createRadialGradient(size / 2, size / 2, size * 0.3, size / 2, size / 2, size * 0.7);
+  vigGrad.addColorStop(0, 'rgba(0,0,0,0)');
+  vigGrad.addColorStop(1, 'rgba(0,0,0,0.45)');
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = vigGrad;
+  ctx.fillRect(0, 0, size, size);
 
   ctx.globalAlpha = 1;
   const tex = new THREE.CanvasTexture(canvas);
@@ -371,7 +441,6 @@ export function makeAppleSkinTexture(size = 256): THREE.CanvasTexture {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, size, size);
 
-  // Highlight streaks
   for (let i = 0; i < 15; i++) {
     ctx.globalAlpha = 0.08 + rng() * 0.1;
     ctx.strokeStyle = '#ff8866';
@@ -389,28 +458,130 @@ export function makeAppleSkinTexture(size = 256): THREE.CanvasTexture {
   return tex;
 }
 
-/** Cheese surface — pale yellow with hole pattern. */
-export function makeCheeseTexture(size = 256): THREE.CanvasTexture {
+/** Cheese surface — pale yellow with depth/AO holes and surface roughness noise. */
+export function makeCheeseTexture(size = 512): THREE.CanvasTexture {
   const [canvas, ctx] = makeCanvas(size);
   const rng = seededRng(405);
 
   ctx.fillStyle = '#e8d060';
   ctx.fillRect(0, 0, size, size);
 
-  // Holes
+  // Holes with depth/AO
   for (let i = 0; i < 20; i++) {
     const x = rng() * size;
     const y = rng() * size;
     const r = 5 + rng() * 12;
-    const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
-    grad.addColorStop(0, '#8a6000');
-    grad.addColorStop(0.5, '#c09020');
-    grad.addColorStop(1, 'rgba(200,160,50,0)');
-    ctx.fillStyle = grad;
-    ctx.globalAlpha = 0.6 + rng() * 0.4;
+
+    // 1. AO shadow ring
+    const aoGrad = ctx.createRadialGradient(x, y, r * 0.2, x, y, r);
+    aoGrad.addColorStop(0, '#4a3000');
+    aoGrad.addColorStop(1, 'rgba(74,48,0,0)');
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = aoGrad;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+
+    // 2. Dark hole center
+    ctx.globalAlpha = 0.95;
+    ctx.fillStyle = '#2d1500';
+    ctx.beginPath(); ctx.arc(x, y, r * 0.65, 0, Math.PI * 2); ctx.fill();
+
+    // 3. Top-left highlight
+    const hlGrad = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, 0, x, y, r * 0.5);
+    hlGrad.addColorStop(0, 'rgba(255,220,80,0.5)');
+    hlGrad.addColorStop(1, 'rgba(255,220,80,0)');
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = hlGrad;
+    ctx.beginPath(); ctx.arc(x, y, r * 0.5, 0, Math.PI * 2); ctx.fill();
+
+    // 4. Subtle outer ring
+    ctx.globalAlpha = 0.4;
+    ctx.strokeStyle = '#a07820';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+  }
+
+  // Pixel noise for surface roughness
+  const imgData = ctx.getImageData(0, 0, size, size);
+  const d = imgData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const n = (rng() - 0.5) * 18;
+    d[i] = Math.max(0, Math.min(255, d[i] + n));
+    d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + n * 0.9));
+    d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n * 0.3));
+  }
+  ctx.putImageData(imgData, 0, 0);
+
+  ctx.globalAlpha = 1;
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** Cloth/napkin texture with crosshatch weave pattern. */
+export function makeClothTexture(size = 512): THREE.CanvasTexture {
+  const [canvas, ctx] = makeCanvas(size);
+  const rng = seededRng(303);
+
+  ctx.fillStyle = '#e8e0d0';
+  ctx.fillRect(0, 0, size, size);
+
+  // Weave pattern (higher contrast)
+  ctx.globalAlpha = 0.18;
+  ctx.strokeStyle = '#b8b0a0';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < size; i += 4) {
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, size); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(size, i); ctx.stroke();
+  }
+
+  // 45° crosshatch for linen look
+  ctx.globalAlpha = 0.08;
+  ctx.strokeStyle = '#a09080';
+  for (let i = -size; i < size * 2; i += 6) {
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i + size, size); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(i, size); ctx.lineTo(i + size, 0); ctx.stroke();
+  }
+
+  const imgData = ctx.getImageData(0, 0, size, size);
+  const d = imgData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const noise = (rng() - 0.5) * 14;
+    d[i] = Math.max(0, Math.min(255, d[i] + noise));
+    d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + noise));
+    d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + noise));
+  }
+  ctx.putImageData(imgData, 0, 0);
+
+  ctx.globalAlpha = 1;
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** Napkin stack — cloth base with horizontal paper stacking lines. */
+export function makeNapkinStackTexture(size = 512): THREE.CanvasTexture {
+  const [canvas, ctx] = makeCanvas(size);
+  const rng = seededRng(510);
+
+  ctx.fillStyle = '#f0ece4';
+  ctx.fillRect(0, 0, size, size);
+
+  // Subtle paper/cloth noise on top face
+  for (let i = 0; i < 80; i++) {
+    ctx.globalAlpha = 0.04 + rng() * 0.06;
+    ctx.fillStyle = rng() > 0.5 ? '#d8d4cc' : '#e0dcd4';
+    ctx.fillRect(rng() * size, rng() * size, 2 + rng() * 6, 1 + rng() * 3);
+  }
+
+  // Dense horizontal lines on sides (stacked paper cross-section pattern)
+  ctx.globalAlpha = 0.25;
+  ctx.strokeStyle = '#b8b4ac';
+  ctx.lineWidth = 1;
+  for (let y = 5; y < size; y += 10) {
     ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.moveTo(0, y);
+    ctx.lineTo(size, y);
+    ctx.stroke();
   }
 
   ctx.globalAlpha = 1;
@@ -419,38 +590,68 @@ export function makeCheeseTexture(size = 256): THREE.CanvasTexture {
   return tex;
 }
 
-/** Cloth/napkin texture. */
-export function makeClothTexture(size = 256): THREE.CanvasTexture {
+/** Salt shaker cap — grey metallic with 3×3 grid of holes. */
+export function makeSaltCapTexture(size = 256): THREE.CanvasTexture {
   const [canvas, ctx] = makeCanvas(size);
-  const rng = seededRng(303);
 
-  ctx.fillStyle = '#e8e0d0';
+  const grad = ctx.createLinearGradient(0, 0, size, size);
+  grad.addColorStop(0, '#aaaaaa');
+  grad.addColorStop(0.5, '#cccccc');
+  grad.addColorStop(1, '#999999');
+  ctx.fillStyle = grad;
   ctx.fillRect(0, 0, size, size);
 
-  // Weave pattern
-  ctx.globalAlpha = 0.1;
-  ctx.strokeStyle = '#d0c8b8';
-  for (let i = 0; i < size; i += 4) {
-    ctx.beginPath();
-    ctx.moveTo(i, 0);
-    ctx.lineTo(i, size);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(0, i);
-    ctx.lineTo(size, i);
-    ctx.stroke();
+  const cols = 3, rows = 3;
+  const cellW = size / (cols + 1);
+  const cellH = size / (rows + 1);
+  const holeR = Math.min(cellW, cellH) * 0.28;
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const hx = (c + 1) * cellW;
+      const hy = (r + 1) * cellH;
+
+      const aoGrad = ctx.createRadialGradient(hx, hy, holeR * 0.3, hx, hy, holeR * 1.8);
+      aoGrad.addColorStop(0, 'rgba(0,0,0,0.6)');
+      aoGrad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.globalAlpha = 0.7;
+      ctx.fillStyle = aoGrad;
+      ctx.beginPath(); ctx.arc(hx, hy, holeR * 1.8, 0, Math.PI * 2); ctx.fill();
+
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#222222';
+      ctx.beginPath(); ctx.arc(hx, hy, holeR, 0, Math.PI * 2); ctx.fill();
+    }
   }
 
-  // Wrinkle noise
-  const imgData = ctx.getImageData(0, 0, size, size);
-  const d = imgData.data;
-  for (let i = 0; i < d.length; i += 4) {
-    const noise = (rng() - 0.5) * 12;
-    d[i] = Math.max(0, Math.min(255, d[i] + noise));
-    d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + noise));
-    d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + noise));
-  }
-  ctx.putImageData(imgData, 0, 0);
+  ctx.globalAlpha = 1;
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** Plate depth texture — white base with subtle radial shadow and rim highlight. */
+export function makePlateDepthTexture(size = 512): THREE.CanvasTexture {
+  const [canvas, ctx] = makeCanvas(size);
+
+  ctx.fillStyle = '#f8f8ff';
+  ctx.fillRect(0, 0, size, size);
+
+  // Center radial shadow (cool blue tint)
+  const centerGrad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size * 0.45);
+  centerGrad.addColorStop(0, 'rgba(210,220,240,0.25)');
+  centerGrad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = centerGrad;
+  ctx.fillRect(0, 0, size, size);
+
+  // Rim highlight ring
+  ctx.globalAlpha = 0.18;
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = size * 0.04;
+  ctx.beginPath();
+  ctx.arc(size / 2, size / 2, size * 0.43, 0, Math.PI * 2);
+  ctx.stroke();
 
   ctx.globalAlpha = 1;
   const tex = new THREE.CanvasTexture(canvas);

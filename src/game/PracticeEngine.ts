@@ -4,12 +4,14 @@ import type {
   CarState,
   PhysicsTelemetry,
   PhysicsGroup,
+  HazardZone,
 } from "../types/game.js";
 import { CAR_DEFINITIONS } from "../constants/cars.js";
 import {
   PHYSICS,
   DRIFT_PHYSICS,
   CONTROLLER_PHYSICS,
+  HAZARD_EFFECTS,
 } from "../constants/physics.js";
 import { CAMERA } from "../constants/camera.js";
 import { LightingSetup } from "./scene/LightingSetup.js";
@@ -19,14 +21,22 @@ import { CarPhysics } from "./car/CarPhysics.js";
 import { CarController } from "./car/CarController.js";
 import { InputManager } from "./InputManager.js";
 import { TopDownCamera } from "./camera/TopDownCamera.js";
-import { KITCHEN_ITEM_FACTORIES } from "./scene/KitchenItems.js";
+import { KITCHEN_ITEM_FACTORIES, OBJECT_COLLISION_RADII } from "./scene/KitchenItems.js";
 import { TireMarkSystem } from "./scene/TireMarkSystem.js";
 import { TireSmokeSystem } from "./effects/TireSmokeSystem.js";
+import { buildCircleHazardMesh } from "./track/HazardSystem.js";
 
 const BOUND_X = 600;
 const BOUND_Z = 450;
 
 export const PRACTICE_DEFAULT_OBJECTS: PlacedObject[] = [];
+
+export interface PracticeHazard {
+  type: HazardZone['type'];
+  x: number;
+  z: number;
+  radius: number;
+}
 
 export class PracticeEngine {
   private scene: THREE.Scene;
@@ -38,6 +48,8 @@ export class PracticeEngine {
   private playerCar: CarState | null = null;
   private objects: PlacedObject[] = [];
   private objectMeshes: THREE.Group[] = [];
+  private practiceHazards: PracticeHazard[] = [];
+  private hazardMeshes: THREE.Group[] = [];
   private tireMarks: TireMarkSystem;
   private tireSmoke: TireSmokeSystem;
   private _axisXMarker!: THREE.Mesh;
@@ -172,6 +184,39 @@ export class PracticeEngine {
 
   getObjects(): PlacedObject[] {
     return [...this.objects];
+  }
+
+  addHazard(h: PracticeHazard): void {
+    const mesh = buildCircleHazardMesh(h.type, h.x, h.z, h.radius);
+    this.scene.add(mesh);
+    this.practiceHazards.push(h);
+    this.hazardMeshes.push(mesh);
+  }
+
+  removeHazard(idx: number): void {
+    if (idx < 0 || idx >= this.practiceHazards.length) return;
+    const mesh = this.hazardMeshes[idx];
+    this.scene.remove(mesh);
+    mesh.traverse((child) => {
+      if (child instanceof THREE.Mesh) child.geometry.dispose();
+    });
+    this.practiceHazards.splice(idx, 1);
+    this.hazardMeshes.splice(idx, 1);
+  }
+
+  removeAllHazards(): void {
+    this.hazardMeshes.forEach((mesh) => {
+      this.scene.remove(mesh);
+      mesh.traverse((child) => {
+        if (child instanceof THREE.Mesh) child.geometry.dispose();
+      });
+    });
+    this.practiceHazards = [];
+    this.hazardMeshes = [];
+  }
+
+  getHazards(): PracticeHazard[] {
+    return [...this.practiceHazards];
   }
 
   getSpeed(): number {
@@ -350,6 +395,37 @@ export class PracticeEngine {
       if (Math.abs(car.position.z) > BOUND_Z) {
         car.position.z = Math.sign(car.position.z) * BOUND_Z;
         car.speed *= 0.4;
+      }
+
+      // Object collision (bounding sphere, XZ plane only)
+      for (const obj of this.objects) {
+        const colRadius = (OBJECT_COLLISION_RADII[obj.type] ?? 12) * obj.scale;
+        const dx = car.position.x - obj.x;
+        const dz = car.position.z - obj.z;
+        const distSq = dx * dx + dz * dz;
+        const minDist = PHYSICS.carBoundingRadius + colRadius;
+        if (distSq < minDist * minDist && distSq > 0.0001) {
+          const dist = Math.sqrt(distSq);
+          const overlap = minDist - dist;
+          car.position.x += (dx / dist) * overlap;
+          car.position.z += (dz / dist) * overlap;
+          car.speed *= 0.5;
+        }
+      }
+
+      // Decay hazard steer factor back to normal
+      car.hazardSteerFactor = Math.min(1.0, car.hazardSteerFactor + dt * 3);
+
+      // Hazard effects (circle format)
+      for (const hz of this.practiceHazards) {
+        const dx = car.position.x - hz.x;
+        const dz = car.position.z - hz.z;
+        if (dx * dx + dz * dz <= hz.radius * hz.radius) {
+          const effect = HAZARD_EFFECTS[hz.type];
+          car.hazardSteerFactor = Math.min(car.hazardSteerFactor, effect.steeringMultiplier);
+          car.speed = car.speed * (effect.speedMultiplier + (1 - effect.speedMultiplier) * Math.max(0, 1 - dt * 4));
+          break;
+        }
       }
 
       car.mesh.position.copy(car.position);

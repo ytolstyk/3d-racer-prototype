@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
-import type { KitchenItemType, PhysicsTelemetry, PhysicsGroup } from '../../types/game.js';
+import type { KitchenItemType, PhysicsTelemetry, PhysicsGroup, HazardZone } from '../../types/game.js';
 import { PracticeEngine, PRACTICE_DEFAULT_OBJECTS } from '../../game/PracticeEngine.js';
 import { CAR_DEFINITIONS } from '../../constants/cars.js';
 
@@ -17,6 +17,18 @@ const ITEM_LABELS: Record<KitchenItemType, string> = {
   breadLoaf: 'Bread', salami: 'Salami', cheeseWedge: 'Cheese', apple: 'Apple',
   berryCluster: 'Berries', notepad: 'Notepad', pen: 'Pen', pencil: 'Pencil',
   stickyNote: 'Sticky', cauliflower: 'Caulifl.',
+};
+
+type HazardType = HazardZone['type'];
+
+const HAZARD_TYPES: HazardType[] = ['juice', 'oil', 'milk', 'butter', 'food'];
+
+const HAZARD_COLORS: Record<HazardType, string> = {
+  juice: '#ff8800',
+  oil: '#888820',
+  milk: '#aaccff',
+  butter: '#f5d020',
+  food: '#66aa33',
 };
 
 interface PracticeScreenProps {
@@ -60,6 +72,11 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportJson, setExportJson] = useState('');
   const [objectCount, setObjectCount] = useState(PRACTICE_DEFAULT_OBJECTS.length);
+
+  // Hazard palette state
+  const [hazardType, setHazardType] = useState<HazardType | null>(null);
+  const [hazardRadius, setHazardRadius] = useState(40);
+  const [hazardCount, setHazardCount] = useState(0);
 
   const [carPos, setCarPos] = useState({ x: 0, y: 0, z: 0 });
 
@@ -136,6 +153,12 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
       return;
     }
 
+    if (hazardType) {
+      engine.addHazard({ type: hazardType, x, z, radius: hazardRadius });
+      setHazardCount(engine.getHazards().length);
+      return;
+    }
+
     // Select nearest object
     const objects = engine.getObjects();
     let nearestIdx = -1;
@@ -145,7 +168,7 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
       if (dist < nearestDist) { nearestDist = dist; nearestIdx = i; }
     }
     setSelectedObjIdx(nearestIdx);
-  }, [activeType, paused]);
+  }, [activeType, hazardType, hazardRadius, paused]);
 
   const handleDeleteSelected = () => {
     if (selectedObjIdx === -1 || !engineRef.current) return;
@@ -156,7 +179,9 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
 
   const handleClearAll = () => {
     engineRef.current?.removeAllObjects();
+    engineRef.current?.removeAllHazards();
     setObjectCount(0);
+    setHazardCount(0);
     setSelectedObjIdx(-1);
   };
 
@@ -238,19 +263,24 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
       {/* Palette toggle */}
       <button
         style={{ ...btnStyle, position: 'absolute', top: 10, right: 10, zIndex: 10 }}
-        onClick={() => setPaletteOpen(p => { if (p) setActiveType(null); return !p; })}
+        onClick={() => setPaletteOpen(p => {
+          if (p) { setActiveType(null); setHazardType(null); }
+          return !p;
+        })}
       >
         {paletteOpen ? '× Close' : '+ Objects'}
       </button>
 
       {/* Object palette */}
       {paletteOpen && (
-        <div style={{ ...panelStyle, top: 46 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3, marginBottom: 6 }}>
+        <div style={{ ...panelStyle, top: 46, maxHeight: '80vh', overflowY: 'auto' }}>
+          {/* Kitchen items */}
+          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 9, letterSpacing: 1, marginBottom: 4 }}>OBJECTS</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3, marginBottom: 8 }}>
             {KITCHEN_ITEM_TYPES.map(type => (
               <button
                 key={type}
-                onClick={() => setActiveType(t => t === type ? null : type)}
+                onClick={() => { setActiveType(t => t === type ? null : type); setHazardType(null); }}
                 style={{
                   ...btnStyle,
                   background: activeType === type ? 'rgba(100,200,255,0.5)' : 'rgba(255,255,255,0.08)',
@@ -261,13 +291,52 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
               </button>
             ))}
           </div>
-          {activeType && (
-            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', textAlign: 'center' }}>
-              Click canvas to place {ITEM_LABELS[activeType]}
+
+          {/* Hazards section */}
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.12)', paddingTop: 6, marginTop: 2 }}>
+            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 9, letterSpacing: 1, marginBottom: 4 }}>HAZARDS</div>
+            <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginBottom: 6 }}>
+              {HAZARD_TYPES.map(type => (
+                <button
+                  key={type}
+                  onClick={() => { setHazardType(t => t === type ? null : type); setActiveType(null); }}
+                  style={{
+                    ...btnStyle,
+                    fontSize: 10, padding: '3px 7px',
+                    background: hazardType === type
+                      ? `${HAZARD_COLORS[type]}55`
+                      : 'rgba(255,255,255,0.08)',
+                    borderColor: hazardType === type ? HAZARD_COLORS[type] : 'rgba(255,255,255,0.25)',
+                    color: hazardType === type ? HAZARD_COLORS[type] : '#fff',
+                  }}
+                >
+                  {type}
+                </button>
+              ))}
             </div>
-          )}
-          {!activeType && (
-            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', textAlign: 'center' }}>
+            {hazardType && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10 }}>radius</span>
+                <input
+                  type="range"
+                  min={15}
+                  max={120}
+                  value={hazardRadius}
+                  onChange={e => setHazardRadius(Number(e.target.value))}
+                  style={{ flex: 1 }}
+                />
+                <span style={{ color: '#fff', fontSize: 10, fontFamily: 'monospace', minWidth: 24 }}>{hazardRadius}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Placement hint */}
+          {(activeType || hazardType) ? (
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', textAlign: 'center', marginTop: 4 }}>
+              Click canvas to place {activeType ? ITEM_LABELS[activeType] : `${hazardType} (r=${hazardRadius})`}
+            </div>
+          ) : (
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', textAlign: 'center', marginTop: 4 }}>
               Select type, then click canvas
             </div>
           )}
@@ -299,7 +368,8 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
           <button style={primaryBtnStyle} onClick={handleEditInEditor}>Edit in Track Editor</button>
           <button style={{ ...btnStyle, borderColor: '#ff6644', color: '#ffaa88' }} onClick={handleClearAll}>Clear All</button>
           <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, alignSelf: 'center' }}>
-            {objectCount} object{objectCount !== 1 ? 's' : ''}
+            {objectCount} obj{objectCount !== 1 ? 's' : ''}
+            {hazardCount > 0 && ` · ${hazardCount} hazard${hazardCount !== 1 ? 's' : ''}`}
           </span>
         </div>
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', maxWidth: 400 }}>
@@ -457,7 +527,6 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
           borderRadius: 6, padding: '8px 10px', width: 260,
           maxHeight: '75vh', overflowY: 'auto',
         }}>
-          {/* Group tabs */}
           <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
             {(['physics', 'drift', 'controller'] as PhysicsGroup[]).map(g => (
               <button
@@ -474,7 +543,6 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
             ))}
           </div>
 
-          {/* Constants */}
           {groupKeys.map(key => {
             const mapKey = `${tunerGroup}:${key}`;
             const isModified = mapKey in overrideMap;
@@ -501,7 +569,6 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
             );
           })}
 
-          {/* Footer */}
           <div style={{ display: 'flex', gap: 6, marginTop: 8, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
             <button style={{ ...btnStyle, fontSize: 10, padding: '3px 8px' }} onClick={handleResetPhysics}>↺ Reset All</button>
             <button style={{ ...btnStyle, fontSize: 10, padding: '3px 8px', background: 'rgba(100,200,100,0.2)' }} onClick={handlePhysicsExport}>Export as TypeScript</button>
