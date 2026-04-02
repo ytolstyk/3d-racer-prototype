@@ -2,10 +2,10 @@ import { useReducer, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { TrackConfig } from '../../constants/track.js';
 import { TRACKS } from '../../constants/track.js';
-import type { KitchenItemType, PlacedObject, TunnelSection } from '../../types/game.js';
+import type { KitchenItemType, PlacedObject, TunnelSection, PlacedLight, LightType } from '../../types/game.js';
 import { OBJECT_HEIGHTS } from '../../game/scene/KitchenItems.js';
 
-type Tool = 'pen' | 'line' | 'eraser' | 'move' | 'startPoint' | 'insert' | 'object' | 'tunnel' | 'hazard';
+type Tool = 'pen' | 'line' | 'eraser' | 'move' | 'startPoint' | 'insert' | 'object' | 'tunnel' | 'hazard' | 'light';
 
 type HazardType = 'juice' | 'milk' | 'oil' | 'butter';
 
@@ -20,6 +20,15 @@ interface HazardDef {
   lateralOffset?: number;
   width?: number;
 }
+
+const LIGHT_COLOR_PRESETS = [
+  { label: 'White', hex: 0xffffff, css: '#ffffff' },
+  { label: 'Warm',  hex: 0xfff0cc, css: '#fff0cc' },
+  { label: 'Cool',  hex: 0x88aaff, css: '#88aaff' },
+  { label: 'Red',   hex: 0xff4444, css: '#ff4444' },
+  { label: 'Green', hex: 0x44ff88, css: '#44ff88' },
+  { label: 'Yel',   hex: 0xffdd44, css: '#ffdd44' },
+];
 
 const HAZARD_COLORS: Record<HazardType, string> = {
   juice:  'rgba(255, 136,   0, 0.55)',
@@ -78,6 +87,7 @@ interface UndoSnapshot {
   points: [number, number][];
   objects: PlacedObject[];
   hazards: HazardDef[];
+  lights: PlacedLight[];
 }
 
 interface EditorState {
@@ -97,6 +107,15 @@ interface EditorState {
   selectedHazardIndex: number;
   activeHazardType: HazardType;
   activeHazardRadius: number;
+  lights: PlacedLight[];
+  selectedLightIndex: number;
+  activeLightType: LightType;
+  activeLightColor: number;
+  activeLightIntensity: number;
+  activeLightDistance: number;
+  activeLightHeight: number;
+  activeLightAngle: number;
+  activeLightPenumbra: number;
 }
 
 type EditorAction =
@@ -118,7 +137,7 @@ type EditorAction =
   | { type: 'DELETE_HAZARD'; index: number }
   | { type: 'CLOSE_LOOP' }
   | { type: 'OPEN_LOOP' }
-  | { type: 'LOAD_STATE'; points: [number, number][]; trackName: string; trackWidth: number; hazards?: HazardDef[]; loopClosed?: boolean; objects?: PlacedObject[]; tunnels?: TunnelSection[] }
+  | { type: 'LOAD_STATE'; points: [number, number][]; trackName: string; trackWidth: number; hazards?: HazardDef[]; loopClosed?: boolean; objects?: PlacedObject[]; tunnels?: TunnelSection[]; lights?: PlacedLight[] }
   | { type: 'ADD_OBJECT'; object: PlacedObject }
   | { type: 'DELETE_OBJECT'; index: number }
   | { type: 'MOVE_OBJECT'; index: number; x: number; z: number }
@@ -136,7 +155,21 @@ type EditorAction =
   | { type: 'SET_HAZARD_RADIUS'; index: number; radius: number }
   | { type: 'SET_HAZARD_ROTATION'; index: number; rotation: number }
   | { type: 'SET_ACTIVE_HAZARD_TYPE'; hazardType: HazardType }
-  | { type: 'SET_ACTIVE_HAZARD_RADIUS'; radius: number };
+  | { type: 'SET_ACTIVE_HAZARD_RADIUS'; radius: number }
+  | { type: 'ADD_LIGHT'; light: PlacedLight }
+  | { type: 'DELETE_LIGHT'; index: number }
+  | { type: 'MOVE_LIGHT'; index: number; x: number; z: number }
+  | { type: 'SET_LIGHT_TARGET'; index: number; targetX: number; targetZ: number }
+  | { type: 'SET_LIGHT_DISTANCE'; index: number; distance: number }
+  | { type: 'SET_LIGHT_COLOR'; index: number; color: number }
+  | { type: 'SELECT_LIGHT'; index: number }
+  | { type: 'SET_ACTIVE_LIGHT_TYPE'; lightType: LightType }
+  | { type: 'SET_ACTIVE_LIGHT_COLOR'; color: number }
+  | { type: 'SET_ACTIVE_LIGHT_INTENSITY'; intensity: number }
+  | { type: 'SET_ACTIVE_LIGHT_DISTANCE'; distance: number }
+  | { type: 'SET_ACTIVE_LIGHT_HEIGHT'; height: number }
+  | { type: 'SET_ACTIVE_LIGHT_ANGLE'; angle: number }
+  | { type: 'SET_ACTIVE_LIGHT_PENUMBRA'; penumbra: number };
 
 const initialState: EditorState = {
   points: [],
@@ -155,6 +188,15 @@ const initialState: EditorState = {
   selectedHazardIndex: -1,
   activeHazardType: 'oil',
   activeHazardRadius: 15,
+  lights: [],
+  selectedLightIndex: -1,
+  activeLightType: 'point',
+  activeLightColor: 0xffffff,
+  activeLightIntensity: 1.0,
+  activeLightDistance: 80,
+  activeLightHeight: 8,
+  activeLightAngle: 0.4,
+  activeLightPenumbra: 0.2,
 };
 
 function getInitialState(): EditorState {
@@ -177,6 +219,7 @@ function getInitialState(): EditorState {
         loopClosed?: boolean;
         objects?: PlacedObject[];
         tunnels?: TunnelSection[];
+        lights?: PlacedLight[];
       };
       return {
         ...initialState,
@@ -187,6 +230,7 @@ function getInitialState(): EditorState {
         loopClosed: draft.loopClosed ?? false,
         objects: draft.objects ?? [],
         tunnels: draft.tunnels ?? [],
+        lights: draft.lights ?? [],
       };
     }
   } catch { /* ignore */ }
@@ -194,7 +238,7 @@ function getInitialState(): EditorState {
 }
 
 function makeSnapshot(state: EditorState): UndoSnapshot {
-  return { points: state.points, objects: state.objects, hazards: state.hazards };
+  return { points: state.points, objects: state.objects, hazards: state.hazards, lights: state.lights };
 }
 
 function pushHistory(state: EditorState): UndoSnapshot[] {
@@ -242,7 +286,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (state.past.length === 0) return state;
       const past = [...state.past];
       const snap = past.pop()!;
-      return { ...state, past, points: snap.points, objects: snap.objects, hazards: snap.hazards, selectedObjectIndex: -1, selectedHazardIndex: -1 };
+      return { ...state, past, points: snap.points, objects: snap.objects, hazards: snap.hazards, lights: snap.lights, selectedObjectIndex: -1, selectedHazardIndex: -1, selectedLightIndex: -1 };
     }
 
     case 'SET_START': {
@@ -276,7 +320,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     }
 
     case 'SET_TOOL':
-      return { ...state, activeTool: action.tool, selectedObjectIndex: -1, selectedHazardIndex: -1 };
+      return { ...state, activeTool: action.tool, selectedObjectIndex: -1, selectedHazardIndex: -1, selectedLightIndex: -1 };
 
     case 'SET_NAME':
       return { ...state, trackName: action.name };
@@ -320,6 +364,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         loopClosed: action.loopClosed ?? true,
         objects: action.objects ?? [],
         tunnels: action.tunnels ?? [],
+        lights: action.lights ?? [],
       };
 
     case 'ADD_OBJECT': {
@@ -429,6 +474,60 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case 'SET_ACTIVE_HAZARD_RADIUS':
       return { ...state, activeHazardRadius: action.radius };
 
+    case 'ADD_LIGHT':
+      return { ...state, past: pushHistory(state), lights: [...state.lights, action.light], selectedLightIndex: state.lights.length };
+
+    case 'DELETE_LIGHT':
+      return { ...state, past: pushHistory(state), lights: state.lights.filter((_, i) => i !== action.index), selectedLightIndex: -1 };
+
+    case 'MOVE_LIGHT': {
+      const lights = [...state.lights];
+      lights[action.index] = { ...lights[action.index], x: action.x, z: action.z };
+      return { ...state, lights };
+    }
+
+    case 'SET_LIGHT_TARGET': {
+      const lights = [...state.lights];
+      lights[action.index] = { ...lights[action.index], targetX: action.targetX, targetZ: action.targetZ };
+      return { ...state, lights };
+    }
+
+    case 'SET_LIGHT_DISTANCE': {
+      const lights = [...state.lights];
+      lights[action.index] = { ...lights[action.index], distance: Math.max(20, action.distance) };
+      return { ...state, lights };
+    }
+
+    case 'SET_LIGHT_COLOR': {
+      const lights = [...state.lights];
+      lights[action.index] = { ...lights[action.index], color: action.color };
+      return { ...state, lights };
+    }
+
+    case 'SELECT_LIGHT':
+      return { ...state, selectedLightIndex: action.index };
+
+    case 'SET_ACTIVE_LIGHT_TYPE':
+      return { ...state, activeLightType: action.lightType };
+
+    case 'SET_ACTIVE_LIGHT_COLOR':
+      return { ...state, activeLightColor: action.color };
+
+    case 'SET_ACTIVE_LIGHT_INTENSITY':
+      return { ...state, activeLightIntensity: action.intensity };
+
+    case 'SET_ACTIVE_LIGHT_DISTANCE':
+      return { ...state, activeLightDistance: action.distance };
+
+    case 'SET_ACTIVE_LIGHT_HEIGHT':
+      return { ...state, activeLightHeight: action.height };
+
+    case 'SET_ACTIVE_LIGHT_ANGLE':
+      return { ...state, activeLightAngle: action.angle };
+
+    case 'SET_ACTIVE_LIGHT_PENUMBRA':
+      return { ...state, activeLightPenumbra: action.penumbra };
+
     default:
       return state;
   }
@@ -523,6 +622,9 @@ export function TrackEditor() {
   const hazardMoveRef = useRef<{ idx: number; offX: number; offZ: number } | null>(null);
   const hazardEdgeRef = useRef<{ idx: number } | null>(null);
   const hazardRotateRef = useRef<{ idx: number; lastAngle: number } | null>(null);
+  const lightMoveRef = useRef<{ idx: number; offX: number; offZ: number } | null>(null);
+  const lightTargetRef = useRef<{ idx: number } | null>(null);
+  const lightDistanceRef = useRef<{ idx: number } | null>(null);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -537,7 +639,7 @@ export function TrackEditor() {
     const invZoom = 1 / zoom;
     const originX = W / 2;
     const originY = H / 2;
-    const { points, trackWidth, activeTool, showDirectionArrows, hazards, loopClosed, objects, selectedObjectIndex, tunnels, selectedHazardIndex, activeHazardType, activeHazardRadius } = stateRef.current;
+    const { points, trackWidth, activeTool, showDirectionArrows, hazards, loopClosed, objects, selectedObjectIndex, tunnels, selectedHazardIndex, activeHazardType, activeHazardRadius, lights, selectedLightIndex, activeLightType, activeLightDistance, activeLightColor, activeLightAngle } = stateRef.current;
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#1a0a04';
@@ -733,6 +835,129 @@ export function TrackEditor() {
           ctx.closePath();
           ctx.fillStyle = HAZARD_COLORS[hz.type];
           ctx.fill();
+        }
+      }
+
+      // Draw placed lights
+      for (let li = 0; li < lights.length; li++) {
+        const lt = lights[li];
+        const [lx, ly] = gameToCanvas(lt.x, lt.z, originX, originY);
+        const isLightSel = li === selectedLightIndex && activeTool === 'light';
+        const r = ((lt.color >> 16) & 0xff);
+        const g = ((lt.color >> 8) & 0xff);
+        const b = (lt.color & 0xff);
+        const cssColor = `rgb(${r},${g},${b})`;
+
+        if (lt.type === 'spot') {
+          const targetCx = lt.targetX !== undefined ? gameToCanvas(lt.targetX, lt.targetZ!, originX, originY)[0] : lx;
+          const targetCy = lt.targetZ !== undefined ? gameToCanvas(lt.targetX!, lt.targetZ!, originX, originY)[1] : ly + 50;
+          const halfAngle = lt.angle ?? 0.4;
+          const aimAngle = Math.atan2(targetCy - ly, targetCx - lx);
+          const coneLen = lt.distance;
+          ctx.beginPath();
+          ctx.moveTo(lx, ly);
+          ctx.arc(lx, ly, coneLen, aimAngle - halfAngle, aimAngle + halfAngle);
+          ctx.closePath();
+          ctx.fillStyle = `rgba(${r},${g},${b},0.12)`;
+          ctx.fill();
+          ctx.strokeStyle = `rgba(${r},${g},${b},0.4)`;
+          ctx.lineWidth = invZoom;
+          ctx.stroke();
+          // Dashed line to target
+          ctx.setLineDash([4 * invZoom, 3 * invZoom]);
+          ctx.beginPath();
+          ctx.moveTo(lx, ly);
+          ctx.lineTo(targetCx, targetCy);
+          ctx.strokeStyle = `rgba(${r},${g},${b},0.5)`;
+          ctx.lineWidth = invZoom;
+          ctx.stroke();
+          ctx.setLineDash([]);
+          // Target handle for selected spot
+          if (isLightSel) {
+            ctx.beginPath();
+            ctx.arc(targetCx, targetCy, 5 * invZoom, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffdd00';
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1.5 * invZoom;
+            ctx.stroke();
+          }
+        } else {
+          // Point light: translucent circle
+          ctx.beginPath();
+          ctx.arc(lx, ly, lt.distance, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(${r},${g},${b},0.06)`;
+          ctx.fill();
+          ctx.strokeStyle = `rgba(${r},${g},${b},0.25)`;
+          ctx.lineWidth = invZoom;
+          ctx.stroke();
+          // Radiating lines
+          for (let ri = 0; ri < 8; ri++) {
+            const a = (ri / 8) * Math.PI * 2;
+            ctx.beginPath();
+            ctx.moveTo(lx + Math.cos(a) * 6 * invZoom, ly + Math.sin(a) * 6 * invZoom);
+            ctx.lineTo(lx + Math.cos(a) * 12 * invZoom, ly + Math.sin(a) * 12 * invZoom);
+            ctx.strokeStyle = `rgba(${r},${g},${b},0.6)`;
+            ctx.lineWidth = invZoom;
+            ctx.stroke();
+          }
+        }
+
+        // Center dot
+        ctx.beginPath();
+        ctx.arc(lx, ly, 5 * invZoom, 0, Math.PI * 2);
+        ctx.fillStyle = cssColor;
+        ctx.fill();
+        ctx.strokeStyle = isLightSel ? '#fff' : 'rgba(0,0,0,0.5)';
+        ctx.lineWidth = (isLightSel ? 2 : 1) * invZoom;
+        ctx.stroke();
+
+        // Label
+        ctx.fillStyle = '#fff';
+        ctx.font = `bold ${8 * invZoom}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText(lt.type === 'spot' ? 'SP' : 'PT', lx, ly - 8 * invZoom);
+
+        // Distance handle (east side) for selected
+        if (isLightSel) {
+          const dhx = lx + lt.distance;
+          ctx.beginPath();
+          ctx.arc(dhx, ly, 5 * invZoom, 0, Math.PI * 2);
+          ctx.fillStyle = '#fff';
+          ctx.fill();
+          ctx.strokeStyle = '#64c8ff';
+          ctx.lineWidth = 1.5 * invZoom;
+          ctx.stroke();
+          ctx.fillStyle = 'rgba(255,255,255,0.7)';
+          ctx.font = `${7 * invZoom}px monospace`;
+          ctx.fillText(`d=${lt.distance.toFixed(0)}`, dhx + 14 * invZoom, ly);
+        }
+      }
+
+      // Light ghost preview
+      const hover = hoverPointRef.current;
+      if (activeTool === 'light' && hover) {
+        const [r2, g2, b2] = [((activeLightColor >> 16) & 0xff), ((activeLightColor >> 8) & 0xff), (activeLightColor & 0xff)];
+        if (activeLightType === 'point') {
+          ctx.beginPath();
+          ctx.arc(hover[0], hover[1], activeLightDistance, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(${r2},${g2},${b2},0.4)`;
+          ctx.lineWidth = invZoom;
+          ctx.setLineDash([4 * invZoom, 3 * invZoom]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        } else {
+          const aimAngle = Math.PI / 2;
+          const halfAngle = activeLightAngle;
+          ctx.beginPath();
+          ctx.moveTo(hover[0], hover[1]);
+          ctx.arc(hover[0], hover[1], activeLightDistance, aimAngle - halfAngle, aimAngle + halfAngle);
+          ctx.closePath();
+          ctx.strokeStyle = `rgba(${r2},${g2},${b2},0.4)`;
+          ctx.lineWidth = invZoom;
+          ctx.setLineDash([4 * invZoom, 3 * invZoom]);
+          ctx.stroke();
+          ctx.setLineDash([]);
         }
       }
 
@@ -1026,8 +1251,18 @@ export function TrackEditor() {
 
       if (e.key === '[' || e.key === ']') {
         e.preventDefault();
-        const { selectedObjectIndex, selectedHazardIndex, activeTool } = stateRef.current;
+        const { selectedObjectIndex, selectedHazardIndex, selectedLightIndex, activeTool, lights } = stateRef.current;
         const delta = e.key === '[' ? -Math.PI / 12 : Math.PI / 12;
+        if (activeTool === 'light' && selectedLightIndex !== -1) {
+          const lt = lights[selectedLightIndex];
+          if (lt.type === 'spot' && lt.targetX !== undefined && lt.targetZ !== undefined) {
+            const dist = Math.hypot(lt.targetX - lt.x, lt.targetZ - lt.z);
+            const angle = Math.atan2(lt.targetZ - lt.z, lt.targetX - lt.x) + delta;
+            dispatch({ type: 'SET_LIGHT_TARGET', index: selectedLightIndex,
+              targetX: lt.x + Math.cos(angle) * dist, targetZ: lt.z + Math.sin(angle) * dist });
+          }
+          return;
+        }
         if (activeTool === 'hazard' && selectedHazardIndex !== -1) {
           const hz = stateRef.current.hazards[selectedHazardIndex];
           dispatch({ type: 'SET_HAZARD_ROTATION', index: selectedHazardIndex, rotation: (hz.rotation ?? 0) + delta });
@@ -1050,7 +1285,7 @@ export function TrackEditor() {
         return;
       }
 
-      // Delete/Backspace: remove selected object or hazard
+      // Delete/Backspace: remove selected object, hazard, or light
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (stateRef.current.activeTool === 'object' && stateRef.current.selectedObjectIndex !== -1) {
           e.preventDefault();
@@ -1060,6 +1295,11 @@ export function TrackEditor() {
         if (stateRef.current.activeTool === 'hazard' && stateRef.current.selectedHazardIndex !== -1) {
           e.preventDefault();
           dispatch({ type: 'DELETE_HAZARD', index: stateRef.current.selectedHazardIndex });
+          return;
+        }
+        if (stateRef.current.activeTool === 'light' && stateRef.current.selectedLightIndex !== -1) {
+          e.preventDefault();
+          dispatch({ type: 'DELETE_LIGHT', index: stateRef.current.selectedLightIndex });
           return;
         }
       }
@@ -1080,7 +1320,7 @@ export function TrackEditor() {
       }
 
       const map: Record<string, Tool> = {
-        p: 'pen', l: 'line', e: 'eraser', m: 'move', s: 'startPoint', i: 'insert', o: 'object', t: 'tunnel', x: 'hazard',
+        p: 'pen', l: 'line', e: 'eraser', m: 'move', s: 'startPoint', i: 'insert', o: 'object', t: 'tunnel', x: 'hazard', v: 'light',
       };
       const tool = map[e.key.toLowerCase()];
       if (tool) {
@@ -1206,6 +1446,45 @@ export function TrackEditor() {
       if (Math.hypot(pos[0] - ox, pos[1] - oy) <= hitR) return i;
     }
     return -1;
+  };
+
+  const findNearestLight = (pos: [number, number]): number => {
+    const canvas = canvasRef.current;
+    if (!canvas) return -1;
+    const originX = canvas.width / 2;
+    const originY = canvas.height / 2;
+    const hitR = 10 / zoomRef.current;
+    const lights = stateRef.current.lights;
+    for (let i = 0; i < lights.length; i++) {
+      const lt = lights[i];
+      const [lx, ly] = gameToCanvas(lt.x, lt.z, originX, originY);
+      if (Math.hypot(pos[0] - lx, pos[1] - ly) <= hitR) return i;
+    }
+    return -1;
+  };
+
+  const hitLightHandle = (pos: [number, number], idx: number): 'body' | 'target' | 'distance' | null => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const lt = stateRef.current.lights[idx];
+    const originX = canvas.width / 2;
+    const originY = canvas.height / 2;
+    const [lx, ly] = gameToCanvas(lt.x, lt.z, originX, originY);
+    const hitR = 8 / zoomRef.current;
+
+    // Distance handle (east side)
+    if (Math.hypot(pos[0] - (lx + lt.distance), pos[1] - ly) <= hitR) return 'distance';
+
+    // Target handle for spots
+    if (lt.type === 'spot' && lt.targetX !== undefined && lt.targetZ !== undefined) {
+      const [tx, ty] = gameToCanvas(lt.targetX, lt.targetZ, originX, originY);
+      if (Math.hypot(pos[0] - tx, pos[1] - ty) <= hitR) return 'target';
+    }
+
+    // Body
+    if (Math.hypot(pos[0] - lx, pos[1] - ly) <= 10 / zoomRef.current) return 'body';
+
+    return null;
   };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -1407,6 +1686,57 @@ export function TrackEditor() {
           },
         });
       }
+    } else if (activeTool === 'light') {
+      const canvas = canvasRef.current!;
+      const originX = canvas.width / 2;
+      const originY = canvas.height / 2;
+      const { selectedLightIndex: selLi, activeLightType, activeLightColor, activeLightIntensity, activeLightDistance, activeLightHeight, activeLightAngle, activeLightPenumbra } = stateRef.current;
+
+      if (selLi !== -1) {
+        const hit = hitLightHandle(pos, selLi);
+        if (hit === 'distance') {
+          lightDistanceRef.current = { idx: selLi };
+          return;
+        }
+        if (hit === 'target') {
+          lightTargetRef.current = { idx: selLi };
+          return;
+        }
+        if (hit === 'body') {
+          const lt = stateRef.current.lights[selLi];
+          const [lx, ly] = gameToCanvas(lt.x, lt.z, originX, originY);
+          const [gx2, , gz2] = canvasToGame(lx, ly, originX, originY);
+          lightMoveRef.current = { idx: selLi, offX: gx2 - lt.x, offZ: gz2 - lt.z };
+          return;
+        }
+      }
+
+      const lIdx = findNearestLight(pos);
+      if (lIdx !== -1) {
+        dispatch({ type: 'SELECT_LIGHT', index: lIdx });
+        const lt = stateRef.current.lights[lIdx];
+        const [lx, ly] = gameToCanvas(lt.x, lt.z, originX, originY);
+        const [gx2, , gz2] = canvasToGame(lx, ly, originX, originY);
+        lightMoveRef.current = { idx: lIdx, offX: gx2 - lt.x, offZ: gz2 - lt.z };
+      } else {
+        const [gx, , gz] = canvasToGame(pos[0], pos[1], originX, originY);
+        const newLight: PlacedLight = {
+          type: activeLightType,
+          x: Math.round(gx * 100) / 100,
+          z: Math.round(gz * 100) / 100,
+          y: activeLightHeight,
+          color: activeLightColor,
+          intensity: activeLightIntensity,
+          distance: activeLightDistance,
+        };
+        if (activeLightType === 'spot') {
+          newLight.angle = activeLightAngle;
+          newLight.penumbra = activeLightPenumbra;
+          newLight.targetX = Math.round(gx * 100) / 100;
+          newLight.targetZ = Math.round((gz + 50) * 100) / 100;
+        }
+        dispatch({ type: 'ADD_LIGHT', light: newLight });
+      }
     }
   };
 
@@ -1519,6 +1849,35 @@ export function TrackEditor() {
         dispatch({ type: 'MOVE_OBJECT', index: dragObjectIndexRef.current, x: Math.round(gx * 100) / 100, z: Math.round(gz * 100) / 100 });
         return;
       }
+      if (lightMoveRef.current !== null) {
+        const { idx, offX, offZ } = lightMoveRef.current;
+        const canvas = canvasRef.current!;
+        const originX = canvas.width / 2;
+        const originY = canvas.height / 2;
+        const [gx, , gz] = canvasToGame(pos[0], pos[1], originX, originY);
+        dispatch({ type: 'MOVE_LIGHT', index: idx, x: Math.round((gx + offX) * 100) / 100, z: Math.round((gz + offZ) * 100) / 100 });
+        return;
+      }
+      if (lightTargetRef.current !== null) {
+        const { idx } = lightTargetRef.current;
+        const canvas = canvasRef.current!;
+        const originX = canvas.width / 2;
+        const originY = canvas.height / 2;
+        const [gx, , gz] = canvasToGame(pos[0], pos[1], originX, originY);
+        dispatch({ type: 'SET_LIGHT_TARGET', index: idx, targetX: Math.round(gx * 100) / 100, targetZ: Math.round(gz * 100) / 100 });
+        return;
+      }
+      if (lightDistanceRef.current !== null) {
+        const { idx } = lightDistanceRef.current;
+        const lt = stateRef.current.lights[idx];
+        const canvas = canvasRef.current!;
+        const originX = canvas.width / 2;
+        const originY = canvas.height / 2;
+        const [lx, ly] = gameToCanvas(lt.x, lt.z, originX, originY);
+        const newDist = Math.max(20, Math.round(Math.hypot(pos[0] - lx, pos[1] - ly) * 10) / 10);
+        dispatch({ type: 'SET_LIGHT_DISTANCE', index: idx, distance: newDist });
+        return;
+      }
     }
 
     draw();
@@ -1540,6 +1899,14 @@ export function TrackEditor() {
     if (cornerDragRef.current || rotateDragRef.current) {
       cornerDragRef.current = null;
       rotateDragRef.current = null;
+      draw();
+      return;
+    }
+
+    if (lightMoveRef.current || lightTargetRef.current || lightDistanceRef.current) {
+      lightMoveRef.current = null;
+      lightTargetRef.current = null;
+      lightDistanceRef.current = null;
       draw();
       return;
     }
@@ -1570,6 +1937,15 @@ export function TrackEditor() {
   const handleContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     const { activeTool, tunnels } = stateRef.current;
+
+    if (activeTool === 'light') {
+      const pos = getPos(e);
+      const lIdx = findNearestLight(pos);
+      if (lIdx !== -1) {
+        dispatch({ type: 'DELETE_LIGHT', index: lIdx });
+      }
+      return;
+    }
 
     if (activeTool === 'hazard') {
       const pos = getPos(e);
@@ -1621,13 +1997,16 @@ export function TrackEditor() {
     hazardMoveRef.current = null;
     hazardEdgeRef.current = null;
     hazardRotateRef.current = null;
+    lightMoveRef.current = null;
+    lightTargetRef.current = null;
+    lightDistanceRef.current = null;
     draw();
   };
 
   const handleTest = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const { points, trackName, trackWidth, hazards, loopClosed, objects, tunnels } = stateRef.current;
+    const { points, trackName, trackWidth, hazards, loopClosed, objects, tunnels, lights } = stateRef.current;
     if (points.length < 3) {
       alert('Add at least 3 points to test the track.');
       return;
@@ -1647,9 +2026,10 @@ export function TrackEditor() {
       hazards,
       objects,
       tunnels,
+      lights,
     };
     sessionStorage.setItem('editor_track', JSON.stringify(config));
-    sessionStorage.setItem('editor_draft', JSON.stringify({ points, trackName, trackWidth, hazards, loopClosed, objects, tunnels }));
+    sessionStorage.setItem('editor_draft', JSON.stringify({ points, trackName, trackWidth, hazards, loopClosed, objects, tunnels, lights }));
     navigate('/', { state: { fromEditor: true } });
   };
 
@@ -1658,7 +2038,7 @@ export function TrackEditor() {
     if (!canvas) return;
     const originX = canvas.width / 2;
     const originY = canvas.height / 2;
-    const { points, trackName, trackWidth, hazards, objects, tunnels } = stateRef.current;
+    const { points, trackName, trackWidth, hazards, objects, tunnels, lights } = stateRef.current;
     const controlPoints = points.map(([cx, cy]) =>
       canvasToGame(cx, cy, originX, originY).map(v => Math.round(v * 100) / 100) as [number, number, number]
     );
@@ -1671,6 +2051,7 @@ export function TrackEditor() {
       hazards,
       objects,
       tunnels,
+      lights,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -1698,6 +2079,7 @@ export function TrackEditor() {
           hazards?: HazardDef[];
           objects?: PlacedObject[];
           tunnels?: TunnelSection[];
+          lights?: PlacedLight[];
         };
         const points = data.controlPoints.map(([gx, , gz]) =>
           gameToCanvas(gx, gz, originX, originY)
@@ -1706,6 +2088,9 @@ export function TrackEditor() {
         const hazards: HazardDef[] = (data.hazards ?? [])
           .filter(h => validTypes.has(h.type))
           .map(h => ({ ...h, type: h.type as HazardType }));
+        const validLightTypes = new Set<string>(['point', 'spot']);
+        const lights: PlacedLight[] = (data.lights ?? [])
+          .filter(l => validLightTypes.has(l.type));
         dispatch({
           type: 'LOAD_STATE',
           points,
@@ -1715,6 +2100,7 @@ export function TrackEditor() {
           loopClosed: true,
           objects: data.objects ?? [],
           tunnels: data.tunnels ?? [],
+          lights,
         });
       } catch {
         alert('Failed to parse JSON file.');
@@ -1766,6 +2152,7 @@ export function TrackEditor() {
     { id: 'object', label: 'Objects', key: 'O' },
     { id: 'tunnel', label: 'Tunnel', key: 'T' },
     { id: 'hazard', label: 'Hazards', key: 'X' },
+    { id: 'light', label: 'Lights', key: 'V' },
   ];
 
   const selectedObj = state.selectedObjectIndex !== -1 ? state.objects[state.selectedObjectIndex] : null;
@@ -1991,6 +2378,106 @@ export function TrackEditor() {
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+        )}
+
+        {state.activeTool === 'light' && (
+          <div className="editor-section">
+            <label className="editor-label">Light Type</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+              {(['point', 'spot'] as LightType[]).map(t => (
+                <button
+                  key={t}
+                  className={`tool-btn${state.activeLightType === t ? ' active' : ''}`}
+                  style={{ fontSize: 9, padding: '2px 4px' }}
+                  onClick={() => dispatch({ type: 'SET_ACTIVE_LIGHT_TYPE', lightType: t })}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+
+            <label className="editor-label" style={{ marginTop: 6 }}>Color</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 2 }}>
+              {LIGHT_COLOR_PRESETS.map(p => (
+                <button
+                  key={p.label}
+                  className="tool-btn"
+                  style={{
+                    fontSize: 9, padding: '2px 4px',
+                    border: `2px solid ${p.css}`,
+                    background: state.activeLightColor === p.hex ? p.css : undefined,
+                    color: state.activeLightColor === p.hex ? '#000' : '#fff',
+                  }}
+                  onClick={() => dispatch({ type: 'SET_ACTIVE_LIGHT_COLOR', color: p.hex })}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            <label className="editor-label" style={{ marginTop: 6 }}>Height: {state.activeLightHeight}</label>
+            <input className="editor-slider" type="range" min="1" max="50" value={state.activeLightHeight}
+              onChange={e => dispatch({ type: 'SET_ACTIVE_LIGHT_HEIGHT', height: Number(e.target.value) })} />
+
+            <label className="editor-label">Intensity: {state.activeLightIntensity.toFixed(1)}</label>
+            <input className="editor-slider" type="range" min="0.1" max="5" step="0.1" value={state.activeLightIntensity}
+              onChange={e => dispatch({ type: 'SET_ACTIVE_LIGHT_INTENSITY', intensity: Number(e.target.value) })} />
+
+            <label className="editor-label">Distance: {state.activeLightDistance}</label>
+            <input className="editor-slider" type="range" min="20" max="300" step="5" value={state.activeLightDistance}
+              onChange={e => dispatch({ type: 'SET_ACTIVE_LIGHT_DISTANCE', distance: Number(e.target.value) })} />
+
+            {state.activeLightType === 'spot' && (
+              <>
+                <label className="editor-label">Angle: {Math.round(state.activeLightAngle * 180 / Math.PI)}°</label>
+                <input className="editor-slider" type="range" min="5" max="90" value={Math.round(state.activeLightAngle * 180 / Math.PI)}
+                  onChange={e => dispatch({ type: 'SET_ACTIVE_LIGHT_ANGLE', angle: Number(e.target.value) * Math.PI / 180 })} />
+
+                <label className="editor-label">Penumbra: {state.activeLightPenumbra.toFixed(2)}</label>
+                <input className="editor-slider" type="range" min="0" max="1" step="0.05" value={state.activeLightPenumbra}
+                  onChange={e => dispatch({ type: 'SET_ACTIVE_LIGHT_PENUMBRA', penumbra: Number(e.target.value) })} />
+              </>
+            )}
+
+            {state.selectedLightIndex !== -1 && state.lights[state.selectedLightIndex] && (() => {
+              const lt = state.lights[state.selectedLightIndex];
+              const cssCol = `#${lt.color.toString(16).padStart(6, '0')}`;
+              return (
+                <div style={{ marginTop: 6 }}>
+                  <label className="editor-label">{lt.type} light (selected)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                    {LIGHT_COLOR_PRESETS.map(p => (
+                      <button key={p.label} className="tool-btn"
+                        style={{ fontSize: 8, padding: '1px 4px', border: `2px solid ${p.css}`,
+                          background: lt.color === p.hex ? p.css : undefined, color: lt.color === p.hex ? '#000' : '#fff' }}
+                        onClick={() => dispatch({ type: 'SET_LIGHT_COLOR', index: state.selectedLightIndex, color: p.hex })}
+                      >{p.label}</button>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 9, opacity: 0.7, marginTop: 2 }}>color: {cssCol}</div>
+                  <button
+                    className="tool-btn tool-btn-danger"
+                    style={{ marginTop: 4, padding: '1px 8px', fontSize: 10 }}
+                    onClick={() => dispatch({ type: 'DELETE_LIGHT', index: state.selectedLightIndex })}
+                  >Delete Light</button>
+                  <span style={{ fontSize: 9, opacity: 0.5, display: 'block', marginTop: 2 }}>
+                    {lt.type === 'spot' ? '[/]=rotate aim · ' : ''}Del=delete · drag=move · drag ○=resize
+                  </span>
+                </div>
+              );
+            })()}
+
+            {state.lights.length === 0 && (
+              <span style={{ opacity: 0.5, fontSize: 9, marginTop: 4, display: 'block' }}>
+                click canvas to place · right-click to delete
+              </span>
+            )}
+            {state.lights.length > 0 && (
+              <span style={{ opacity: 0.6, fontSize: 9, marginTop: 4, display: 'block' }}>
+                {state.lights.length} light{state.lights.length !== 1 ? 's' : ''} placed
+              </span>
             )}
           </div>
         )}

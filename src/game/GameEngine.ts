@@ -125,6 +125,24 @@ export class GameEngine {
       this.scene.add(item);
     }
 
+    // Placed lights from track config
+    for (const light of (this.trackConfig.lights ?? [])) {
+      if (light.type === 'point') {
+        const pl = new THREE.PointLight(light.color, light.intensity, light.distance);
+        pl.position.set(light.x, light.y, light.z);
+        this.scene.add(pl);
+      } else if (light.type === 'spot') {
+        const sl = new THREE.SpotLight(light.color, light.intensity, light.distance,
+          light.angle ?? 0.4, light.penumbra ?? 0.2);
+        sl.position.set(light.x, light.y, light.z);
+        const target = new THREE.Object3D();
+        target.position.set(light.targetX ?? light.x, 0, light.targetZ ?? light.z);
+        this.scene.add(target);
+        sl.target = target;
+        this.scene.add(sl);
+      }
+    }
+
     // No obstacles
     this.obstacles = [];
 

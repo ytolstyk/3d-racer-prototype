@@ -1,4 +1,4 @@
-import type { HazardZone, PlacedObject, TunnelSection } from "../types/game.js";
+import type { HazardZone, PlacedObject, PlacedLight, TunnelSection } from "../types/game.js";
 
 export interface TrackConfig {
   id: string;
@@ -9,6 +9,7 @@ export interface TrackConfig {
   checkpoints?: number[];
   objects?: PlacedObject[];
   tunnels?: TunnelSection[];
+  lights?: PlacedLight[];
 }
 
 export const TRACK_SAMPLES = 600;

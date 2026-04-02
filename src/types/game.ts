@@ -150,6 +150,22 @@ export interface TunnelSection {
   tEnd: number;
 }
 
+export type LightType = 'point' | 'spot';
+
+export interface PlacedLight {
+  type: LightType;
+  x: number;
+  z: number;
+  y: number;          // height above floor, 1–50
+  color: number;      // 0xRRGGBB hex
+  intensity: number;  // 0.1–5.0
+  distance: number;   // falloff radius, 20–300
+  angle?: number;     // spot half-angle (radians)
+  penumbra?: number;  // 0–1
+  targetX?: number;   // spot aim point X
+  targetZ?: number;   // spot aim point Z
+}
+
 export interface PhysicsTelemetry {
   speed: number;
   speedRatio: number;
