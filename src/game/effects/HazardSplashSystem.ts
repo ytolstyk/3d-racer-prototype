@@ -26,6 +26,7 @@ export class HazardSplashSystem {
     });
 
     this.mesh = new THREE.InstancedMesh(geo, mat, SPLASH_COUNT);
+    this.mesh.renderOrder = 4;
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.instanceColor = new THREE.InstancedBufferAttribute(
       new Float32Array(SPLASH_COUNT * 3),

@@ -48,6 +48,7 @@ interface CarHazardState {
   inHazard: boolean;
   zoneType: string;
   drip: number;
+  splashTimer: number;
 }
 
 export class PracticeEngine {
@@ -66,7 +67,7 @@ export class PracticeEngine {
   private tireSmoke: TireSmokeSystem;
   private hazardSplash: HazardSplashSystem;
   private splatterSystem: SplatterDecalSystem;
-  private hazardState: CarHazardState = { inHazard: false, zoneType: '', drip: 0 };
+  private hazardState: CarHazardState = { inHazard: false, zoneType: '', drip: 0, splashTimer: 0 };
   private _axisXMarker!: THREE.Mesh;
   private _axisZMarker!: THREE.Mesh;
   private animFrameId = 0;
@@ -504,7 +505,16 @@ export class PracticeEngine {
         hs.zoneType = activeHazardType;
         if (!wasInHazard) {
           hs.drip = 0;
-          this.hazardSplash.emit(car.position, HAZARD_HEX_COLORS[activeHazardType] ?? 0xffffff, car.speed, car.definition.maxSpeed);
+          hs.splashTimer = 0;
+          if (Math.abs(car.speed) >= car.definition.maxSpeed * 0.1) {
+            this.hazardSplash.emit(car.position, HAZARD_HEX_COLORS[activeHazardType] ?? 0xffffff, car.speed, car.definition.maxSpeed);
+          }
+        } else if (Math.abs(car.speed) >= car.definition.maxSpeed * 0.1) {
+          hs.splashTimer -= dt;
+          if (hs.splashTimer <= 0) {
+            hs.splashTimer = 0.25;
+            this.hazardSplash.emit(car.position, HAZARD_HEX_COLORS[activeHazardType] ?? 0xffffff, car.speed, car.definition.maxSpeed, 25);
+          }
         }
         this.tireMarks.addSubstanceMarks(car, hs.zoneType);
       } else {
