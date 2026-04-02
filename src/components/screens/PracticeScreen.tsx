@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import type { KitchenItemType, PhysicsTelemetry, PhysicsGroup, HazardZone } from '../../types/game.js';
 import { PracticeEngine, PRACTICE_DEFAULT_OBJECTS } from '../../game/PracticeEngine.js';
 import { CAR_DEFINITIONS } from '../../constants/cars.js';
+import { HAZARD_COLORS, HAZARD_EFFECTS } from '../../constants/physics.js';
 
 const KITCHEN_ITEM_TYPES: KitchenItemType[] = [
   'mug', 'spoon', 'plate', 'fork', 'napkin',
@@ -23,13 +24,6 @@ type HazardType = HazardZone['type'];
 
 const HAZARD_TYPES: HazardType[] = ['juice', 'oil', 'milk', 'butter', 'food'];
 
-const HAZARD_COLORS: Record<HazardType, string> = {
-  juice: '#ff8800',
-  oil: '#888820',
-  milk: '#aaccff',
-  butter: '#f5d020',
-  food: '#66aa33',
-};
 
 interface PracticeScreenProps {
   onMainMenu: () => void;
@@ -89,9 +83,10 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
   const [telemetry, setTelemetry] = useState<PhysicsTelemetry | null>(null);
   const [telemetryOpen, setTelemetryOpen] = useState(false);
   const [tunerOpen, setTunerOpen] = useState(false);
-  const [tunerGroup, setTunerGroup] = useState<PhysicsGroup>('drift');
+  const [tunerGroup, setTunerGroup] = useState<PhysicsGroup | 'hazard'>('drift');
   const [physicsDefaults, setPhysicsDefaults] = useState<Record<PhysicsGroup, Record<string, number>> | null>(null);
   const [overrideMap, setOverrideMap] = useState<Record<string, number>>({});
+  const [hazardOverrideMap, setHazardOverrideMap] = useState<Record<string, number>>({});
   const [showPhysicsExport, setShowPhysicsExport] = useState(false);
   const [physicsExportTs, setPhysicsExportTs] = useState('');
 
@@ -222,6 +217,13 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
     setOverrideMap({});
   }, []);
 
+  const handleHazardOverride = useCallback((type: string, key: string, raw: string) => {
+    const value = parseFloat(raw);
+    if (isNaN(value)) return;
+    engineRef.current?.setHazardEffectOverride(type, key, value);
+    setHazardOverrideMap(prev => ({ ...prev, [`${type}:${key}`]: value }));
+  }, []);
+
   const handlePhysicsExport = useCallback(() => {
     setPhysicsExportTs(engineRef.current?.exportPhysicsTS() ?? '');
     setShowPhysicsExport(true);
@@ -263,7 +265,7 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
   };
   const primaryBtnStyle: React.CSSProperties = { ...btnStyle, background: 'rgba(100,200,255,0.25)' };
 
-  const groupKeys = physicsDefaults ? Object.keys(physicsDefaults[tunerGroup]) : [];
+  const groupKeys = physicsDefaults && tunerGroup !== 'hazard' ? Object.keys(physicsDefaults[tunerGroup]) : [];
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
@@ -566,8 +568,8 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
           borderRadius: 6, padding: '8px 10px', width: 260,
           maxHeight: '75vh', overflowY: 'auto',
         }}>
-          <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
-            {(['physics', 'drift', 'controller'] as PhysicsGroup[]).map(g => (
+          <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
+            {(['physics', 'drift', 'controller', 'hazard'] as (PhysicsGroup | 'hazard')[]).map(g => (
               <button
                 key={g}
                 onClick={() => setTunerGroup(g)}
@@ -582,31 +584,67 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
             ))}
           </div>
 
-          {groupKeys.map(key => {
-            const mapKey = `${tunerGroup}:${key}`;
-            const isModified = mapKey in overrideMap;
-            const defaultVal = physicsDefaults[tunerGroup][key];
-            return (
-              <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                <span style={{ color: isModified ? '#ffaa00' : 'rgba(255,255,255,0.55)', fontSize: 10, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={key}>
-                  {key}
-                </span>
-                <input
-                  type="number"
-                  defaultValue={defaultVal}
-                  step="any"
-                  onBlur={e => handleOverride(tunerGroup, key, e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleOverride(tunerGroup, key, (e.target as HTMLInputElement).value); }}
-                  style={{
-                    width: 90, fontSize: 10, fontFamily: 'monospace',
-                    background: '#0d0d1a', color: '#fff',
-                    border: `1px solid ${isModified ? '#ffaa00' : 'rgba(255,255,255,0.2)'}`,
-                    borderRadius: 3, padding: '2px 4px', textAlign: 'right',
-                  }}
-                />
-              </div>
-            );
-          })}
+          {tunerGroup === 'hazard' ? (
+            <div>
+              {(Object.keys(HAZARD_EFFECTS) as string[]).map(type => (
+                <div key={type} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: 2, background: HAZARD_COLORS[type] ?? '#888', flexShrink: 0 }} />
+                    <span style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>{type}</span>
+                  </div>
+                  {(['speedMultiplier', 'steeringMultiplier', 'lateralDrift'] as const).map(key => {
+                    const mapKey = `${type}:${key}`;
+                    const isModified = mapKey in hazardOverrideMap;
+                    const defaultVal = (HAZARD_EFFECTS[type] as Record<string, number>)[key];
+                    return (
+                      <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3, paddingLeft: 16 }}>
+                        <span style={{ color: isModified ? '#ffaa00' : 'rgba(255,255,255,0.5)', fontSize: 10 }}>{key}</span>
+                        <input
+                          type="number"
+                          defaultValue={defaultVal}
+                          step="any"
+                          onBlur={e => handleHazardOverride(type, key, e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') handleHazardOverride(type, key, (e.target as HTMLInputElement).value); }}
+                          style={{
+                            width: 80, fontSize: 10, fontFamily: 'monospace',
+                            background: '#0d0d1a', color: '#fff',
+                            border: `1px solid ${isModified ? '#ffaa00' : 'rgba(255,255,255,0.2)'}`,
+                            borderRadius: 3, padding: '2px 4px', textAlign: 'right',
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          ) : (
+            groupKeys.map(key => {
+              const mapKey = `${tunerGroup}:${key}`;
+              const isModified = mapKey in overrideMap;
+              const defaultVal = physicsDefaults![tunerGroup as PhysicsGroup][key];
+              return (
+                <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ color: isModified ? '#ffaa00' : 'rgba(255,255,255,0.55)', fontSize: 10, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={key}>
+                    {key}
+                  </span>
+                  <input
+                    type="number"
+                    defaultValue={defaultVal}
+                    step="any"
+                    onBlur={e => handleOverride(tunerGroup as PhysicsGroup, key, e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleOverride(tunerGroup as PhysicsGroup, key, (e.target as HTMLInputElement).value); }}
+                    style={{
+                      width: 90, fontSize: 10, fontFamily: 'monospace',
+                      background: '#0d0d1a', color: '#fff',
+                      border: `1px solid ${isModified ? '#ffaa00' : 'rgba(255,255,255,0.2)'}`,
+                      borderRadius: 3, padding: '2px 4px', textAlign: 'right',
+                    }}
+                  />
+                </div>
+              );
+            })
+          )}
 
           <div style={{ display: 'flex', gap: 6, marginTop: 8, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
             <button style={{ ...btnStyle, fontSize: 10, padding: '3px 8px' }} onClick={handleResetPhysics}>↺ Reset All</button>

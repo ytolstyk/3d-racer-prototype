@@ -9,6 +9,8 @@ const SUBSTANCE_COLORS: Record<string, THREE.Color> = {
   oil: new THREE.Color(0x223311),
   juice: new THREE.Color(0xff8822),
   food: new THREE.Color(0x88cc44),
+  milk: new THREE.Color(0xaaccff),
+  butter: new THREE.Color(0xf5c020),
 };
 
 export class TireMarkSystem {

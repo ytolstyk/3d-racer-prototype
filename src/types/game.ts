@@ -59,6 +59,7 @@ export interface HazardZone {
   radius?: number;
   rotation?: number; // Y-axis visual rotation for splat mesh (radians)
   mesh?: THREE.Object3D;
+  collisionAlpha?: { data: Uint8ClampedArray; size: number; rotation: number };
 }
 
 export interface HazardEffect {

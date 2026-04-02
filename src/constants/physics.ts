@@ -13,6 +13,22 @@ export const PHYSICS = {
   obstacleBoundingRadius: 3.0,
 } as const;
 
+export const HAZARD_COLORS: Record<string, string> = {
+  juice: '#ff8800',
+  oil: '#888820',
+  milk: '#aaccff',
+  butter: '#f5d020',
+  food: '#66aa33',
+};
+
+export const HAZARD_HEX_COLORS: Record<string, number> = {
+  juice: 0xff8800,
+  oil: 0x888820,
+  milk: 0xaaccff,
+  butter: 0xf5d020,
+  food: 0x88cc44,
+};
+
 export const HAZARD_EFFECTS: Record<string, HazardEffect> = {
   juice: { speedMultiplier: 0.5, steeringMultiplier: 1.0, lateralDrift: 0 },
   oil: { speedMultiplier: 1.0, steeringMultiplier: 0.3, lateralDrift: 0.5 },

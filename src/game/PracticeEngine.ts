@@ -25,8 +25,10 @@ import { TopDownCamera } from "./camera/TopDownCamera.js";
 import { KITCHEN_ITEM_FACTORIES, OBJECT_COLLISION_RADII } from "./scene/KitchenItems.js";
 import { TireMarkSystem } from "./scene/TireMarkSystem.js";
 import { TireSmokeSystem } from "./effects/TireSmokeSystem.js";
+import { HazardSplashSystem } from "./effects/HazardSplashSystem.js";
 import { SplatterDecalSystem } from "./effects/SplatterDecalSystem.js";
 import { buildCircleHazardMesh } from "./track/HazardSystem.js";
+import { HAZARD_HEX_COLORS } from "../constants/physics.js";
 
 const BOUND_X = 600;
 const BOUND_Z = 450;
@@ -38,6 +40,14 @@ export interface PracticeHazard {
   x: number;
   z: number;
   radius: number;
+  alphaData?: Uint8ClampedArray;
+  alphaSize?: number;
+}
+
+interface CarHazardState {
+  inHazard: boolean;
+  zoneType: string;
+  drip: number;
 }
 
 export class PracticeEngine {
@@ -54,7 +64,9 @@ export class PracticeEngine {
   private hazardMeshes: THREE.Group[] = [];
   private tireMarks: TireMarkSystem;
   private tireSmoke: TireSmokeSystem;
+  private hazardSplash: HazardSplashSystem;
   private splatterSystem: SplatterDecalSystem;
+  private hazardState: CarHazardState = { inHazard: false, zoneType: '', drip: 0 };
   private _axisXMarker!: THREE.Mesh;
   private _axisZMarker!: THREE.Mesh;
   private animFrameId = 0;
@@ -64,6 +76,7 @@ export class PracticeEngine {
   private boundHandleResize: () => void;
   private readonly _overrideMirror = new Map<string, number>();
   private readonly _cameraOverrideMirror = new Map<string, number>();
+  private readonly _hazardOverrideMirror = new Map<string, number>();
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -93,6 +106,7 @@ export class PracticeEngine {
 
     this.tireMarks = new TireMarkSystem(this.scene);
     this.tireSmoke = new TireSmokeSystem(this.scene);
+    this.hazardSplash = new HazardSplashSystem(this.scene);
     this.splatterSystem = new SplatterDecalSystem(this.scene, this.renderer);
 
     this.carPhysics = new CarPhysics();
@@ -191,10 +205,11 @@ export class PracticeEngine {
   }
 
   addHazard(h: PracticeHazard): void {
-    const mesh = buildCircleHazardMesh(h.type, h.x, h.z, h.radius);
-    this.scene.add(mesh);
-    this.practiceHazards.push(h);
-    this.hazardMeshes.push(mesh);
+    const result = buildCircleHazardMesh(h.type, h.x, h.z, h.radius);
+    this.scene.add(result.group);
+    const hazard: PracticeHazard = { ...h, alphaData: result.alphaData, alphaSize: result.alphaSize };
+    this.practiceHazards.push(hazard);
+    this.hazardMeshes.push(result.group);
   }
 
   removeHazard(idx: number): void {
@@ -303,6 +318,17 @@ export class PracticeEngine {
     };
   }
 
+  setHazardEffectOverride(type: string, key: string, value: number): void {
+    if (HAZARD_EFFECTS[type]) {
+      (HAZARD_EFFECTS[type] as Record<string, number>)[key] = value;
+    }
+    this._hazardOverrideMirror.set(`${type}:${key}`, value);
+  }
+
+  resetHazardEffects(): void {
+    this._hazardOverrideMirror.clear();
+  }
+
   setPhysicsOverride(group: PhysicsGroup, key: string, value: number): void {
     if (group === "controller") this.playerController.setOverride(key, value);
     else this.carPhysics.setOverride(group, key, value);
@@ -361,13 +387,21 @@ export class PracticeEngine {
         .map(([k, v]) => `  ${k}: ${v},`)
         .join("\n")}\n} as const;`;
 
-    const hazardBlock = `export const HAZARD_EFFECTS: Record<string, HazardEffect> = {
-  juice: { speedMultiplier: 0.5, steeringMultiplier: 1.0, lateralDrift: 0 },
-  oil: { speedMultiplier: 1.0, steeringMultiplier: 0.3, lateralDrift: 0.5 },
-  food: { speedMultiplier: 0.7, steeringMultiplier: 1.0, lateralDrift: 0 },
-  milk: { speedMultiplier: 0.65, steeringMultiplier: 0.8, lateralDrift: 0.2 },
-  butter: { speedMultiplier: 0.9, steeringMultiplier: 0.15, lateralDrift: 1.2 },
-};`;
+    const mergedHazard = Object.fromEntries(
+      Object.entries(HAZARD_EFFECTS).map(([type, base]) => {
+        const e: Record<string, number> = { ...base };
+        for (const [k, v] of this._hazardOverrideMirror) {
+          const [t, prop] = k.split(":");
+          if (t === type) e[prop] = v;
+        }
+        return [type, e];
+      })
+    );
+    const hazardBlock = `export const HAZARD_EFFECTS: Record<string, HazardEffect> = {\n${
+      Object.entries(mergedHazard)
+        .map(([t, e]) => `  ${t}: { speedMultiplier: ${(e as Record<string, number>).speedMultiplier}, steeringMultiplier: ${(e as Record<string, number>).steeringMultiplier}, lateralDrift: ${(e as Record<string, number>).lateralDrift} },`)
+        .join("\n")
+    }\n}`;
     const aiBlock = `export const AI_CONFIG = {\n  lookAhead: 0.03,\n  steeringGain: 3.0,\n  brakeAngleThreshold: 0.5,\n  brakeFactor: 0.65,\n  lateralVariation: 1.5,\n  minSkillLevel: 0.7,\n  maxSkillLevel: 1.0,\n} as const;`;
 
     return [
@@ -436,15 +470,51 @@ export class PracticeEngine {
       // Decay hazard steer factor back to normal
       car.hazardSteerFactor = Math.min(1.0, car.hazardSteerFactor + dt * 3);
 
-      // Hazard effects (circle format)
+      // Hazard effects with proper state tracking + pixel-based collision
+      let activeHazardType: string | null = null;
       for (const hz of this.practiceHazards) {
         const dx = car.position.x - hz.x;
         const dz = car.position.z - hz.z;
-        if (dx * dx + dz * dz <= hz.radius * hz.radius) {
+        let inZone = false;
+        if (hz.alphaData && hz.alphaSize) {
+          const u = dx / (hz.radius * 2) + 0.5;
+          const v = 0.5 - dz / (hz.radius * 2);
+          if (u >= 0 && u <= 1 && v >= 0 && v <= 1) {
+            const s = hz.alphaSize;
+            const px = Math.floor(u * s);
+            const py = Math.floor(v * s);
+            inZone = hz.alphaData[(py * s + px) * 4 + 3] > 32;
+          }
+        } else {
+          inZone = dx * dx + dz * dz <= hz.radius * hz.radius;
+        }
+        if (inZone) {
           const effect = HAZARD_EFFECTS[hz.type];
           car.hazardSteerFactor = Math.min(car.hazardSteerFactor, effect.steeringMultiplier);
           car.speed = car.speed * (effect.speedMultiplier + (1 - effect.speedMultiplier) * Math.max(0, 1 - dt * 4));
+          activeHazardType = hz.type;
           break;
+        }
+      }
+
+      const hs = this.hazardState;
+      if (activeHazardType) {
+        const wasInHazard = hs.inHazard;
+        hs.inHazard = true;
+        hs.zoneType = activeHazardType;
+        if (!wasInHazard) {
+          hs.drip = 0;
+          this.hazardSplash.emit(car.position, HAZARD_HEX_COLORS[activeHazardType] ?? 0xffffff, car.speed, car.definition.maxSpeed);
+        }
+        this.tireMarks.addSubstanceMarks(car, hs.zoneType);
+      } else {
+        if (hs.inHazard) {
+          hs.inHazard = false;
+          hs.drip = 60;
+        }
+        if (hs.drip > 0) {
+          this.tireMarks.addSubstanceMarks(car, hs.zoneType);
+          hs.drip--;
         }
       }
 
@@ -460,6 +530,7 @@ export class PracticeEngine {
 
       this.tireMarks.update(dt);
       this.tireSmoke.update(dt);
+      this.hazardSplash.update(dt);
 
       this.cameraController.update(
         car.position,
@@ -622,6 +693,7 @@ export class PracticeEngine {
     this.inputManager.dispose();
     this.tireMarks.dispose();
     this.tireSmoke.dispose();
+    this.hazardSplash.dispose();
     this.splatterSystem.dispose();
     this.renderer.dispose();
     this.scene.traverse((obj) => {

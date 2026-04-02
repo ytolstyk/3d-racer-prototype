@@ -23,7 +23,9 @@ import { Minimap } from './race/Minimap.js';
 import { TireMarkSystem } from './scene/TireMarkSystem.js';
 import { CollisionParticleSystem } from './effects/CollisionParticleSystem.js';
 import { TireSmokeSystem } from './effects/TireSmokeSystem.js';
+import { HazardSplashSystem } from './effects/HazardSplashSystem.js';
 import { KITCHEN_ITEM_FACTORIES } from './scene/KitchenItems.js';
+import { HAZARD_HEX_COLORS } from '../constants/physics.js';
 
 interface CarHazardState {
   inHazard: boolean;
@@ -55,6 +57,7 @@ export class GameEngine {
   private tireMarks: TireMarkSystem | null = null;
   private collisionParticles: CollisionParticleSystem | null = null;
   private tireSmoke: TireSmokeSystem | null = null;
+  private hazardSplash: HazardSplashSystem | null = null;
   private carHazardState: Map<string, CarHazardState> = new Map();
   private animFrameId = 0;
   private lastTime = 0;
@@ -149,6 +152,9 @@ export class GameEngine {
 
     // Tire marks
     this.tireMarks = new TireMarkSystem(this.scene);
+
+    // Hazard splash particles
+    this.hazardSplash = new HazardSplashSystem(this.scene);
 
     // Input
     this.inputManager = new InputManager();
@@ -331,6 +337,9 @@ export class GameEngine {
       // Update collision particles
       this.collisionParticles?.update(dt);
 
+      // Update hazard splash particles
+      this.hazardSplash?.update(dt);
+
       // Collisions
       this.collisionSystem.update(this.cars, dt);
 
@@ -370,7 +379,9 @@ export class GameEngine {
       hs.zoneType = effect.zoneType;
       if (!wasInHazard) {
         hs.drip = 0;
+        this.hazardSplash?.emit(car.position, HAZARD_HEX_COLORS[effect.zoneType] ?? 0xffffff, car.speed, car.definition.maxSpeed);
       }
+      this.tireMarks?.addSubstanceMarks(car, hs.zoneType);
     } else {
       if (hs.inHazard) {
         hs.inHazard = false;
@@ -440,6 +451,7 @@ export class GameEngine {
     this.tireMarks?.dispose();
     this.tireSmoke?.dispose();
     this.collisionParticles?.dispose();
+    this.hazardSplash?.dispose();
     this.emitter.clear();
     this.renderer.dispose();
 

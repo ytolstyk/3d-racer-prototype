@@ -17,6 +17,12 @@ function seededRng(seed: number) {
   };
 }
 
+export interface SplatTextureResult {
+  texture: THREE.CanvasTexture;
+  alphaData: Uint8ClampedArray;
+  size: number;
+}
+
 /** Irregular blob splat with alpha — used for hazard zone overlays. */
 function makeSplatTexture(
   size: number,
@@ -24,7 +30,7 @@ function makeSplatTexture(
   blobColor: string,
   seed: number,
   kind?: 'juice' | 'oil' | 'milk' | 'butter' | 'food',
-): THREE.CanvasTexture {
+): SplatTextureResult {
   const [canvas, ctx] = makeCanvas(size);
   const rng = seededRng(seed);
 
@@ -165,9 +171,10 @@ function makeSplatTexture(
   ctx.fillRect(0, 0, size, size);
   ctx.globalCompositeOperation = 'source-over';
 
+  const alphaData = ctx.getImageData(0, 0, size, size).data;
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+  return { texture: tex, alphaData, size };
 }
 
 /** Blue/white polished floor tiles with deep grout lines. */
@@ -223,23 +230,23 @@ export function makeFloorTileTexture(size = 512): THREE.CanvasTexture {
   return tex;
 }
 
-export function makeOilSplatTexture(size = 512): THREE.CanvasTexture {
+export function makeOilSplatTexture(size = 512): SplatTextureResult {
   return makeSplatTexture(size, '#3a3a10', '#555520', 201, 'oil');
 }
 
-export function makeJuiceSplatTexture(size = 512): THREE.CanvasTexture {
+export function makeJuiceSplatTexture(size = 512): SplatTextureResult {
   return makeSplatTexture(size, '#ff8800', '#ffaa33', 202, 'juice');
 }
 
-export function makeFoodSplatTexture(size = 512): THREE.CanvasTexture {
+export function makeFoodSplatTexture(size = 512): SplatTextureResult {
   return makeSplatTexture(size, '#6a9930', '#88cc44', 203, 'food');
 }
 
-export function makeMilkSplatTexture(size = 512): THREE.CanvasTexture {
+export function makeMilkSplatTexture(size = 512): SplatTextureResult {
   return makeSplatTexture(size, '#dde8ff', '#f0f5ff', 204, 'milk');
 }
 
-export function makeButterSplatTexture(size = 512): THREE.CanvasTexture {
+export function makeButterSplatTexture(size = 512): SplatTextureResult {
   return makeSplatTexture(size, '#f5d020', '#ffe55a', 205, 'butter');
 }
 

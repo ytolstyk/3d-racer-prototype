@@ -45,37 +45,44 @@ function hazardMaterials(
   };
 }
 
+export interface CircleHazardMeshResult {
+  group: THREE.Group;
+  alphaData: Uint8ClampedArray;
+  alphaSize: number;
+}
+
 export function buildCircleHazardMesh(
   type: HazardZone["type"],
   x: number,
   z: number,
   radius: number,
-): THREE.Group {
-  let texture: THREE.CanvasTexture;
+): CircleHazardMeshResult {
+  let splatResult: ReturnType<typeof makeJuiceSplatTexture>;
   let color: number;
   switch (type) {
     case "juice":
-      texture = makeJuiceSplatTexture();
+      splatResult = makeJuiceSplatTexture();
       color = 0xff8800;
       break;
     case "oil":
-      texture = makeOilSplatTexture();
+      splatResult = makeOilSplatTexture();
       color = 0x444400;
       break;
     case "food":
-      texture = makeFoodSplatTexture();
+      splatResult = makeFoodSplatTexture();
       color = 0x88cc44;
       break;
     case "milk":
-      texture = makeMilkSplatTexture();
+      splatResult = makeMilkSplatTexture();
       color = 0xdde8ff;
       break;
     case "butter":
-      texture = makeButterSplatTexture();
+      splatResult = makeButterSplatTexture();
       color = 0xf5d020;
       break;
   }
 
+  const { texture, alphaData, size: alphaSize } = splatResult;
   const splatSize = radius * 2;
   const mats = hazardMaterials(type, texture, color);
 
@@ -105,7 +112,7 @@ export function buildCircleHazardMesh(
   light.position.y = 5;
   group.add(light);
 
-  return group;
+  return { group, alphaData, alphaSize };
 }
 
 export class HazardSystem {
@@ -156,29 +163,36 @@ export class HazardSystem {
       return null;
     }
 
-    let texture: THREE.CanvasTexture;
+    let splatResult: ReturnType<typeof makeJuiceSplatTexture>;
     let color: number;
     switch (zone.type) {
       case "juice":
-        texture = makeJuiceSplatTexture();
+        splatResult = makeJuiceSplatTexture();
         color = 0xff8800;
         break;
       case "oil":
-        texture = makeOilSplatTexture();
+        splatResult = makeOilSplatTexture();
         color = 0x444400;
         break;
       case "food":
-        texture = makeFoodSplatTexture();
+        splatResult = makeFoodSplatTexture();
         color = 0x88cc44;
         break;
       case "milk":
-        texture = makeMilkSplatTexture();
+        splatResult = makeMilkSplatTexture();
         color = 0xdde8ff;
         break;
       case "butter":
-        texture = makeButterSplatTexture();
+        splatResult = makeButterSplatTexture();
         color = 0xf5d020;
         break;
+    }
+
+    const { texture, alphaData, size: alphaSize } = splatResult;
+
+    // Store pixel-based collision alpha for circle zones
+    if (zone.centerX !== undefined && zone.centerZ !== undefined) {
+      zone.collisionAlpha = { data: alphaData, size: alphaSize, rotation: rotationZ };
     }
 
     const mats = hazardMaterials(zone.type, texture, color);
@@ -227,7 +241,22 @@ export class HazardSystem {
       ) {
         const dx = carPosition.x - zone.centerX;
         const dz = carPosition.z - zone.centerZ;
-        if (Math.sqrt(dx * dx + dz * dz) <= zone.radius) {
+        const alpha = zone.collisionAlpha;
+        if (alpha) {
+          const rot = -(alpha.rotation);
+          const rx = dx * Math.cos(rot) - dz * Math.sin(rot);
+          const rz = dx * Math.sin(rot) + dz * Math.cos(rot);
+          const u = rx / (zone.radius * 2) + 0.5;
+          const v = 0.5 - rz / (zone.radius * 2);
+          if (u >= 0 && u <= 1 && v >= 0 && v <= 1) {
+            const s = alpha.size;
+            const px = Math.floor(u * s);
+            const py = Math.floor(v * s);
+            if (alpha.data[(py * s + px) * 4 + 3] > 32) {
+              return { ...base, zoneType: zone.type };
+            }
+          }
+        } else if (Math.sqrt(dx * dx + dz * dz) <= zone.radius) {
           return { ...base, zoneType: zone.type };
         }
         continue;
