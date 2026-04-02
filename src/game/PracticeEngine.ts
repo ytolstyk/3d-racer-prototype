@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type {
   PlacedObject,
+  PlacedSplatter,
   CarState,
   PhysicsTelemetry,
   PhysicsGroup,
@@ -24,6 +25,7 @@ import { TopDownCamera } from "./camera/TopDownCamera.js";
 import { KITCHEN_ITEM_FACTORIES, OBJECT_COLLISION_RADII } from "./scene/KitchenItems.js";
 import { TireMarkSystem } from "./scene/TireMarkSystem.js";
 import { TireSmokeSystem } from "./effects/TireSmokeSystem.js";
+import { SplatterDecalSystem } from "./effects/SplatterDecalSystem.js";
 import { buildCircleHazardMesh } from "./track/HazardSystem.js";
 
 const BOUND_X = 600;
@@ -52,6 +54,7 @@ export class PracticeEngine {
   private hazardMeshes: THREE.Group[] = [];
   private tireMarks: TireMarkSystem;
   private tireSmoke: TireSmokeSystem;
+  private splatterSystem: SplatterDecalSystem;
   private _axisXMarker!: THREE.Mesh;
   private _axisZMarker!: THREE.Mesh;
   private animFrameId = 0;
@@ -90,6 +93,7 @@ export class PracticeEngine {
 
     this.tireMarks = new TireMarkSystem(this.scene);
     this.tireSmoke = new TireSmokeSystem(this.scene);
+    this.splatterSystem = new SplatterDecalSystem(this.scene, this.renderer);
 
     this.carPhysics = new CarPhysics();
     this.playerController = new CarController(this.carPhysics);
@@ -217,6 +221,22 @@ export class PracticeEngine {
 
   getHazards(): PracticeHazard[] {
     return [...this.practiceHazards];
+  }
+
+  addSplatter(s: PlacedSplatter): void {
+    this.splatterSystem.addSplatter(s);
+  }
+
+  removeSplatter(idx: number): void {
+    this.splatterSystem.removeSplatter(idx);
+  }
+
+  removeAllSplatters(): void {
+    this.splatterSystem.removeAll();
+  }
+
+  getSplatters(): PlacedSplatter[] {
+    return this.splatterSystem.getSplatters();
   }
 
   getSpeed(): number {
@@ -602,6 +622,7 @@ export class PracticeEngine {
     this.inputManager.dispose();
     this.tireMarks.dispose();
     this.tireSmoke.dispose();
+    this.splatterSystem.dispose();
     this.renderer.dispose();
     this.scene.traverse((obj) => {
       if (obj instanceof THREE.Mesh) {

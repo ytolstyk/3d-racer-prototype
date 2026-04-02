@@ -78,6 +78,11 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
   const [hazardRadius, setHazardRadius] = useState(40);
   const [hazardCount, setHazardCount] = useState(0);
 
+  // Splatter palette state
+  const [splatterType, setSplatterType] = useState<HazardType | null>(null);
+  const [splatterRadius, setSplatterRadius] = useState(40);
+  const [splatterCount, setSplatterCount] = useState(0);
+
   const [carPos, setCarPos] = useState({ x: 0, y: 0, z: 0 });
 
   // Telemetry + tuner state
@@ -159,6 +164,12 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
       return;
     }
 
+    if (splatterType) {
+      engine.addSplatter({ type: splatterType, x, z, radius: splatterRadius, rotation: 0 });
+      setSplatterCount(engine.getSplatters().length);
+      return;
+    }
+
     // Select nearest object
     const objects = engine.getObjects();
     let nearestIdx = -1;
@@ -168,7 +179,7 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
       if (dist < nearestDist) { nearestDist = dist; nearestIdx = i; }
     }
     setSelectedObjIdx(nearestIdx);
-  }, [activeType, hazardType, hazardRadius, paused]);
+  }, [activeType, hazardType, hazardRadius, splatterType, splatterRadius, paused]);
 
   const handleDeleteSelected = () => {
     if (selectedObjIdx === -1 || !engineRef.current) return;
@@ -180,8 +191,10 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
   const handleClearAll = () => {
     engineRef.current?.removeAllObjects();
     engineRef.current?.removeAllHazards();
+    engineRef.current?.removeAllSplatters();
     setObjectCount(0);
     setHazardCount(0);
+    setSplatterCount(0);
     setSelectedObjIdx(-1);
   };
 
@@ -264,7 +277,7 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
       <button
         style={{ ...btnStyle, position: 'absolute', top: 10, right: 10, zIndex: 10 }}
         onClick={() => setPaletteOpen(p => {
-          if (p) { setActiveType(null); setHazardType(null); }
+          if (p) { setActiveType(null); setHazardType(null); setSplatterType(null); }
           return !p;
         })}
       >
@@ -330,10 +343,35 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
             )}
           </div>
 
+          {/* Splatters section */}
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.12)', paddingTop: 6, marginTop: 2 }}>
+            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 9, letterSpacing: 1, marginBottom: 4 }}>SPLATTERS</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3, marginBottom: 6 }}>
+              {HAZARD_TYPES.map(t => (
+                <button key={t} style={{
+                  ...btnStyle,
+                  fontSize: 10, padding: '3px 6px',
+                  background: splatterType === t ? HAZARD_COLORS[t] : 'rgba(255,255,255,0.08)',
+                  color: splatterType === t ? '#000' : '#fff',
+                }}
+                onClick={() => { setSplatterType(p => p === t ? null : t); setActiveType(null); setHazardType(null); }}
+                >
+                  💧 {t}
+                </button>
+              ))}
+            </div>
+            <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, marginBottom: 2 }}>
+              Radius: <input type="number" value={splatterRadius} min={10} max={200}
+                onChange={e => setSplatterRadius(Number(e.target.value))}
+                style={{ width: 50, background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', borderRadius: 2 }} />
+            </div>
+            <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10 }}>{splatterCount} splatters</div>
+          </div>
+
           {/* Placement hint */}
-          {(activeType || hazardType) ? (
+          {(activeType || hazardType || splatterType) ? (
             <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', textAlign: 'center', marginTop: 4 }}>
-              Click canvas to place {activeType ? ITEM_LABELS[activeType] : `${hazardType} (r=${hazardRadius})`}
+              Click canvas to place {activeType ? ITEM_LABELS[activeType] : hazardType ? `${hazardType} (r=${hazardRadius})` : `${splatterType} splatter (r=${splatterRadius})`}
             </div>
           ) : (
             <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', textAlign: 'center', marginTop: 4 }}>
@@ -370,6 +408,7 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
           <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, alignSelf: 'center' }}>
             {objectCount} obj{objectCount !== 1 ? 's' : ''}
             {hazardCount > 0 && ` · ${hazardCount} hazard${hazardCount !== 1 ? 's' : ''}`}
+            {splatterCount > 0 && ` · ${splatterCount} splatter${splatterCount !== 1 ? 's' : ''}`}
           </span>
         </div>
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', maxWidth: 400 }}>

@@ -135,6 +135,14 @@ export interface PlacedObject {
   scale: number;
 }
 
+export interface PlacedSplatter {
+  type: HazardZone['type'];
+  x: number;
+  z: number;
+  radius: number;
+  rotation: number;   // Y-axis rotation (radians)
+}
+
 export interface TunnelSection {
   tStart: number;
   tEnd: number;
