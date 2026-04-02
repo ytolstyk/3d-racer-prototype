@@ -57,6 +57,7 @@ export interface HazardZone {
   centerX?: number;
   centerZ?: number;
   radius?: number;
+  rotation?: number; // Y-axis visual rotation for splat mesh (radians)
   mesh?: THREE.Object3D;
 }
 

@@ -5,7 +5,7 @@ import { TRACKS } from '../../constants/track.js';
 import type { KitchenItemType, PlacedObject, TunnelSection } from '../../types/game.js';
 import { OBJECT_HEIGHTS } from '../../game/scene/KitchenItems.js';
 
-type Tool = 'pen' | 'line' | 'eraser' | 'move' | 'startPoint' | 'insert' | 'object' | 'tunnel';
+type Tool = 'pen' | 'line' | 'eraser' | 'move' | 'startPoint' | 'insert' | 'object' | 'tunnel' | 'hazard';
 
 type HazardType = 'juice' | 'milk' | 'oil' | 'butter';
 
@@ -14,6 +14,7 @@ interface HazardDef {
   centerX?: number;
   centerZ?: number;
   radius?: number;
+  rotation?: number;
   tStart?: number;
   tEnd?: number;
   lateralOffset?: number;
@@ -76,6 +77,7 @@ const OBJECT_FOOTPRINTS: Record<KitchenItemType, { w: number; d: number; shape: 
 interface UndoSnapshot {
   points: [number, number][];
   objects: PlacedObject[];
+  hazards: HazardDef[];
 }
 
 interface EditorState {
@@ -92,6 +94,9 @@ interface EditorState {
   selectedObjectIndex: number;
   activeObjectType: KitchenItemType;
   tunnels: TunnelSection[];
+  selectedHazardIndex: number;
+  activeHazardType: HazardType;
+  activeHazardRadius: number;
 }
 
 type EditorAction =
@@ -124,7 +129,14 @@ type EditorAction =
   | { type: 'ADD_TUNNEL'; tStart: number; tEnd: number }
   | { type: 'DELETE_TUNNEL'; index: number }
   | { type: 'SET_OBJECT_SCALE'; index: number; scale: number }
-  | { type: 'SET_OBJECT_ROTATION'; index: number; rotation: number };
+  | { type: 'SET_OBJECT_ROTATION'; index: number; rotation: number }
+  | { type: 'ADD_HAZARD'; hazard: HazardDef }
+  | { type: 'SELECT_HAZARD'; index: number }
+  | { type: 'MOVE_HAZARD'; index: number; centerX: number; centerZ: number }
+  | { type: 'SET_HAZARD_RADIUS'; index: number; radius: number }
+  | { type: 'SET_HAZARD_ROTATION'; index: number; rotation: number }
+  | { type: 'SET_ACTIVE_HAZARD_TYPE'; hazardType: HazardType }
+  | { type: 'SET_ACTIVE_HAZARD_RADIUS'; radius: number };
 
 const initialState: EditorState = {
   points: [],
@@ -140,6 +152,9 @@ const initialState: EditorState = {
   selectedObjectIndex: -1,
   activeObjectType: 'mug',
   tunnels: [],
+  selectedHazardIndex: -1,
+  activeHazardType: 'oil',
+  activeHazardRadius: 15,
 };
 
 function getInitialState(): EditorState {
@@ -179,7 +194,7 @@ function getInitialState(): EditorState {
 }
 
 function makeSnapshot(state: EditorState): UndoSnapshot {
-  return { points: state.points, objects: state.objects };
+  return { points: state.points, objects: state.objects, hazards: state.hazards };
 }
 
 function pushHistory(state: EditorState): UndoSnapshot[] {
@@ -227,7 +242,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (state.past.length === 0) return state;
       const past = [...state.past];
       const snap = past.pop()!;
-      return { ...state, past, points: snap.points, objects: snap.objects, selectedObjectIndex: -1 };
+      return { ...state, past, points: snap.points, objects: snap.objects, hazards: snap.hazards, selectedObjectIndex: -1, selectedHazardIndex: -1 };
     }
 
     case 'SET_START': {
@@ -261,7 +276,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     }
 
     case 'SET_TOOL':
-      return { ...state, activeTool: action.tool, selectedObjectIndex: -1 };
+      return { ...state, activeTool: action.tool, selectedObjectIndex: -1, selectedHazardIndex: -1 };
 
     case 'SET_NAME':
       return { ...state, trackName: action.name };
@@ -379,6 +394,41 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       return { ...state, objects: objs };
     }
 
+    case 'ADD_HAZARD':
+      return {
+        ...state,
+        past: pushHistory(state),
+        hazards: [...state.hazards, action.hazard],
+        selectedHazardIndex: state.hazards.length,
+      };
+
+    case 'SELECT_HAZARD':
+      return { ...state, selectedHazardIndex: action.index };
+
+    case 'MOVE_HAZARD': {
+      const hazards = [...state.hazards];
+      hazards[action.index] = { ...hazards[action.index], centerX: action.centerX, centerZ: action.centerZ };
+      return { ...state, hazards };
+    }
+
+    case 'SET_HAZARD_RADIUS': {
+      const hazards = [...state.hazards];
+      hazards[action.index] = { ...hazards[action.index], radius: Math.max(5, action.radius) };
+      return { ...state, hazards };
+    }
+
+    case 'SET_HAZARD_ROTATION': {
+      const hazards = [...state.hazards];
+      hazards[action.index] = { ...hazards[action.index], rotation: action.rotation };
+      return { ...state, hazards };
+    }
+
+    case 'SET_ACTIVE_HAZARD_TYPE':
+      return { ...state, activeHazardType: action.hazardType };
+
+    case 'SET_ACTIVE_HAZARD_RADIUS':
+      return { ...state, activeHazardRadius: action.radius };
+
     default:
       return state;
   }
@@ -470,6 +520,9 @@ export function TrackEditor() {
   const viewInitializedRef = useRef(false);
   const splineSamplesRef = useRef<[number, number][]>([]);
   const tunnelStartRef = useRef<number | null>(null);
+  const hazardMoveRef = useRef<{ idx: number; offX: number; offZ: number } | null>(null);
+  const hazardEdgeRef = useRef<{ idx: number } | null>(null);
+  const hazardRotateRef = useRef<{ idx: number; lastAngle: number } | null>(null);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -484,7 +537,7 @@ export function TrackEditor() {
     const invZoom = 1 / zoom;
     const originX = W / 2;
     const originY = H / 2;
-    const { points, trackWidth, activeTool, showDirectionArrows, hazards, loopClosed, objects, selectedObjectIndex, tunnels } = stateRef.current;
+    const { points, trackWidth, activeTool, showDirectionArrows, hazards, loopClosed, objects, selectedObjectIndex, tunnels, selectedHazardIndex, activeHazardType, activeHazardRadius } = stateRef.current;
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#1a0a04';
@@ -595,21 +648,62 @@ export function TrackEditor() {
         ctx.stroke();
       }
 
-      // Draw existing hazards (loaded from JSON, read-only display)
-      for (const hz of hazards) {
+      // Draw existing hazards
+      for (let hi = 0; hi < hazards.length; hi++) {
+        const hz = hazards[hi];
+        const isHazSel = hi === selectedHazardIndex && activeTool === 'hazard';
         if (hz.centerX !== undefined && hz.centerZ !== undefined && hz.radius !== undefined) {
           const [cx2, cy2] = gameToCanvas(hz.centerX, hz.centerZ, originX, originY);
           ctx.beginPath();
           ctx.arc(cx2, cy2, hz.radius, 0, Math.PI * 2);
           ctx.fillStyle = HAZARD_COLORS[hz.type];
           ctx.fill();
-          ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-          ctx.lineWidth = invZoom;
+          ctx.strokeStyle = isHazSel ? '#ffffff' : 'rgba(255,255,255,0.4)';
+          ctx.lineWidth = (isHazSel ? 2.5 : 1) * invZoom;
           ctx.stroke();
-          ctx.fillStyle = 'rgba(255,255,255,0.8)';
+          ctx.fillStyle = 'rgba(255,255,255,0.85)';
           ctx.font = `${9 * invZoom}px monospace`;
           ctx.textAlign = 'center';
           ctx.fillText(hz.type, cx2, cy2 - hz.radius - 4 * invZoom);
+
+          if (isHazSel) {
+            const rot = hz.rotation ?? 0;
+            const handleR = 5 * invZoom;
+            const handleOutset = 16 * invZoom;
+
+            // Edge handle (east side) — drag to resize
+            const ehx = cx2 + hz.radius;
+            ctx.beginPath();
+            ctx.arc(ehx, cy2, handleR, 0, Math.PI * 2);
+            ctx.fillStyle = '#fff';
+            ctx.fill();
+            ctx.strokeStyle = '#64c8ff';
+            ctx.lineWidth = 1.5 * invZoom;
+            ctx.stroke();
+
+            // Rotation handle — drag to rotate
+            const rhDist = hz.radius + handleOutset;
+            const rhx = cx2 + Math.cos(rot) * rhDist;
+            const rhy = cy2 + Math.sin(rot) * rhDist;
+            ctx.beginPath();
+            ctx.moveTo(cx2 + Math.cos(rot) * hz.radius, cy2 + Math.sin(rot) * hz.radius);
+            ctx.lineTo(rhx, rhy);
+            ctx.strokeStyle = 'rgba(255,210,63,0.8)';
+            ctx.lineWidth = 1.5 * invZoom;
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(rhx, rhy, handleR, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffd23f';
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1.5 * invZoom;
+            ctx.stroke();
+
+            // Radius label
+            ctx.fillStyle = 'rgba(255,255,255,0.7)';
+            ctx.font = `${8 * invZoom}px monospace`;
+            ctx.fillText(`r=${hz.radius.toFixed(0)}`, cx2, cy2 + hz.radius + 11 * invZoom);
+          }
         } else if (hz.tStart !== undefined && hz.tEnd !== undefined) {
           const curve2 = catmullRomPoints(points, loopClosed, 20);
           const totalSamples = curve2.length;
@@ -847,6 +941,19 @@ export function TrackEditor() {
       ctx.stroke();
     }
 
+    // Hazard ghost preview when hovering in hazard tool (not over an existing hazard)
+    if (activeTool === 'hazard' && hover) {
+      ctx.beginPath();
+      ctx.arc(hover[0], hover[1], activeHazardRadius, 0, Math.PI * 2);
+      ctx.fillStyle = HAZARD_COLORS[activeHazardType].replace('0.55', '0.25').replace('0.70', '0.30');
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+      ctx.lineWidth = 1.5 * invZoom;
+      ctx.setLineDash([4 * invZoom, 3 * invZoom]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
     // Origin crosshair
     const ch = 8 * invZoom;
     ctx.strokeStyle = 'rgba(255,255,255,0.25)';
@@ -919,9 +1026,12 @@ export function TrackEditor() {
 
       if (e.key === '[' || e.key === ']') {
         e.preventDefault();
-        const { selectedObjectIndex } = stateRef.current;
-        if (selectedObjectIndex !== -1) {
-          const delta = e.key === '[' ? -Math.PI / 12 : Math.PI / 12;
+        const { selectedObjectIndex, selectedHazardIndex, activeTool } = stateRef.current;
+        const delta = e.key === '[' ? -Math.PI / 12 : Math.PI / 12;
+        if (activeTool === 'hazard' && selectedHazardIndex !== -1) {
+          const hz = stateRef.current.hazards[selectedHazardIndex];
+          dispatch({ type: 'SET_HAZARD_ROTATION', index: selectedHazardIndex, rotation: (hz.rotation ?? 0) + delta });
+        } else if (selectedObjectIndex !== -1) {
           dispatch({ type: 'ROTATE_OBJECT', index: selectedObjectIndex, delta });
         }
         return;
@@ -940,13 +1050,18 @@ export function TrackEditor() {
         return;
       }
 
-      // Delete/Backspace: remove selected object in object tool
-      if ((e.key === 'Delete' || e.key === 'Backspace') &&
-          stateRef.current.activeTool === 'object' &&
-          stateRef.current.selectedObjectIndex !== -1) {
-        e.preventDefault();
-        dispatch({ type: 'DELETE_OBJECT', index: stateRef.current.selectedObjectIndex });
-        return;
+      // Delete/Backspace: remove selected object or hazard
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (stateRef.current.activeTool === 'object' && stateRef.current.selectedObjectIndex !== -1) {
+          e.preventDefault();
+          dispatch({ type: 'DELETE_OBJECT', index: stateRef.current.selectedObjectIndex });
+          return;
+        }
+        if (stateRef.current.activeTool === 'hazard' && stateRef.current.selectedHazardIndex !== -1) {
+          e.preventDefault();
+          dispatch({ type: 'DELETE_HAZARD', index: stateRef.current.selectedHazardIndex });
+          return;
+        }
       }
 
       // H key: reset view to table-fit
@@ -965,7 +1080,7 @@ export function TrackEditor() {
       }
 
       const map: Record<string, Tool> = {
-        p: 'pen', l: 'line', e: 'eraser', m: 'move', s: 'startPoint', i: 'insert', o: 'object', t: 'tunnel',
+        p: 'pen', l: 'line', e: 'eraser', m: 'move', s: 'startPoint', i: 'insert', o: 'object', t: 'tunnel', x: 'hazard',
       };
       const tool = map[e.key.toLowerCase()];
       if (tool) {
@@ -1048,6 +1163,34 @@ export function TrackEditor() {
       if (Math.hypot(pos[0] - hx, pos[1] - hy) <= hz.radius) return i;
     }
     return -1;
+  };
+
+  // Returns 'edge', 'rotate', 'body', or null for the selected hazard at pos
+  const hitHazardHandle = (pos: [number, number], idx: number): 'edge' | 'rotate' | 'body' | null => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const hz = stateRef.current.hazards[idx];
+    if (hz.centerX === undefined || hz.centerZ === undefined || hz.radius === undefined) return null;
+    const originX = canvas.width / 2;
+    const originY = canvas.height / 2;
+    const [cx, cy] = gameToCanvas(hz.centerX, hz.centerZ, originX, originY);
+    const invZoom = 1 / zoomRef.current;
+    const handleR = 8 * invZoom;
+    const handleOutset = 16 * invZoom;
+
+    // Edge handle (east side)
+    if (Math.hypot(pos[0] - (cx + hz.radius), pos[1] - cy) <= handleR) return 'edge';
+
+    // Rotation handle
+    const rot = hz.rotation ?? 0;
+    const rhx = cx + Math.cos(rot) * (hz.radius + handleOutset);
+    const rhy = cy + Math.sin(rot) * (hz.radius + handleOutset);
+    if (Math.hypot(pos[0] - rhx, pos[1] - rhy) <= handleR) return 'rotate';
+
+    // Body (circle interior)
+    if (Math.hypot(pos[0] - cx, pos[1] - cy) <= hz.radius) return 'body';
+
+    return null;
   };
 
   const findNearestObject = (pos: [number, number]): number => {
@@ -1210,6 +1353,60 @@ export function TrackEditor() {
           },
         });
       }
+    } else if (activeTool === 'hazard') {
+      const canvas = canvasRef.current!;
+      const originX = canvas.width / 2;
+      const originY = canvas.height / 2;
+      const { selectedHazardIndex, activeHazardType, activeHazardRadius } = stateRef.current;
+
+      // Check handles on selected hazard first
+      if (selectedHazardIndex !== -1) {
+        const hit = hitHazardHandle(pos, selectedHazardIndex);
+        if (hit === 'edge') {
+          dispatch({ type: 'PUSH_HISTORY' });
+          hazardEdgeRef.current = { idx: selectedHazardIndex };
+          return;
+        }
+        if (hit === 'rotate') {
+          const hz = stateRef.current.hazards[selectedHazardIndex];
+          const [cx, cy] = gameToCanvas(hz.centerX!, hz.centerZ!, originX, originY);
+          const angle = Math.atan2(pos[1] - cy, pos[0] - cx);
+          dispatch({ type: 'PUSH_HISTORY' });
+          hazardRotateRef.current = { idx: selectedHazardIndex, lastAngle: angle };
+          return;
+        }
+        if (hit === 'body') {
+          const hz = stateRef.current.hazards[selectedHazardIndex];
+          const [cx, cy] = gameToCanvas(hz.centerX!, hz.centerZ!, originX, originY);
+          const [gx, , gz] = canvasToGame(cx, cy, originX, originY);
+          hazardMoveRef.current = { idx: selectedHazardIndex, offX: gx - hz.centerX!, offZ: gz - hz.centerZ! };
+          return;
+        }
+      }
+
+      // Check all hazards for click
+      const hIdx = findNearestHazard(pos);
+      if (hIdx !== -1) {
+        dispatch({ type: 'SELECT_HAZARD', index: hIdx });
+        const hz = stateRef.current.hazards[hIdx];
+        const [cx, cy] = gameToCanvas(hz.centerX!, hz.centerZ!, originX, originY);
+        const [gx, , gz] = canvasToGame(cx, cy, originX, originY);
+        hazardMoveRef.current = { idx: hIdx, offX: gx - hz.centerX!, offZ: gz - hz.centerZ! };
+      } else {
+        // Place new hazard
+        dispatch({ type: 'SELECT_HAZARD', index: -1 });
+        const [gx, , gz] = canvasToGame(pos[0], pos[1], originX, originY);
+        dispatch({
+          type: 'ADD_HAZARD',
+          hazard: {
+            type: activeHazardType,
+            centerX: Math.round(gx * 100) / 100,
+            centerZ: Math.round(gz * 100) / 100,
+            radius: activeHazardRadius,
+            rotation: 0,
+          },
+        });
+      }
     }
   };
 
@@ -1268,11 +1465,47 @@ export function TrackEditor() {
         const cx = pos[0] + offset[0];
         const cy = pos[1] + offset[1];
         const [gx, , gz] = canvasToGame(cx, cy, originX, originY);
-        // Move hazard (state action removed since hazard tool gone, but move tool still supports dragging existing ones)
-        const hazards = [...stateRef.current.hazards];
-        hazards[dragHazardIndexRef.current] = { ...hazards[dragHazardIndexRef.current], centerX: gx, centerZ: gz };
-        // Direct state update not possible here without action; skip for simplicity
-        void gx; void gz;
+        dispatch({ type: 'MOVE_HAZARD', index: dragHazardIndexRef.current, centerX: Math.round(gx * 100) / 100, centerZ: Math.round(gz * 100) / 100 });
+        return;
+      }
+      // Hazard tool drags
+      if (hazardMoveRef.current !== null) {
+        const { idx, offX, offZ } = hazardMoveRef.current;
+        const canvas = canvasRef.current!;
+        const originX = canvas.width / 2;
+        const originY = canvas.height / 2;
+        const [gx, , gz] = canvasToGame(pos[0], pos[1], originX, originY);
+        dispatch({ type: 'MOVE_HAZARD', index: idx, centerX: Math.round((gx + offX) * 100) / 100, centerZ: Math.round((gz + offZ) * 100) / 100 });
+        return;
+      }
+      if (hazardEdgeRef.current !== null) {
+        const { idx } = hazardEdgeRef.current;
+        const hz = stateRef.current.hazards[idx];
+        if (hz.centerX !== undefined && hz.centerZ !== undefined) {
+          const canvas = canvasRef.current!;
+          const originX = canvas.width / 2;
+          const originY = canvas.height / 2;
+          const [cx, cy] = gameToCanvas(hz.centerX, hz.centerZ, originX, originY);
+          const newRadius = Math.max(5, Math.round(Math.hypot(pos[0] - cx, pos[1] - cy) * 10) / 10);
+          dispatch({ type: 'SET_HAZARD_RADIUS', index: idx, radius: newRadius });
+        }
+        draw();
+        return;
+      }
+      if (hazardRotateRef.current !== null) {
+        const { idx, lastAngle } = hazardRotateRef.current;
+        const hz = stateRef.current.hazards[idx];
+        if (hz.centerX !== undefined && hz.centerZ !== undefined) {
+          const canvas = canvasRef.current!;
+          const originX = canvas.width / 2;
+          const originY = canvas.height / 2;
+          const [cx, cy] = gameToCanvas(hz.centerX, hz.centerZ, originX, originY);
+          const currentAngle = Math.atan2(pos[1] - cy, pos[0] - cx);
+          const newRot = (hz.rotation ?? 0) + (currentAngle - lastAngle);
+          dispatch({ type: 'SET_HAZARD_ROTATION', index: idx, rotation: newRot });
+          hazardRotateRef.current = { idx, lastAngle: currentAngle };
+        }
+        draw();
         return;
       }
       if (activeTool === 'object' && dragObjectIndexRef.current !== -1) {
@@ -1311,6 +1544,14 @@ export function TrackEditor() {
       return;
     }
 
+    if (hazardMoveRef.current || hazardEdgeRef.current || hazardRotateRef.current) {
+      hazardMoveRef.current = null;
+      hazardEdgeRef.current = null;
+      hazardRotateRef.current = null;
+      draw();
+      return;
+    }
+
     if (activeTool === 'line' && lineStartRef.current) {
       dispatch({ type: 'ADD_LINE_SEGMENT', start: lineStartRef.current, end: pos });
       lineStartRef.current = null;
@@ -1319,6 +1560,8 @@ export function TrackEditor() {
       dragHazardIndexRef.current = -1;
     } else if (activeTool === 'object') {
       dragObjectIndexRef.current = -1;
+    } else if (activeTool === 'hazard') {
+      hazardMoveRef.current = null;
     }
 
     draw();
@@ -1327,6 +1570,17 @@ export function TrackEditor() {
   const handleContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     const { activeTool, tunnels } = stateRef.current;
+
+    if (activeTool === 'hazard') {
+      const pos = getPos(e);
+      const hIdx = findNearestHazard(pos);
+      if (hIdx !== -1) {
+        dispatch({ type: 'DELETE_HAZARD', index: hIdx });
+        dispatch({ type: 'SELECT_HAZARD', index: -1 });
+      }
+      return;
+    }
+
     if (activeTool !== 'tunnel') return;
     // Cancel pending start
     if (tunnelStartRef.current !== null) {
@@ -1364,6 +1618,9 @@ export function TrackEditor() {
     dragObjectIndexRef.current = -1;
     cornerDragRef.current = null;
     rotateDragRef.current = null;
+    hazardMoveRef.current = null;
+    hazardEdgeRef.current = null;
+    hazardRotateRef.current = null;
     draw();
   };
 
@@ -1505,9 +1762,10 @@ export function TrackEditor() {
     { id: 'insert', label: 'Insert', key: 'I' },
     { id: 'eraser', label: 'Eraser', key: 'E' },
     { id: 'move', label: 'Move', key: 'M' },
-    { id: 'startPoint', label: 'Start Point', key: 'S' },
+    { id: 'startPoint', label: 'Start Pt', key: 'S' },
     { id: 'object', label: 'Objects', key: 'O' },
     { id: 'tunnel', label: 'Tunnel', key: 'T' },
+    { id: 'hazard', label: 'Hazards', key: 'X' },
   ];
 
   const selectedObj = state.selectedObjectIndex !== -1 ? state.objects[state.selectedObjectIndex] : null;
@@ -1645,30 +1903,95 @@ export function TrackEditor() {
           </div>
         )}
 
-        {state.hazards.length > 0 && (
+        {state.activeTool === 'hazard' && (
           <div className="editor-section">
-            <label className="editor-label">Hazards ({state.hazards.length})</label>
-            {state.hazards.map((hz, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 3, marginBottom: 2 }}>
-                <span style={{
-                  flex: 1, fontSize: 9, fontFamily: 'monospace',
-                  background: HAZARD_COLORS[hz.type], color: '#fff',
-                  padding: '1px 4px', borderRadius: 2,
-                  textShadow: '0 0 3px rgba(0,0,0,0.8)',
-                }}>
-                  {hz.type}
-                  {hz.radius !== undefined
-                    ? ` r=${hz.radius.toFixed(0)}`
-                    : ` ${((hz.tStart ?? 0) * 100).toFixed(0)}–${((hz.tEnd ?? 0) * 100).toFixed(0)}%`
-                  }
-                </span>
+            <label className="editor-label">Hazard Type</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+              {(['juice', 'milk', 'oil', 'butter'] as HazardType[]).map(type => (
                 <button
-                  className="tool-btn tool-btn-danger"
-                  style={{ padding: '0 5px', fontSize: 10, minWidth: 'auto' }}
-                  onClick={() => dispatch({ type: 'DELETE_HAZARD', index: i })}
-                >×</button>
+                  key={type}
+                  className={`tool-btn${state.activeHazardType === type ? ' active' : ''}`}
+                  style={{
+                    fontSize: 9, padding: '2px 4px',
+                    background: state.activeHazardType === type ? HAZARD_COLORS[type] : undefined,
+                    color: state.activeHazardType === type ? '#fff' : undefined,
+                  }}
+                  onClick={() => dispatch({ type: 'SET_ACTIVE_HAZARD_TYPE', hazardType: type })}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+
+            <label className="editor-label" style={{ marginTop: 6 }}>Radius: {state.activeHazardRadius}</label>
+            <input
+              className="editor-slider"
+              type="range"
+              min="5"
+              max="60"
+              value={state.activeHazardRadius}
+              onChange={e => dispatch({ type: 'SET_ACTIVE_HAZARD_RADIUS', radius: Number(e.target.value) })}
+            />
+
+            {state.selectedHazardIndex !== -1 && state.hazards[state.selectedHazardIndex] && (() => {
+              const hz = state.hazards[state.selectedHazardIndex];
+              return hz.centerX !== undefined ? (
+                <div style={{ marginTop: 6 }}>
+                  <label className="editor-label">{hz.type} (selected)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontSize: 9, opacity: 0.7 }}>r={hz.radius?.toFixed(0)}</span>
+                    <button
+                      className="tool-btn"
+                      style={{ padding: '0 6px', fontSize: 12, minWidth: 'auto' }}
+                      onClick={() => dispatch({ type: 'SET_HAZARD_RADIUS', index: state.selectedHazardIndex, radius: (hz.radius ?? 15) + 5 })}
+                    >+</button>
+                    <button
+                      className="tool-btn"
+                      style={{ padding: '0 6px', fontSize: 12, minWidth: 'auto' }}
+                      onClick={() => dispatch({ type: 'SET_HAZARD_RADIUS', index: state.selectedHazardIndex, radius: (hz.radius ?? 15) - 5 })}
+                    >−</button>
+                    <button
+                      className="tool-btn tool-btn-danger"
+                      style={{ padding: '0 6px', fontSize: 10, minWidth: 'auto' }}
+                      onClick={() => dispatch({ type: 'DELETE_HAZARD', index: state.selectedHazardIndex })}
+                    >del</button>
+                  </div>
+                  <span style={{ fontSize: 9, opacity: 0.5, display: 'block', marginTop: 2 }}>
+                    [/]=rotate · Del=delete · drag=move · drag ○=resize
+                  </span>
+                </div>
+              ) : null;
+            })()}
+
+            {state.hazards.filter(h => h.centerX !== undefined).length === 0 && (
+              <span style={{ opacity: 0.5, fontSize: 9, marginTop: 4, display: 'block' }}>
+                click canvas to place · right-click to delete
+              </span>
+            )}
+            {state.hazards.length > 0 && (
+              <div style={{ marginTop: 4 }}>
+                {state.hazards.map((hz, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 3, marginBottom: 2 }}>
+                    <button
+                      style={{
+                        flex: 1, fontSize: 9, fontFamily: 'monospace', textAlign: 'left',
+                        background: i === state.selectedHazardIndex ? HAZARD_COLORS[hz.type] : 'rgba(0,0,0,0.3)',
+                        color: '#fff', padding: '1px 4px', borderRadius: 2, border: 'none', cursor: 'pointer',
+                        textShadow: '0 0 3px rgba(0,0,0,0.8)',
+                      }}
+                      onClick={() => dispatch({ type: 'SELECT_HAZARD', index: i })}
+                    >
+                      {hz.type}{hz.radius !== undefined ? ` r=${hz.radius.toFixed(0)}` : ` ${((hz.tStart ?? 0) * 100).toFixed(0)}–${((hz.tEnd ?? 0) * 100).toFixed(0)}%`}
+                    </button>
+                    <button
+                      className="tool-btn tool-btn-danger"
+                      style={{ padding: '0 5px', fontSize: 10, minWidth: 'auto' }}
+                      onClick={() => dispatch({ type: 'DELETE_HAZARD', index: i })}
+                    >×</button>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         )}
 

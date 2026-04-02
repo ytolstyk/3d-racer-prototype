@@ -139,6 +139,7 @@ export class HazardSystem {
     if (zone.centerX !== undefined && zone.centerZ !== undefined) {
       position = new THREE.Vector3(zone.centerX, 0, zone.centerZ);
       splatSize = (zone.radius ?? 10) * 2;
+      rotationZ = zone.rotation ?? 0;
     } else if (zone.tStart !== undefined && zone.tEnd !== undefined) {
       const tMid = (zone.tStart + zone.tEnd) / 2;
       const center = this.track.getPointAt(tMid);
