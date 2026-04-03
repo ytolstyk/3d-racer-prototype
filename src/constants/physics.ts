@@ -14,11 +14,11 @@ export const PHYSICS = {
 } as const;
 
 export const HAZARD_COLORS: Record<string, string> = {
-  juice: '#ff8800',
-  oil: '#888820',
-  milk: '#aaccff',
-  butter: '#f5d020',
-  food: '#66aa33',
+  juice: "#ff8800",
+  oil: "#888820",
+  milk: "#aaccff",
+  butter: "#f5d020",
+  food: "#66aa33",
 };
 
 export const HAZARD_HEX_COLORS: Record<string, number> = {

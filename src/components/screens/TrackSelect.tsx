@@ -1,6 +1,6 @@
-import { useRef, useEffect } from 'react';
-import { TRACKS } from '../../constants/track.js';
-import type { TrackConfig } from '../../constants/track.js';
+import { useRef, useEffect } from "react";
+import { TRACKS } from "../../constants/track.js";
+import type { TrackConfig } from "../../constants/track.js";
 
 interface TrackSelectProps {
   onSelect: (trackId: string) => void;
@@ -13,12 +13,12 @@ function TrackMinimap({ config }: { config: TrackConfig }) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     const pts = config.controlPoints;
-    const xs = pts.map(p => p[0]);
-    const zs = pts.map(p => p[2]);
+    const xs = pts.map((p) => p[0]);
+    const zs = pts.map((p) => p[2]);
     const minX = Math.min(...xs);
     const maxX = Math.max(...xs);
     const minZ = Math.min(...zs);
@@ -31,10 +31,10 @@ function TrackMinimap({ config }: { config: TrackConfig }) {
     const scale = Math.min(w / rangeX, h / rangeZ);
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = '#e0e0e0';
+    ctx.strokeStyle = "#e0e0e0";
     ctx.lineWidth = 3;
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
     ctx.beginPath();
 
     for (let i = 0; i <= pts.length; i++) {
@@ -51,13 +51,20 @@ function TrackMinimap({ config }: { config: TrackConfig }) {
     const start = pts[0];
     const sx = padding + (start[0] - minX) * scale + (w - rangeX * scale) / 2;
     const sy = padding + (start[2] - minZ) * scale + (h - rangeZ * scale) / 2;
-    ctx.fillStyle = '#ff4444';
+    ctx.fillStyle = "#ff4444";
     ctx.beginPath();
     ctx.arc(sx, sy, 4, 0, Math.PI * 2);
     ctx.fill();
   }, [config]);
 
-  return <canvas ref={canvasRef} width={120} height={90} className="track-minimap-canvas" />;
+  return (
+    <canvas
+      ref={canvasRef}
+      width={120}
+      height={90}
+      className="track-minimap-canvas"
+    />
+  );
 }
 
 export function TrackSelect({ onSelect, onBack }: TrackSelectProps) {
