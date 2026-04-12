@@ -667,6 +667,15 @@
   color: rgba(255, 248, 236, 0.4);
 }
 
+.speed-name {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: rgba(255, 248, 236, 0.55);
+  margin-bottom: 4px;
+}
+
 /* Checkpoint Timer */
 .hud-checkpoint-timer {
   position: absolute;
@@ -721,15 +730,17 @@
 
 /* Versus mode speedometer overrides */
 .versus-p1-hud .hud-speedometer {
+  top: 16px;
+  bottom: auto;
   left: 16px;
   right: auto;
-  bottom: 196px; /* sits above the minimap (160px + 4px border + 16px gap) */
 }
 
 .versus-p2-hud .hud-speedometer {
+  top: 16px;
+  bottom: auto;
   right: 16px;
   left: auto;
-  bottom: 16px;
 }
 
 /* ============================

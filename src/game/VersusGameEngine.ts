@@ -446,11 +446,8 @@ export class VersusGameEngine {
     }
 
     if (this.car1 && this.car2) {
-      const backCar = this.versusRaceManager.getBackCar(this.car1, this.car2);
-      const frontPos = backCar === 1 ? this.car2.position : this.car1.position;
-      const backPos = backCar === 1 ? this.car1.position : this.car2.position;
       this.cameraController.updateVersus(
-        frontPos, backPos,
+        this.car1.position, this.car2.position,
         this.car1.speed, this.car1.definition.maxSpeed,
         this.car2.speed, this.car2.definition.maxSpeed,
       );

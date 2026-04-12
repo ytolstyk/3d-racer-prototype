@@ -60,10 +60,10 @@ export function VersusRaceScreen({ selections, onMainMenu, onPlayAgain }: Versus
       {state.raceStarted && state.roundState === 'racing' && (
         <>
           <div className="versus-p1-hud">
-            <Speedometer speed={state.p1Speed} maxSpeed={state.p1MaxSpeed} />
+            <Speedometer speed={state.p1Speed} maxSpeed={state.p1MaxSpeed} name={state.p1Name} />
           </div>
           <div className="versus-p2-hud">
-            <Speedometer speed={state.p2Speed} maxSpeed={state.p2MaxSpeed} />
+            <Speedometer speed={state.p2Speed} maxSpeed={state.p2MaxSpeed} name={state.p2Name} />
           </div>
         </>
       )}

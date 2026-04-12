@@ -1,13 +1,15 @@
 interface SpeedometerProps {
   speed: number;
   maxSpeed: number;
+  name?: string;
 }
 
-export function Speedometer({ speed, maxSpeed }: SpeedometerProps) {
+export function Speedometer({ speed, maxSpeed, name }: SpeedometerProps) {
   const pct = Math.min((speed / maxSpeed) * 100, 100);
 
   return (
     <div className="hud-speedometer">
+      {name && <div className="speed-name">{name}</div>}
       <div className="speed-value">{Math.round(speed)}</div>
       <div className="speed-bar-bg">
         <div
