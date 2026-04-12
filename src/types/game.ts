@@ -1,6 +1,47 @@
 import type * as THREE from 'three';
 
-export type RacePhase = 'menu' | 'trackSelect' | 'carSelect' | 'lapSelect' | 'racing' | 'finished';
+export type RacePhase = 'menu' | 'trackSelect' | 'carSelect' | 'lapSelect' | 'racing' | 'finished' | 'versusCarSelect' | 'versusRacing';
+
+export type VersusRoundState = 'countdown' | 'racing' | 'point_scored' | 'resetting' | 'match_over';
+
+export interface VersusSelections {
+  trackId: string;
+  p1CarId: string;
+  p2CarId: string;
+  p1Name: string;
+  p2Name: string;
+}
+
+export interface VersusStats {
+  p1TopSpeed: number;
+  p2TopSpeed: number;
+  p1TotalDrift: number;
+  p2TotalDrift: number;
+  p1TimeInLead: number;
+  p2TimeInLead: number;
+  closestGap: number;
+}
+
+export interface VersusGameState {
+  p1Speed: number;
+  p2Speed: number;
+  p1MaxSpeed: number;
+  p2MaxSpeed: number;
+  p1Score: number;
+  p2Score: number;
+  pointsToWin: number;
+  roundState: VersusRoundState;
+  roundWinner: 1 | 2 | null;
+  matchWinner: 1 | 2 | null;
+  countdown: number;
+  countdownActive: boolean;
+  raceStarted: boolean;
+  p1Name: string;
+  p2Name: string;
+  p1Color: number;
+  p2Color: number;
+  stats: VersusStats;
+}
 
 export interface CarDefinition {
   id: string;

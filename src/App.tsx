@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
-import type { RacePhase } from './types/game.js';
+import type { RacePhase, VersusSelections } from './types/game.js';
 import { MainMenu } from './components/screens/MainMenu.js';
 import { TrackSelect } from './components/screens/TrackSelect.js';
 import { CarSelect } from './components/screens/CarSelect.js';
 import { LapSelect } from './components/screens/LapSelect.js';
 import { RaceScreen } from './components/screens/RaceScreen.js';
+import { VersusCarSelect } from './components/screens/VersusCarSelect.js';
+import { VersusRaceScreen } from './components/screens/VersusRaceScreen.js';
 import { TrackEditor } from './components/screens/TrackEditor.js';
 import { PracticeScreen } from './components/screens/PracticeScreen.js';
 import './App.css';
@@ -30,10 +32,12 @@ function GameApp() {
   const [selectedCarId, setSelectedCarId] = useState(fromEditor ? 'racer-red' : '');
   const [totalLaps, setTotalLaps] = useState(3);
   const [isEditorTest] = useState(fromEditor);
+  const [gameMode, setGameMode] = useState<'solo' | 'versus'>('solo');
+  const [versusSelections, setVersusSelections] = useState<VersusSelections | null>(null);
 
   const handleTrackSelect = (trackId: string) => {
     setSelectedTrackId(trackId);
-    setPhase('carSelect');
+    setPhase(gameMode === 'versus' ? 'versusCarSelect' : 'carSelect');
   };
 
   const handleCarSelect = (carId: string) => {
@@ -50,6 +54,23 @@ function GameApp() {
     setPhase('menu');
     setSelectedCarId('');
     setSelectedTrackId('');
+    setGameMode('solo');
+    setVersusSelections(null);
+  };
+
+  const handleVersusStart = () => {
+    setGameMode('versus');
+    setPhase('trackSelect');
+  };
+
+  const handleVersusCarSelectReady = (sel: VersusSelections) => {
+    setVersusSelections(sel);
+    setPhase('versusRacing');
+  };
+
+  const handleVersusPlayAgain = () => {
+    setPhase('versusCarSelect');
+    setTimeout(() => setPhase('versusRacing'), 0);
   };
 
   const handleRaceAgain = () => {
@@ -66,6 +87,7 @@ function GameApp() {
       return (
         <MainMenu
           onStart={() => setPhase('trackSelect')}
+          onVersus={handleVersusStart}
           onPractice={() => navigate('/practice')}
           onBackToEditor={isEditorTest ? handleBackToEditor : undefined}
         />
@@ -87,6 +109,22 @@ function GameApp() {
           onBackToEditor={isEditorTest ? handleBackToEditor : undefined}
         />
       );
+    case 'versusCarSelect':
+      return (
+        <VersusCarSelect
+          trackId={selectedTrackId}
+          onReady={handleVersusCarSelectReady}
+          onBack={() => setPhase('trackSelect')}
+        />
+      );
+    case 'versusRacing':
+      return versusSelections ? (
+        <VersusRaceScreen
+          selections={versusSelections}
+          onMainMenu={handleMainMenu}
+          onPlayAgain={handleVersusPlayAgain}
+        />
+      ) : null;
     default:
       return <MainMenu onStart={() => setPhase('trackSelect')} />;
   }

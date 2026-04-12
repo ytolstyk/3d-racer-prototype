@@ -32,6 +32,26 @@ export class InputManager {
     };
   }
 
+  getStateP1(): InputState {
+    return {
+      forward: this.keys.has('KeyW'),
+      backward: this.keys.has('KeyS'),
+      left: this.keys.has('KeyA'),
+      right: this.keys.has('KeyD'),
+      handbrake: this.keys.has('ShiftLeft'),
+    };
+  }
+
+  getStateP2(): InputState {
+    return {
+      forward: this.keys.has('ArrowUp'),
+      backward: this.keys.has('ArrowDown'),
+      left: this.keys.has('ArrowLeft'),
+      right: this.keys.has('ArrowRight'),
+      handbrake: this.keys.has('ShiftRight'),
+    };
+  }
+
   clearKeys(): void {
     this.keys.clear();
   }

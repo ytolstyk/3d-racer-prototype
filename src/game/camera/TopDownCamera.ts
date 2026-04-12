@@ -53,6 +53,21 @@ export class TopDownCamera {
     this.camera.rotation.set(-angleRad, 0, 0);
   }
 
+  updateVersus(pos1: THREE.Vector3, spd1: number, max1: number, pos2: THREE.Vector3, spd2: number, max2: number): void {
+    const midpoint = pos1.clone().add(pos2).multiplyScalar(0.5);
+    const dist = pos1.distanceTo(pos2);
+    const spreadRatio = Math.min(dist / 80, 1);
+    const topSpeed = Math.max(Math.abs(spd1), Math.abs(spd2));
+    const maxSpeed = Math.max(max1, max2);
+    const speedRatio = Math.min(topSpeed / maxSpeed, 1);
+    const targetHeight = this.cfg('baseHeight') + (this.cfg('maxZoomHeight') - this.cfg('baseHeight')) * Math.max(speedRatio, spreadRatio);
+    this.currentHeight += (targetHeight - this.currentHeight) * this.cfg('heightLerp');
+    const angleRad = this.cfg('angle') * Math.PI / 180;
+    const zBack = this.currentHeight / Math.tan(angleRad);
+    this.camera.position.set(midpoint.x, midpoint.y + this.currentHeight, midpoint.z + zBack);
+    this.camera.rotation.set(-angleRad, 0, 0);
+  }
+
   resize(aspect: number): void {
     this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
