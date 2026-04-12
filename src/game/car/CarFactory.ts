@@ -1,21 +1,68 @@
-import * as THREE from 'three';
-import type { CarDefinition } from '../../types/game.js';
+import * as THREE from "three";
+import type { CarDefinition } from "../../types/game.js";
 
 // Shared materials (created once)
-const CARBON  = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.6, metalness: 0.3 });
-const RUBBER  = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.95, metalness: 0.0 });
-const SILVER  = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.25, metalness: 0.8 });
-const DARK_GLASS = new THREE.MeshStandardMaterial({ color: 0x0d1a2a, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.82 });
-const HEADLIGHT_MAT = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.0, roughness: 0.1 });
-const TAILLIGHT_MAT = new THREE.MeshStandardMaterial({ color: 0xff1a00, emissive: 0xff2200, emissiveIntensity: 1.2, roughness: 0.1 });
+const CARBON = new THREE.MeshStandardMaterial({
+  color: 0x1a1a1a,
+  roughness: 0.6,
+  metalness: 0.3,
+});
+const RUBBER = new THREE.MeshStandardMaterial({
+  color: 0x111111,
+  roughness: 0.95,
+  metalness: 0.0,
+});
+const SILVER = new THREE.MeshStandardMaterial({
+  color: 0xcccccc,
+  roughness: 0.25,
+  metalness: 0.8,
+});
+const DARK_GLASS = new THREE.MeshStandardMaterial({
+  color: 0x0d1a2a,
+  roughness: 0.1,
+  metalness: 0.1,
+  transparent: true,
+  opacity: 0.82,
+});
+const HEADLIGHT_MAT = new THREE.MeshStandardMaterial({
+  color: 0xffffff,
+  emissive: 0xffffff,
+  emissiveIntensity: 1.0,
+  roughness: 0.1,
+});
+const TAILLIGHT_MAT = new THREE.MeshStandardMaterial({
+  color: 0xff1a00,
+  emissive: 0xff2200,
+  emissiveIntensity: 1.2,
+  roughness: 0.1,
+});
 
-function box(w: number, h: number, d: number): THREE.BoxGeometry { return new THREE.BoxGeometry(w, h, d); }
-function cyl(rt: number, rb: number, h: number, seg = 12): THREE.CylinderGeometry { return new THREE.CylinderGeometry(rt, rb, h, seg); }
+function box(w: number, h: number, d: number): THREE.BoxGeometry {
+  return new THREE.BoxGeometry(w, h, d);
+}
+function cyl(
+  rt: number,
+  rb: number,
+  h: number,
+  seg = 12,
+): THREE.CylinderGeometry {
+  return new THREE.CylinderGeometry(rt, rb, h, seg);
+}
 
-function mesh(geo: THREE.BufferGeometry, mat: THREE.Material, x = 0, y = 0, z = 0, shadow = true): THREE.Mesh {
+function mesh(
+  geo: THREE.BufferGeometry,
+  mat: THREE.Material,
+  x = 0,
+  y = 0,
+  z = 0,
+  shadow = true,
+): THREE.Mesh {
   const m = new THREE.Mesh(geo, mat);
   m.position.set(x, y, z);
-  if (shadow) { m.castShadow = true; m.receiveShadow = true; }
+  if (shadow) {
+    m.castShadow = true;
+    m.receiveShadow = true;
+  }
   return m;
 }
 
@@ -33,18 +80,28 @@ export class CarFactory {
     });
 
     switch (definition.id) {
-      case 'racer-red':   return this.buildF1(paint, accent);
-      case 'sir-skids':   return this.buildMuscle(paint, accent);
-      case 'captain-crumb': return this.buildHatchback(paint, accent);
-      case 'butterknife': return this.buildSports(paint, accent);
-      case 'sauce-boss':  return this.buildSUV(paint, accent);
-      case 'lil-pepper':  return this.buildMini(paint, accent);
-      default:            return this.buildGeneric(paint, accent);
+      case "racer-red":
+        return this.buildF1(paint, accent);
+      case "sir-skids":
+        return this.buildMuscle(paint, accent);
+      case "captain-crumb":
+        return this.buildHatchback(paint, accent);
+      case "butterknife":
+        return this.buildSports(paint, accent);
+      case "sauce-boss":
+        return this.buildSUV(paint, accent);
+      case "lil-pepper":
+        return this.buildMini(paint, accent);
+      default:
+        return this.buildGeneric(paint, accent);
     }
   }
 
   // ── F1 (racer-red) ────────────────────────────────────────────────────────
-  private buildF1(paint: THREE.MeshStandardMaterial, accent: THREE.MeshStandardMaterial): THREE.Group {
+  private buildF1(
+    paint: THREE.MeshStandardMaterial,
+    accent: THREE.MeshStandardMaterial,
+  ): THREE.Group {
     const g = new THREE.Group();
 
     // Floor pan — wide and flat
@@ -92,8 +149,10 @@ export class CarFactory {
 
     // Wheels — F1 style (wider front track)
     const wheelPos: [number, number, number][] = [
-      [-1.3, 0.4, 1.8], [1.3, 0.4, 1.8],
-      [-1.25, 0.4, -1.7], [1.25, 0.4, -1.7],
+      [-1.3, 0.4, 1.8],
+      [1.3, 0.4, 1.8],
+      [-1.25, 0.4, -1.7],
+      [1.25, 0.4, -1.7],
     ];
     for (const [wx, wy, wz] of wheelPos) {
       this.addWheel(g, wx, wy, wz, accent);
@@ -103,7 +162,10 @@ export class CarFactory {
   }
 
   // ── Muscle car (sir-skids) ─────────────────────────────────────────────────
-  private buildMuscle(paint: THREE.MeshStandardMaterial, accent: THREE.MeshStandardMaterial): THREE.Group {
+  private buildMuscle(
+    paint: THREE.MeshStandardMaterial,
+    accent: THREE.MeshStandardMaterial,
+  ): THREE.Group {
     const g = new THREE.Group();
 
     // Floor pan
@@ -128,7 +190,12 @@ export class CarFactory {
     g.add(mesh(box(2.0, 0.22, 0.14), accent, 0, 1.22, -2.1));
 
     // Wheel arches (flared)
-    for (const [ax, az] of [[-1.18, 1.55], [1.18, 1.55], [-1.18, -1.45], [1.18, -1.45]] as [number, number][]) {
+    for (const [ax, az] of [
+      [-1.18, 1.55],
+      [1.18, 1.55],
+      [-1.18, -1.45],
+      [1.18, -1.45],
+    ] as [number, number][]) {
       g.add(mesh(box(0.52, 0.45, 1.2), paint, ax, 0.52, az));
     }
 
@@ -159,8 +226,10 @@ export class CarFactory {
     }
 
     const wheelPos: [number, number, number][] = [
-      [-1.25, 0.44, 1.55], [1.25, 0.44, 1.55],
-      [-1.25, 0.44, -1.45], [1.25, 0.44, -1.45],
+      [-1.25, 0.44, 1.55],
+      [1.25, 0.44, 1.55],
+      [-1.25, 0.44, -1.45],
+      [1.25, 0.44, -1.45],
     ];
     for (const [wx, wy, wz] of wheelPos) {
       this.addWheel(g, wx, wy, wz, accent);
@@ -170,7 +239,10 @@ export class CarFactory {
   }
 
   // ── Hatchback (captain-crumb) ──────────────────────────────────────────────
-  private buildHatchback(paint: THREE.MeshStandardMaterial, accent: THREE.MeshStandardMaterial): THREE.Group {
+  private buildHatchback(
+    paint: THREE.MeshStandardMaterial,
+    accent: THREE.MeshStandardMaterial,
+  ): THREE.Group {
     const g = new THREE.Group();
 
     // Floor pan
@@ -217,8 +289,10 @@ export class CarFactory {
 
     // Smaller wheels
     const wheelPos: [number, number, number][] = [
-      [-1.18, 0.38, 1.3], [1.18, 0.38, 1.3],
-      [-1.18, 0.38, -1.3], [1.18, 0.38, -1.3],
+      [-1.18, 0.38, 1.3],
+      [1.18, 0.38, 1.3],
+      [-1.18, 0.38, -1.3],
+      [1.18, 0.38, -1.3],
     ];
     for (const [wx, wy, wz] of wheelPos) {
       this.addWheel(g, wx, wy, wz, accent, 0.36);
@@ -228,7 +302,10 @@ export class CarFactory {
   }
 
   // ── Sports car (butterknife) ───────────────────────────────────────────────
-  private buildSports(paint: THREE.MeshStandardMaterial, accent: THREE.MeshStandardMaterial): THREE.Group {
+  private buildSports(
+    paint: THREE.MeshStandardMaterial,
+    accent: THREE.MeshStandardMaterial,
+  ): THREE.Group {
     const g = new THREE.Group();
 
     // Floor pan — long and low
@@ -248,7 +325,13 @@ export class CarFactory {
 
     // Flying buttress rear supports
     for (const sx of [-1, 1]) {
-      const buttress = mesh(box(0.09, 0.55, 1.15), paint, sx * 0.65, 0.7, -1.55);
+      const buttress = mesh(
+        box(0.09, 0.55, 1.15),
+        paint,
+        sx * 0.65,
+        0.7,
+        -1.55,
+      );
       buttress.rotation.z = sx * 0.14;
       g.add(buttress);
     }
@@ -279,8 +362,10 @@ export class CarFactory {
     }
 
     const wheelPos: [number, number, number][] = [
-      [-1.14, 0.42, 1.85], [1.14, 0.42, 1.85],
-      [-1.14, 0.42, -1.85], [1.14, 0.42, -1.85],
+      [-1.14, 0.42, 1.85],
+      [1.14, 0.42, 1.85],
+      [-1.14, 0.42, -1.85],
+      [1.14, 0.42, -1.85],
     ];
     for (const [wx, wy, wz] of wheelPos) {
       this.addWheel(g, wx, wy, wz, accent);
@@ -290,7 +375,10 @@ export class CarFactory {
   }
 
   // ── SUV/Rally (sauce-boss) ─────────────────────────────────────────────────
-  private buildSUV(paint: THREE.MeshStandardMaterial, accent: THREE.MeshStandardMaterial): THREE.Group {
+  private buildSUV(
+    paint: THREE.MeshStandardMaterial,
+    accent: THREE.MeshStandardMaterial,
+  ): THREE.Group {
     const g = new THREE.Group();
 
     // High-clearance floor pan
@@ -344,8 +432,10 @@ export class CarFactory {
     g.add(mesh(box(2.0, 0.08, 0.6), CARBON, 0, 0.42, 2.0));
 
     const wheelPos: [number, number, number][] = [
-      [-1.3, 0.56, 1.58], [1.3, 0.56, 1.58],
-      [-1.3, 0.56, -1.58], [1.3, 0.56, -1.58],
+      [-1.3, 0.56, 1.58],
+      [1.3, 0.56, 1.58],
+      [-1.3, 0.56, -1.58],
+      [1.3, 0.56, -1.58],
     ];
     for (const [wx, wy, wz] of wheelPos) {
       this.addWheel(g, wx, wy, wz, accent, 0.48);
@@ -355,7 +445,10 @@ export class CarFactory {
   }
 
   // ── Mini (lil-pepper) ─────────────────────────────────────────────────────
-  private buildMini(paint: THREE.MeshStandardMaterial, accent: THREE.MeshStandardMaterial): THREE.Group {
+  private buildMini(
+    paint: THREE.MeshStandardMaterial,
+    accent: THREE.MeshStandardMaterial,
+  ): THREE.Group {
     const g = new THREE.Group();
 
     // Floor pan — short and narrow
@@ -365,7 +458,13 @@ export class CarFactory {
     g.add(mesh(box(1.62, 0.38, 3.05), paint, 0, 0.44, 0));
 
     // Dome cab — sphere-based
-    const dome = mesh(new THREE.SphereGeometry(0.78, 10, 8), paint, 0, 0.92, -0.08);
+    const dome = mesh(
+      new THREE.SphereGeometry(0.78, 10, 8),
+      paint,
+      0,
+      0.92,
+      -0.08,
+    );
     dome.scale.set(1, 0.88, 1.05);
     g.add(dome);
 
@@ -390,7 +489,13 @@ export class CarFactory {
 
     // Headlights (round)
     for (const sx of [-1, 1]) {
-      const hl = mesh(new THREE.SphereGeometry(0.15, 8, 6), HEADLIGHT_MAT, sx * 0.5, 0.44, 1.58);
+      const hl = mesh(
+        new THREE.SphereGeometry(0.15, 8, 6),
+        HEADLIGHT_MAT,
+        sx * 0.5,
+        0.44,
+        1.58,
+      );
       hl.scale.z = 0.5;
       g.add(hl);
     }
@@ -400,8 +505,10 @@ export class CarFactory {
     }
 
     const wheelPos: [number, number, number][] = [
-      [-1.05, 0.38, 1.1], [1.05, 0.38, 1.1],
-      [-1.05, 0.38, -1.1], [1.05, 0.38, -1.1],
+      [-1.05, 0.38, 1.1],
+      [1.05, 0.38, 1.1],
+      [-1.05, 0.38, -1.1],
+      [1.05, 0.38, -1.1],
     ];
     for (const [wx, wy, wz] of wheelPos) {
       this.addWheel(g, wx, wy, wz, accent, 0.36);
@@ -411,13 +518,21 @@ export class CarFactory {
   }
 
   // ── Generic fallback ───────────────────────────────────────────────────────
-  private buildGeneric(paint: THREE.MeshStandardMaterial, accent: THREE.MeshStandardMaterial): THREE.Group {
+  private buildGeneric(
+    paint: THREE.MeshStandardMaterial,
+    accent: THREE.MeshStandardMaterial,
+  ): THREE.Group {
     const g = new THREE.Group();
 
     g.add(mesh(box(2.05, 0.14, 4.0), CARBON, 0, 0.22, 0));
     g.add(mesh(box(2.05, 0.48, 3.8), paint, 0, 0.54, 0));
 
-    for (const [ax, az] of [[-1.02, 1.38], [1.02, 1.38], [-1.02, -1.38], [1.02, -1.38]] as [number, number][]) {
+    for (const [ax, az] of [
+      [-1.02, 1.38],
+      [1.02, 1.38],
+      [-1.02, -1.38],
+      [1.02, -1.38],
+    ] as [number, number][]) {
       g.add(mesh(box(0.48, 0.38, 1.05), paint, ax, 0.5, az));
     }
 
@@ -450,8 +565,10 @@ export class CarFactory {
     g.add(mesh(box(1.48, 0.07, 0.32), accent, 0, 1.5, -1.92));
 
     const wheelPositions: [number, number, number][] = [
-      [-1.22, 0.42, 1.38], [1.22, 0.42, 1.38],
-      [-1.22, 0.42, -1.38], [1.22, 0.42, -1.38],
+      [-1.22, 0.42, 1.38],
+      [1.22, 0.42, 1.38],
+      [-1.22, 0.42, -1.38],
+      [1.22, 0.42, -1.38],
     ];
     for (const [wx, wy, wz] of wheelPositions) {
       this.addWheel(g, wx, wy, wz, accent);
@@ -475,7 +592,10 @@ export class CarFactory {
     tyre.receiveShadow = true;
     g.add(tyre);
 
-    const rim = new THREE.Mesh(cyl(radius * 0.69, radius * 0.69, 0.42, 12), SILVER);
+    const rim = new THREE.Mesh(
+      cyl(radius * 0.69, radius * 0.69, 0.42, 12),
+      SILVER,
+    );
     rim.rotation.z = Math.PI / 2;
     rim.position.set(x, y, z);
     rim.castShadow = true;
@@ -497,29 +617,29 @@ export class CarFactory {
   }
 
   createNameplate(name: string, color: number): THREE.Sprite {
-    const canvas = document.createElement('canvas');
+    const canvas = document.createElement("canvas");
     canvas.width = 256;
     canvas.height = 64;
-    const ctx = canvas.getContext('2d')!;
+    const ctx = canvas.getContext("2d")!;
 
-    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.fillStyle = "rgba(0,0,0,0.65)";
     ctx.roundRect(4, 4, 248, 56, 10);
     ctx.fill();
 
-    ctx.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
+    ctx.fillStyle = `#${color.toString(16).padStart(6, "0")}`;
     ctx.fillRect(8, 8, 6, 48);
 
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 26px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 60px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
     ctx.fillText(name, 132, 32);
 
     const texture = new THREE.CanvasTexture(canvas);
     const material = new THREE.SpriteMaterial({ map: texture });
     const sprite = new THREE.Sprite(material);
     sprite.scale.set(6, 1.5, 1);
-    sprite.position.y = 3;
+    sprite.position.y = 6;
 
     return sprite;
   }

@@ -41,6 +41,8 @@ export interface VersusGameState {
   p1Color: number;
   p2Color: number;
   stats: VersusStats;
+  carPositions: MinimapCar[];
+  trackPoints: MinimapPoint[];
 }
 
 export interface CarDefinition {

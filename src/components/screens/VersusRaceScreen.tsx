@@ -7,6 +7,7 @@ import { Countdown } from '../hud/Countdown.js';
 import { Speedometer } from '../hud/Speedometer.js';
 import { VersusScoreDisplay } from '../hud/VersusScoreDisplay.js';
 import { VersusRoundOverlay } from '../hud/VersusRoundOverlay.js';
+import { MinimapDisplay } from '../hud/MinimapDisplay.js';
 import { VersusEndScreen } from './VersusEndScreen.js';
 
 interface VersusRaceScreenProps {
@@ -58,14 +59,19 @@ export function VersusRaceScreen({ selections, onMainMenu, onPlayAgain }: Versus
 
       {state.raceStarted && state.roundState === 'racing' && (
         <>
-          <div style={{ position: 'absolute', bottom: '16px', left: '16px' }}>
+          <div className="versus-p1-hud">
             <Speedometer speed={state.p1Speed} maxSpeed={state.p1MaxSpeed} />
           </div>
-          <div style={{ position: 'absolute', bottom: '16px', right: '16px' }}>
+          <div className="versus-p2-hud">
             <Speedometer speed={state.p2Speed} maxSpeed={state.p2MaxSpeed} />
           </div>
         </>
       )}
+
+      <MinimapDisplay
+        trackPoints={state.trackPoints}
+        carPositions={state.carPositions}
+      />
 
       {state.matchWinner !== null && (
         <VersusEndScreen

@@ -21,6 +21,7 @@ import { TireMarkSystem } from './scene/TireMarkSystem.js';
 import { CollisionParticleSystem } from './effects/CollisionParticleSystem.js';
 import { TireSmokeSystem } from './effects/TireSmokeSystem.js';
 import { HazardSplashSystem } from './effects/HazardSplashSystem.js';
+import { Minimap } from './race/Minimap.js';
 import { KITCHEN_ITEM_FACTORIES } from './scene/KitchenItems.js';
 import { HAZARD_HEX_COLORS } from '../constants/physics.js';
 
@@ -51,6 +52,7 @@ export class VersusGameEngine {
   private car2: CarState | null = null;
   private cars: CarState[] = [];
 
+  private minimap: Minimap | null = null;
   private tireMarks: TireMarkSystem | null = null;
   private collisionParticles: CollisionParticleSystem | null = null;
   private tireSmoke: TireSmokeSystem | null = null;
@@ -171,6 +173,7 @@ export class VersusGameEngine {
 
     this.versusRaceManager = new VersusRaceManager(this.track);
     this.startSequence = new StartSequence();
+    this.minimap = new Minimap(this.track);
     this.tireMarks = new TireMarkSystem(this.scene);
     this.hazardSplash = new HazardSplashSystem(this.scene);
     this.inputManager = new InputManager();
@@ -250,7 +253,9 @@ export class VersusGameEngine {
     };
 
     this.car1 = makeCar(p1Def, t1, -1, 'player1');
+    this.car1.mesh.add(factory.createNameplate(this.p1Name, p1Def.color));
     this.car2 = makeCar(p2Def, t2, 1, 'player2');
+    this.car2.mesh.add(factory.createNameplate(this.p2Name, p2Def.color));
     this.cars = [this.car1, this.car2];
     this.carHazardState.set('player1', { inHazard: false, zoneType: '', drip: 0, splashTimer: 0 });
     this.carHazardState.set('player2', { inHazard: false, zoneType: '', drip: 0, splashTimer: 0 });
@@ -271,7 +276,7 @@ export class VersusGameEngine {
 
   private isOffScreen(worldPos: THREE.Vector3): boolean {
     const ndc = worldPos.clone().project(this.cameraController.camera);
-    return Math.abs(ndc.x) > 1.15 || Math.abs(ndc.y) > 1.15;
+    return Math.abs(ndc.x) > 1.05 || Math.abs(ndc.y) > 1.05;
   }
 
   private resetCarsToMidpoint(): void {
@@ -409,7 +414,7 @@ export class VersusGameEngine {
             this.offScreenCounter2 = 0;
           }
 
-          const HYSTERESIS = 3;
+          const HYSTERESIS = 2;
           if (this.offScreenCounter1 >= HYSTERESIS) this.awardPoint(2);
           else if (this.offScreenCounter2 >= HYSTERESIS) this.awardPoint(1);
         }
@@ -441,9 +446,13 @@ export class VersusGameEngine {
     }
 
     if (this.car1 && this.car2) {
+      const backCar = this.versusRaceManager.getBackCar(this.car1, this.car2);
+      const frontPos = backCar === 1 ? this.car2.position : this.car1.position;
+      const backPos = backCar === 1 ? this.car1.position : this.car2.position;
       this.cameraController.updateVersus(
-        this.car1.position, this.car1.speed, this.car1.definition.maxSpeed,
-        this.car2.position, this.car2.speed, this.car2.definition.maxSpeed,
+        frontPos, backPos,
+        this.car1.speed, this.car1.definition.maxSpeed,
+        this.car2.speed, this.car2.definition.maxSpeed,
       );
     }
 
@@ -474,6 +483,8 @@ export class VersusGameEngine {
       p1Color: this.car1.definition.color,
       p2Color: this.car2.definition.color,
       stats: { ...this.stats },
+      carPositions: this.minimap?.getCarPositions(this.cars) ?? [],
+      trackPoints: this.minimap?.getTrackPoints() ?? [],
     };
     this.emitter.emit(state, countdown >= 0);
   }

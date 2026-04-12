@@ -19,7 +19,10 @@
       "mcp__plugin_chrome-devtools-mcp_chrome-devtools__evaluate_script",
       "Bash(rtk err:*)",
       "Bash(node_modules/.bin/eslint src/components/screens/TrackEditor.tsx --no-color 2>&1)",
-      "WebSearch"
+      "WebSearch",
+      "mcp__jcodemunch__index_folder",
+      "mcp__jcodemunch__get_repo_outline",
+      "mcp__jcodemunch__search_symbols"
     ]
   }
 }

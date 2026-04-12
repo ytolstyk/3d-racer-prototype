@@ -29,6 +29,8 @@ const DEFAULT_STATE: VersusGameState = {
     p2TimeInLead: 0,
     closestGap: Infinity,
   },
+  carPositions: [],
+  trackPoints: [],
 };
 
 export function useVersusGameState(emitter: VersusStateEmitter): VersusGameState {

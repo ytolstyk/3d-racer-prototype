@@ -719,6 +719,19 @@
   overflow: hidden;
 }
 
+/* Versus mode speedometer overrides */
+.versus-p1-hud .hud-speedometer {
+  left: 16px;
+  right: auto;
+  bottom: 196px; /* sits above the minimap (160px + 4px border + 16px gap) */
+}
+
+.versus-p2-hud .hud-speedometer {
+  right: 16px;
+  left: auto;
+  bottom: 16px;
+}
+
 /* ============================
    Scoreboard
    ============================ */

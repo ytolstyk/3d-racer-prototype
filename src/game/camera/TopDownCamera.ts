@@ -6,6 +6,9 @@ export class TopDownCamera {
   private currentHeight: number;
   private smoothedLeadX = 0;
   private smoothedLeadZ = 0;
+  private smoothedFocusX = 0;
+  private smoothedFocusZ = 0;
+  private focusInitialized = false;
   private overrides = new Map<string, number>();
 
   constructor(aspect: number) {
@@ -53,9 +56,23 @@ export class TopDownCamera {
     this.camera.rotation.set(-angleRad, 0, 0);
   }
 
-  updateVersus(pos1: THREE.Vector3, spd1: number, max1: number, pos2: THREE.Vector3, spd2: number, max2: number): void {
-    const midpoint = pos1.clone().add(pos2).multiplyScalar(0.5);
-    const dist = pos1.distanceTo(pos2);
+  updateVersus(frontPos: THREE.Vector3, backPos: THREE.Vector3, spd1: number, max1: number, spd2: number, max2: number): void {
+    const midpoint = frontPos.clone().add(backPos).multiplyScalar(0.5);
+    // Bias the target focus 30% toward the front car so it always has space to navigate ahead
+    const targetFocusX = midpoint.x + (frontPos.x - midpoint.x) * 0.3;
+    const targetFocusZ = midpoint.z + (frontPos.z - midpoint.z) * 0.3;
+
+    // Snap on first call, then lerp so camera slides smoothly when cars swap lead
+    if (!this.focusInitialized) {
+      this.smoothedFocusX = targetFocusX;
+      this.smoothedFocusZ = targetFocusZ;
+      this.focusInitialized = true;
+    } else {
+      this.smoothedFocusX += (targetFocusX - this.smoothedFocusX) * 0.01;
+      this.smoothedFocusZ += (targetFocusZ - this.smoothedFocusZ) * 0.01;
+    }
+
+    const dist = frontPos.distanceTo(backPos);
     const spreadRatio = Math.min(dist / 80, 1);
     const topSpeed = Math.max(Math.abs(spd1), Math.abs(spd2));
     const maxSpeed = Math.max(max1, max2);
@@ -64,7 +81,7 @@ export class TopDownCamera {
     this.currentHeight += (targetHeight - this.currentHeight) * this.cfg('heightLerp');
     const angleRad = this.cfg('angle') * Math.PI / 180;
     const zBack = this.currentHeight / Math.tan(angleRad);
-    this.camera.position.set(midpoint.x, midpoint.y + this.currentHeight, midpoint.z + zBack);
+    this.camera.position.set(this.smoothedFocusX, this.currentHeight, this.smoothedFocusZ + zBack);
     this.camera.rotation.set(-angleRad, 0, 0);
   }
 
