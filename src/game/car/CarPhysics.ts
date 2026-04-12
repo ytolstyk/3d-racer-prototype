@@ -272,8 +272,8 @@ export class CarPhysics {
 
     const toCenterDir = toCenter.normalize();
 
-    // Spring push back toward track
-    car.position.add(toCenterDir.clone().multiplyScalar(80 * dt));
+    // Spring push back toward track (stronger to compensate for removed hard snap)
+    car.position.add(toCenterDir.clone().multiplyScalar(150 * dt));
 
     // Compute impact component from actual velocity direction (not heading)
     const velDir = new THREE.Vector3(Math.sin(car.velocityAngle), 0, Math.cos(car.velocityAngle));
@@ -284,22 +284,24 @@ export class CarPhysics {
       car.speed *= 1 - impactComponent * 0.5;
     }
 
-    // Lateral redirect impulse — bounce car sideways along the wall
-    const right = new THREE.Vector3(
-      Math.cos(car.rotation),
-      0,
-      -Math.sin(car.rotation),
-    );
-    const wallTangentSign = Math.sign(right.dot(toCenterDir));
-    car.lateralVelocity +=
-      impactComponent * 0.5 * wallTangentSign * Math.abs(car.speed);
+    // Full velocity reflection off the wall surface
+    const wallNormalAngle = Math.atan2(toCenterDir.x, toCenterDir.z);
+    const reflectedAngle = 2 * wallNormalAngle + Math.PI - car.velocityAngle;
+    const vaDiff = this.normalizeAngle(reflectedAngle - car.velocityAngle);
+    car.velocityAngle += vaDiff;
+
+    // Align visual heading toward wall tangent for shallow hits (≤45°)
+    if (impactComponent <= 0.707) {
+      const wallTangent1 = wallNormalAngle + Math.PI / 2;
+      const wallTangent2 = wallNormalAngle - Math.PI / 2;
+      const diff1 = Math.abs(this.normalizeAngle(wallTangent1 - car.rotation));
+      const diff2 = Math.abs(this.normalizeAngle(wallTangent2 - car.rotation));
+      const targetTangent = diff1 <= diff2 ? wallTangent1 : wallTangent2;
+      const rDiff = this.normalizeAngle(targetTangent - car.rotation);
+      car.rotation += rDiff * 0.35;
+    }
 
     // Absorb lateral velocity on wall contact
     car.lateralVelocity *= 0.4;
-
-    // Reflect velocity angle toward wall normal so redirect persists next frame
-    const wallNormalAngle = Math.atan2(toCenterDir.x, toCenterDir.z);
-    const vaDiff = this.normalizeAngle(wallNormalAngle - car.velocityAngle);
-    car.velocityAngle += vaDiff * 0.5 * impactComponent;
   }
 }

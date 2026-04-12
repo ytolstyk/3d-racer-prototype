@@ -126,14 +126,6 @@ export class CollisionSystem {
       const t = this.track.getClosestT(car.position, car.currentT);
       const center = this.track.getPointAt(t);
 
-      // Snap car back inside boundary edge immediately (prevents tunneling)
-      const toCar = new THREE.Vector3().subVectors(car.position, center);
-      const distToCenter = toCar.length();
-      const trackHalfWidth = this.track.width / 2;
-      if (distToCenter > trackHalfWidth && distToCenter > 0.001) {
-        car.position.copy(center).addScaledVector(toCar.normalize(), trackHalfWidth - 0.5);
-      }
-
       this.physics.bounceFromBoundary(car, center, dt);
       car.mesh.position.copy(car.position);
 
