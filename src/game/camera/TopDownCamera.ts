@@ -58,11 +58,12 @@ export class TopDownCamera {
     const midZ = (pos1.z + pos2.z) * 0.5;
 
     const dist = pos1.distanceTo(pos2);
-    const spreadRatio = Math.min(dist / 80, 1);
+    const spreadRatio = Math.min(dist / 60, 1);
     const topSpeed = Math.max(Math.abs(spd1), Math.abs(spd2));
     const maxSpeed = Math.max(max1, max2);
     const speedRatio = Math.min(topSpeed / maxSpeed, 1);
-    const targetHeight = this.cfg('baseHeight') + (this.cfg('maxZoomHeight') - this.cfg('baseHeight')) * Math.max(speedRatio, spreadRatio);
+    const zoomFactor = Math.max(speedRatio, spreadRatio);
+    const targetHeight = this.cfg('baseHeight') + (this.cfg('maxZoomHeight') - this.cfg('baseHeight')) * zoomFactor;
     this.currentHeight += (targetHeight - this.currentHeight) * this.cfg('heightLerp');
     const angleRad = this.cfg('angle') * Math.PI / 180;
     const zBack = this.currentHeight / Math.tan(angleRad);

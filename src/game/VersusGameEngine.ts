@@ -404,9 +404,12 @@ export class VersusGameEngine {
 
           this.updateStats(dt);
 
-          const backCar = this.versusRaceManager.getBackCar(this.car1, this.car2);
-          const backCarObj = backCar === 1 ? this.car1 : this.car2;
-          if (this.isOffScreen(backCarObj.position)) {
+          const car1Off = this.isOffScreen(this.car1.position);
+          const car2Off = this.isOffScreen(this.car2.position);
+
+          if (car1Off || car2Off) {
+            // Front car wins whenever either car leaves the screen
+            const backCar = this.versusRaceManager.getBackCar(this.car1, this.car2);
             if (backCar === 1) { this.offScreenCounter1++; this.offScreenCounter2 = 0; }
             else { this.offScreenCounter2++; this.offScreenCounter1 = 0; }
           } else {
