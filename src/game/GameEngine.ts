@@ -338,6 +338,9 @@ export class GameEngine {
         this.updateCarHazard(this.playerCar, dt);
       }
 
+      // Race management (must run before AI so currentT is fresh)
+      this.raceManager.update(this.cars, dt);
+
       // AI updates
       this.aiManager?.update(this.cars, dt);
       for (const car of this.cars) {
@@ -364,9 +367,6 @@ export class GameEngine {
 
       // Collisions
       this.collisionSystem.update(this.cars, dt);
-
-      // Race management
-      this.raceManager.update(this.cars, dt);
 
       // Check if player just finished
       if (this.playerCar?.finished && !this.playerFinished) {

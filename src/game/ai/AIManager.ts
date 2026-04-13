@@ -27,6 +27,7 @@ interface AiVehicleState {
   reactionBuffer: DelayedInput[];
   reactionHead: number;
   reactionSize: number;
+  stuckTimer: number;
 }
 
 export class AIManager {
@@ -136,6 +137,7 @@ export class AIManager {
       reactionBuffer,
       reactionHead: 0,
       reactionSize,
+      stuckTimer: 0,
     });
   }
 
@@ -168,10 +170,11 @@ export class AIManager {
       // B. Sync Yuka vehicle to real car state
       state.vehicle.position.set(car.position.x, 0, car.position.z);
       state.vehicle.rotation.fromEuler(0, car.rotation, 0);
+      const effectiveSpeed = Math.max(1, Math.abs(car.speed));
       state.vehicle.velocity.set(
-        Math.sin(car.rotation) * AI_VEHICLE.virtualSpeed,
+        Math.sin(car.rotation) * effectiveSpeed,
         0,
-        Math.cos(car.rotation) * AI_VEHICLE.virtualSpeed,
+        Math.cos(car.rotation) * effectiveSpeed,
       );
 
       // C. Compute combined steering force from all 4 behaviors
@@ -223,6 +226,18 @@ export class AIManager {
         car.speed > car.definition.maxSpeed * state.skillLevel
       ) {
         rawThrottle = 0;
+      }
+
+      // Stuck recovery
+      const STUCK_SPEED_THRESHOLD = 0.5;
+      const STUCK_RECOVERY_TIME = 1.0;
+      if (Math.abs(car.speed) < STUCK_SPEED_THRESHOLD) {
+        state.stuckTimer += dt;
+      } else {
+        state.stuckTimer = 0;
+      }
+      if (state.stuckTimer > STUCK_RECOVERY_TIME) {
+        rawThrottle = 1.0;
       }
 
       // H. Reaction delay ring buffer
