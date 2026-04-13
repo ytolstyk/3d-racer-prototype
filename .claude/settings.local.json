@@ -22,7 +22,13 @@
       "WebSearch",
       "mcp__jcodemunch__index_folder",
       "mcp__jcodemunch__get_repo_outline",
-      "mcp__jcodemunch__search_symbols"
+      "mcp__jcodemunch__search_symbols",
+      "Bash(npm info:*)",
+      "WebFetch(domain:mugen87.github.io)",
+      "WebFetch(domain:cdn.jsdelivr.net)",
+      "WebFetch(domain:unpkg.com)",
+      "WebFetch(domain:app.unpkg.com)",
+      "WebFetch(domain:registry.npmjs.org)"
     ]
   }
 }

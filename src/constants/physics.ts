@@ -1,4 +1,4 @@
-import type { HazardEffect } from "../types/game.js";
+import type { HazardEffect, Difficulty } from "../types/game.js";
 
 export const PHYSICS = {
   drag: 0.994, // per-frame speed multiplier when coasting (0.994^60 ≈ 0.70 — gradual coast-down)
@@ -76,10 +76,24 @@ export const CONTROLLER_PHYSICS = {
 
 export const AI_CONFIG = {
   lookAhead: 0.03,
-  steeringGain: 3.0,
+  steeringGain: 5.0,
   brakeAngleThreshold: 0.5,
   brakeFactor: 0.65,
   lateralVariation: 1.5,
   minSkillLevel: 0.7,
   maxSkillLevel: 1.0,
+} as const;
+
+export interface DifficultyParams {
+  skillRange: [number, number];   // per-car skill is random within this range
+  steeringNoise: number;          // random noise added to steerInput each frame
+  reactionDelay: number;          // seconds buffered before inputs apply
+  brakeSensitivity: number;       // tangent-dot threshold for braking (higher = brakes later)
+  pathRadius: number;             // Yuka nextWaypointDistance (higher = looser line)
+}
+
+export const DIFFICULTY_CONFIG: Record<Difficulty, DifficultyParams> = {
+  easy:   { skillRange: [0.68, 0.75], steeringNoise: 0.18, reactionDelay: 0.10, brakeSensitivity: 0.28, pathRadius: 10 },
+  medium: { skillRange: [0.82, 0.90], steeringNoise: 0.09, reactionDelay: 0.07, brakeSensitivity: 0.38, pathRadius: 7  },
+  hard:   { skillRange: [0.94, 1.00], steeringNoise: 0.03, reactionDelay: 0.02, brakeSensitivity: 0.48, pathRadius: 5  },
 } as const;

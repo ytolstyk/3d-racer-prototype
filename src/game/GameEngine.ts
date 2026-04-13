@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { CarDefinition, CarState, GameState } from '../types/game.js';
+import type { CarDefinition, CarState, GameState, Difficulty } from '../types/game.js';
 import { CAR_DEFINITIONS } from '../constants/cars.js';
 import { TRACKS } from '../constants/track.js';
 import type { TrackConfig } from '../constants/track.js';
@@ -15,7 +15,7 @@ import { TopDownCamera } from './camera/TopDownCamera.js';
 import { CarFactory } from './car/CarFactory.js';
 import { CarPhysics } from './car/CarPhysics.js';
 import { CarController } from './car/CarController.js';
-import { AiController } from './car/AiController.js';
+import { YukaAiController } from './car/YukaAiController.js';
 import { CollisionSystem } from './collision/CollisionSystem.js';
 import { RaceManager } from './race/RaceManager.js';
 import { StartSequence } from './race/StartSequence.js';
@@ -25,7 +25,7 @@ import { CollisionParticleSystem } from './effects/CollisionParticleSystem.js';
 import { TireSmokeSystem } from './effects/TireSmokeSystem.js';
 import { HazardSplashSystem } from './effects/HazardSplashSystem.js';
 import { KITCHEN_ITEM_FACTORIES } from './scene/KitchenItems.js';
-import { HAZARD_HEX_COLORS } from '../constants/physics.js';
+import { HAZARD_HEX_COLORS, DIFFICULTY_CONFIG } from '../constants/physics.js';
 
 interface CarHazardState {
   inHazard: boolean;
@@ -44,7 +44,7 @@ export class GameEngine {
   private hazardSystem: HazardSystem;
   private carPhysics: CarPhysics;
   private playerController: CarController;
-  private aiControllers: Map<string, AiController> = new Map();
+  private aiControllers: Map<string, YukaAiController> = new Map();
   private collisionSystem: CollisionSystem;
   private raceManager: RaceManager;
   private startSequence: StartSequence;
@@ -67,13 +67,17 @@ export class GameEngine {
   private disposed = false;
   private paused = false;
 
+  private readonly difficulty: Difficulty;
+
   constructor(
     canvas: HTMLCanvasElement,
     selectedTrackId: string,
     selectedCarId: string,
     totalLaps: number,
+    difficulty: Difficulty,
     emitter: GameStateEmitter,
   ) {
+    this.difficulty = difficulty;
     this.emitter = emitter;
 
     // Renderer
@@ -280,15 +284,10 @@ export class GameEngine {
       if (isPlayer) {
         this.playerCar = car;
       } else {
-        const skillLevels: Record<string, number> = {
-          'sir-skids': 0.9,
-          'captain-crumb': 0.8,
-          'butterknife': 0.75,
-          'sauce-boss': 0.95,
-          'lil-pepper': 0.82,
-        };
-        const skill = skillLevels[def.id] ?? 0.8;
-        this.aiControllers.set(def.id, new AiController(this.track, this.carPhysics, skill));
+        const diffParams = DIFFICULTY_CONFIG[this.difficulty];
+        const [minSkill, maxSkill] = diffParams.skillRange;
+        const skill = minSkill + Math.random() * (maxSkill - minSkill);
+        this.aiControllers.set(def.id, new YukaAiController(this.track, this.carPhysics, skill, diffParams));
       }
     }
   }
@@ -336,7 +335,7 @@ export class GameEngine {
         if (car.isPlayer) continue;
         const controller = this.aiControllers.get(car.id);
         if (controller) {
-          controller.update(car, dt);
+          controller.update(car, dt, this.cars);
           this.updateCarHazard(car, dt);
         }
       }

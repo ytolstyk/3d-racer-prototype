@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
-import type { RacePhase, VersusSelections } from './types/game.js';
+import type { RacePhase, VersusSelections, Difficulty } from './types/game.js';
 import { MainMenu } from './components/screens/MainMenu.js';
 import { TrackSelect } from './components/screens/TrackSelect.js';
 import { CarSelect } from './components/screens/CarSelect.js';
@@ -31,6 +31,7 @@ function GameApp() {
   const [selectedTrackId, setSelectedTrackId] = useState(fromEditor ? '__editor__' : '');
   const [selectedCarId, setSelectedCarId] = useState(fromEditor ? 'racer-red' : '');
   const [totalLaps, setTotalLaps] = useState(3);
+  const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [isEditorTest] = useState(fromEditor);
   const [gameMode, setGameMode] = useState<'solo' | 'versus'>('solo');
   const [versusSelections, setVersusSelections] = useState<VersusSelections | null>(null);
@@ -45,8 +46,9 @@ function GameApp() {
     setPhase('lapSelect');
   };
 
-  const handleLapSelect = (laps: number) => {
+  const handleLapSelect = (laps: number, diff: Difficulty) => {
     setTotalLaps(laps);
+    setDifficulty(diff);
     setPhase('racing');
   };
 
@@ -55,6 +57,7 @@ function GameApp() {
     setSelectedCarId('');
     setSelectedTrackId('');
     setGameMode('solo');
+    setDifficulty('medium');
     setVersusSelections(null);
   };
 
@@ -104,6 +107,7 @@ function GameApp() {
           selectedTrackId={selectedTrackId}
           selectedCarId={selectedCarId}
           totalLaps={totalLaps}
+          difficulty={difficulty}
           onMainMenu={handleMainMenu}
           onRaceAgain={handleRaceAgain}
           onBackToEditor={isEditorTest ? handleBackToEditor : undefined}

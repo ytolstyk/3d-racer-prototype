@@ -1,4 +1,5 @@
 import { useRef, useMemo, useState, useEffect } from 'react';
+import type { Difficulty } from '../../types/game.js';
 import { GameStateEmitter } from '../../state/GameStateEmitter.js';
 import { useGameEngine } from '../../hooks/useGameEngine.js';
 import { useGameState } from '../../hooks/useGameState.js';
@@ -15,6 +16,7 @@ interface RaceScreenProps {
   selectedTrackId: string;
   selectedCarId: string;
   totalLaps: number;
+  difficulty: Difficulty;
   onMainMenu: () => void;
   onRaceAgain: () => void;
   onBackToEditor?: () => void;
@@ -28,12 +30,12 @@ const pauseOverlayStyle: React.CSSProperties = {
   zIndex: 100,
 };
 
-export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, onMainMenu, onRaceAgain, onBackToEditor }: RaceScreenProps) {
+export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, difficulty, onMainMenu, onRaceAgain, onBackToEditor }: RaceScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const emitter = useMemo(() => new GameStateEmitter(), []);
   const [paused, setPaused] = useState(false);
 
-  const engineRef = useGameEngine(canvasRef, selectedTrackId, selectedCarId, totalLaps, emitter);
+  const engineRef = useGameEngine(canvasRef, selectedTrackId, selectedCarId, totalLaps, difficulty, emitter);
   const state = useGameState(emitter);
 
   useEffect(() => {

@@ -1,12 +1,14 @@
 import { useState } from 'react';
+import type { Difficulty } from '../../types/game.js';
 
 interface LapSelectProps {
-  onSelect: (laps: number) => void;
+  onSelect: (laps: number, difficulty: Difficulty) => void;
   onBack: () => void;
 }
 
 export function LapSelect({ onSelect, onBack }: LapSelectProps) {
   const [laps, setLaps] = useState(3);
+  const [difficulty, setDifficulty] = useState<Difficulty>('medium');
 
   return (
     <div className="screen lap-select">
@@ -28,8 +30,22 @@ export function LapSelect({ onSelect, onBack }: LapSelectProps) {
           +
         </button>
       </div>
+      <div>
+        <p className="difficulty-label">Difficulty</p>
+        <div className="difficulty-selector">
+          {(['easy', 'medium', 'hard'] as Difficulty[]).map((d) => (
+            <button
+              key={d}
+              className={`btn btn-difficulty${difficulty === d ? ' selected' : ''}`}
+              onClick={() => setDifficulty(d)}
+            >
+              {d.charAt(0).toUpperCase() + d.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="lap-actions">
-        <button className="btn btn-primary btn-large" onClick={() => onSelect(laps)}>
+        <button className="btn btn-primary btn-large" onClick={() => onSelect(laps, difficulty)}>
           Race!
         </button>
         <button className="btn btn-secondary" onClick={onBack}>
