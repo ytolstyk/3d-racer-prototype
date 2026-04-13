@@ -28,7 +28,8 @@
       "WebFetch(domain:cdn.jsdelivr.net)",
       "WebFetch(domain:unpkg.com)",
       "WebFetch(domain:app.unpkg.com)",
-      "WebFetch(domain:registry.npmjs.org)"
+      "WebFetch(domain:registry.npmjs.org)",
+      "Bash(./node_modules/.bin/eslint src/components/screens/TrackEditor.tsx)"
     ]
   }
 }

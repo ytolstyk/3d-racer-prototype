@@ -1,4 +1,4 @@
-import { useReducer, useRef, useEffect, useCallback } from 'react';
+import { useReducer, useRef, useEffect, useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { TrackConfig } from '../../constants/track.js';
 import { TRACKS } from '../../constants/track.js';
@@ -616,9 +616,11 @@ export function TrackEditor() {
   const importFileRef = useRef<HTMLInputElement>(null);
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; });
+  const drawRef = useRef<() => void>(() => {});
   const viewInitializedRef = useRef(false);
   const splineSamplesRef = useRef<[number, number][]>([]);
   const tunnelStartRef = useRef<number | null>(null);
+  const [tunnelStartSet, setTunnelStartSet] = useState(false);
   const hazardMoveRef = useRef<{ idx: number; offX: number; offZ: number } | null>(null);
   const hazardEdgeRef = useRef<{ idx: number } | null>(null);
   const hazardRotateRef = useRef<{ idx: number; lastAngle: number } | null>(null);
@@ -1193,6 +1195,9 @@ export function TrackEditor() {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }, []);
 
+  // Keep drawRef current so the keydown effect can call draw without it as a dep
+  useEffect(() => { drawRef.current = draw; }, [draw]);
+
   // Redraw on state change
   useEffect(() => {
     draw();
@@ -1314,7 +1319,7 @@ export function TrackEditor() {
           const zoom = Math.min(W / (1200 + padding * 2), H2 / (900 + padding * 2));
           zoomRef.current = zoom;
           panRef.current = { x: W / 2 * (1 - zoom), y: H2 / 2 * (1 - zoom) };
-          draw();
+          drawRef.current();
         }
         return;
       }
@@ -1325,7 +1330,7 @@ export function TrackEditor() {
       const tool = map[e.key.toLowerCase()];
       if (tool) {
         dispatch({ type: 'SET_TOOL', tool });
-        if (tool !== 'tunnel') tunnelStartRef.current = null;
+        if (tool !== 'tunnel') { tunnelStartRef.current = null; setTunnelStartSet(false); }
       }
     };
 
@@ -1553,12 +1558,14 @@ export function TrackEditor() {
         const t = nearestI / (samples.length - 1);
         if (tunnelStartRef.current === null) {
           tunnelStartRef.current = t;
+          setTunnelStartSet(true);
           draw();
         } else {
           const tStart = Math.min(tunnelStartRef.current, t);
           const tEnd = Math.max(tunnelStartRef.current, t);
           dispatch({ type: 'ADD_TUNNEL', tStart, tEnd });
           tunnelStartRef.current = null;
+          setTunnelStartSet(false);
         }
       }
     } else if (activeTool === 'object') {
@@ -1961,6 +1968,7 @@ export function TrackEditor() {
     // Cancel pending start
     if (tunnelStartRef.current !== null) {
       tunnelStartRef.current = null;
+      setTunnelStartSet(false);
       draw();
       return;
     }
@@ -2266,7 +2274,7 @@ export function TrackEditor() {
           <div className="editor-section">
             <label className="editor-label">Tunnel Tool</label>
             <span style={{ opacity: 0.6, fontSize: 9, display: 'block', marginBottom: 4 }}>
-              {tunnelStartRef.current === null
+              {!tunnelStartSet
                 ? 'Click track to set tunnel start'
                 : 'Click track to set tunnel end · right-click to cancel'}
             </span>

@@ -15,7 +15,7 @@ import { TopDownCamera } from './camera/TopDownCamera.js';
 import { CarFactory } from './car/CarFactory.js';
 import { CarPhysics } from './car/CarPhysics.js';
 import { CarController } from './car/CarController.js';
-import { YukaAiController } from './car/YukaAiController.js';
+import { AIManager } from './ai/AIManager.js';
 import { CollisionSystem } from './collision/CollisionSystem.js';
 import { RaceManager } from './race/RaceManager.js';
 import { StartSequence } from './race/StartSequence.js';
@@ -25,7 +25,8 @@ import { CollisionParticleSystem } from './effects/CollisionParticleSystem.js';
 import { TireSmokeSystem } from './effects/TireSmokeSystem.js';
 import { HazardSplashSystem } from './effects/HazardSplashSystem.js';
 import { KITCHEN_ITEM_FACTORIES } from './scene/KitchenItems.js';
-import { HAZARD_HEX_COLORS, DIFFICULTY_CONFIG } from '../constants/physics.js';
+import { HAZARD_HEX_COLORS } from '../constants/physics.js';
+import { DIFFICULTY_CONFIG } from '../constants/aiRacer.js';
 
 interface CarHazardState {
   inHazard: boolean;
@@ -44,7 +45,7 @@ export class GameEngine {
   private hazardSystem: HazardSystem;
   private carPhysics: CarPhysics;
   private playerController: CarController;
-  private aiControllers: Map<string, YukaAiController> = new Map();
+  private aiManager: AIManager | null = null;
   private collisionSystem: CollisionSystem;
   private raceManager: RaceManager;
   private startSequence: StartSequence;
@@ -153,8 +154,15 @@ export class GameEngine {
     // Cars
     this.carPhysics = new CarPhysics();
     this.playerController = new CarController(this.carPhysics);
+
+    // AI manager (before setupCars so addCar can register vehicles)
+    this.aiManager = new AIManager(this.track, this.carPhysics, this.difficulty, this.obstacles, this.track.hazardZones);
+
     const carFactory = new CarFactory();
     this.setupCars(carFactory, selectedCarId);
+
+    // Link AI vehicles for SeparationBehavior (one-time setup)
+    this.aiManager.linkNeighbors();
 
     // Tire smoke (created before collision particles so it can be passed in)
     this.tireSmoke = new TireSmokeSystem(this.scene);
@@ -287,7 +295,7 @@ export class GameEngine {
         const diffParams = DIFFICULTY_CONFIG[this.difficulty];
         const [minSkill, maxSkill] = diffParams.skillRange;
         const skill = minSkill + Math.random() * (maxSkill - minSkill);
-        this.aiControllers.set(def.id, new YukaAiController(this.track, this.carPhysics, skill, diffParams));
+        this.aiManager!.addCar(def.id, skill, diffParams);
       }
     }
   }
@@ -331,13 +339,9 @@ export class GameEngine {
       }
 
       // AI updates
+      this.aiManager?.update(this.cars, dt);
       for (const car of this.cars) {
-        if (car.isPlayer) continue;
-        const controller = this.aiControllers.get(car.id);
-        if (controller) {
-          controller.update(car, dt, this.cars);
-          this.updateCarHazard(car, dt);
-        }
+        if (!car.isPlayer) this.updateCarHazard(car, dt);
       }
 
       // Tire marks and smoke for skidding or braking cars
@@ -479,6 +483,7 @@ export class GameEngine {
     this.tireSmoke?.dispose();
     this.collisionParticles?.dispose();
     this.hazardSplash?.dispose();
+    this.aiManager?.dispose();
     this.emitter.clear();
     this.renderer.dispose();
 
