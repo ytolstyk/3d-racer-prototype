@@ -181,9 +181,19 @@ export class AIManager {
         Math.cos(car.rotation) * effectiveSpeed,
       );
 
-      // Suppress separation before cars are moving to avoid start-grid diving
+      // Suppress separation unless a neighbor is within one car length AND car is moving
+      const CAR_LENGTH = 5.0;
+      let closestNeighborDist = Infinity;
+      for (const neighbor of state.vehicle.neighbors) {
+        const dx = state.vehicle.position.x - neighbor.position.x;
+        const dz = state.vehicle.position.z - neighbor.position.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist < closestNeighborDist) closestNeighborDist = dist;
+      }
       state.separation.weight =
-        car.speed < 3.0 ? 0 : AI_BEHAVIOR_WEIGHTS.separation;
+        car.speed < 3.0 || closestNeighborDist > CAR_LENGTH
+          ? 0
+          : AI_BEHAVIOR_WEIGHTS.separation;
 
       // Wrong-way detection
       const fwdX = Math.sin(car.rotation);
