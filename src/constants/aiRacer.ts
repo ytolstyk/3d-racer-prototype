@@ -23,11 +23,11 @@ export const AI_VEHICLE = {
    */
   virtualSpeed: 20,
   /** Maximum combined steering force (Yuka units). Lower cap prevents instant direction changes. */
-  maxForce: 50,
+  maxForce: 20,
   /** Vehicle mass — heavier = smoother steering momentum. */
   mass: 2.0,
   /** Damping factor applied to combined behavior forces. Smooths out jitter. */
-  damping: 0.1,
+  damping: 0.3,
   /**
    * Minimum length of the obstacle detection box (Yuka units).
    * Larger = detects hazards earlier; smaller = only swerves at close range.
@@ -37,7 +37,7 @@ export const AI_VEHICLE = {
    * Fraction of track width used as the OnPathBehavior radius.
    * 0.8 = wide soft containment walls, lets car freely cut corners.
    */
-  onPathRadiusFraction: 0.8,
+  onPathRadiusFraction: 0.5,
 } as const;
 
 // ─── General AI Steering ────────────────────────────────────────────────────
@@ -80,20 +80,20 @@ export const DIFFICULTY_CONFIG: Record<Difficulty, DifficultyParams> = {
     steeringNoise: 0.18,
     reactionDelay: 0.1,
     brakeSensitivity: 0.28,
-    nextWaypointDistance: 15.0,
+    nextWaypointDistance: 25.0,
   },
   medium: {
     skillRange: [0.82, 0.9],
     steeringNoise: 0.09,
     reactionDelay: 0.07,
     brakeSensitivity: 0.38,
-    nextWaypointDistance: 12.0,
+    nextWaypointDistance: 22.0,
   },
   hard: {
     skillRange: [0.94, 1.0],
     steeringNoise: 0.03,
     reactionDelay: 0.02,
     brakeSensitivity: 0.48,
-    nextWaypointDistance: 9.0,
+    nextWaypointDistance: 20.0,
   },
 } as const;

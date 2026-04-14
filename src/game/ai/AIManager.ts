@@ -163,7 +163,7 @@ export class AIManager {
 
       // A. Sync path index to current race progress every frame
       const targetIdx = Math.floor(car.currentT * (WAYPOINT_COUNT - 1));
-      (state.path as any)._index = targetIdx;
+      (state.path as YUKA.Path & { _index: number })._index = targetIdx;
 
       // B. Sync Yuka vehicle to real car state
       state.vehicle.position.set(car.position.x, 0, car.position.z);
@@ -217,7 +217,7 @@ export class AIManager {
 
       let rawThrottle: number;
       if (turnSharpness > state.params.brakeSensitivity * 1.8) {
-        rawThrottle = 0;
+        rawThrottle = 0.8;
       } else if (turnSharpness > state.params.brakeSensitivity) {
         rawThrottle = AI_CONFIG.brakeFactor * state.skillLevel;
       } else {
@@ -231,8 +231,8 @@ export class AIManager {
       }
 
       // Stuck recovery
-      const STUCK_SPEED = 2.0;
-      const STUCK_THRESH = 1.2; // seconds before triggering reverse
+      const STUCK_SPEED = 0.8;
+      const STUCK_THRESH = 2.5; // seconds before triggering reverse
       const REVERSE_DUR = 1.5; // seconds to stay in reverse
 
       if (state.reverseTimer > 0) {
