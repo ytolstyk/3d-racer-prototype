@@ -14,29 +14,38 @@ npm run preview   # Preview production build locally
 
 ## Architecture
 
-This is a React 19 + TypeScript + Vite 3D racing game prototype using **Three.js** (imported directly, not via React Three Fiber).
+This is a React 19 + TypeScript + Vite 3D racing game prototype using **Three.js** (imported directly, not via React Three Fiber). AI bots use **Yuka** for steering/pathfinding.
 
 **TypeScript config is strict**: `noUnusedLocals`, `noUnusedParameters`, `erasableSyntaxOnly`, and `verbatimModuleSyntax` are all enabled. Use `import type` for type-only imports.
+
+### Game Modes
+- **Race** — single-player vs AI bots (`GameEngine` + `RaceManager`)
+- **Practice** — free drive, no opponents (`PracticeEngine`)
+- **Versus** — local multiplayer (`VersusGameEngine` + `VersusRaceManager`)
 
 ### Structure
 
 - `src/App.tsx` — top-level phase router (`menu` → `trackSelect` → `carSelect` → `lapSelect` → `racing`)
-- `src/game/GameEngine.ts` — main game loop, Three.js scene orchestration
-- `src/game/car/` — `CarFactory`, `CarPhysics`, `CarController`, `AiController`
+- `src/game/GameEngine.ts` — single-player game loop, Three.js scene orchestration
+- `src/game/VersusGameEngine.ts` — versus (local multiplayer) game loop
+- `src/game/PracticeEngine.ts` — practice mode game loop
+- `src/game/InputManager.ts` — keyboard input handling
+- `src/game/car/` — `CarFactory`, `CarPhysics`, `CarController`
+- `src/game/ai/` — `AIManager`, `pathUtils` (Yuka-based steering)
 - `src/game/track/` — `TrackDefinition`, `TrackBuilder`, `HazardSystem`
-- `src/game/race/` — `RaceManager`, `StartSequence`, `Minimap`
+- `src/game/race/` — `RaceManager`, `VersusRaceManager`, `StartSequence`, `Minimap`
 - `src/game/camera/` — `TopDownCamera`
 - `src/game/collision/` — `CollisionSystem`
-- `src/game/effects/` — `CollisionParticleSystem`, `TireSmokeSystem`
+- `src/game/effects/` — `CollisionParticleSystem`, `TireSmokeSystem`, `SplatterDecalSystem`, `HazardSplashSystem`
 - `src/game/scene/` — `TableScene`, `LightingSetup`, `ObstacleFactory`, `TrackBoundaryObjects`, `TireMarkSystem`, `KitchenItems`, `ProceduralTextures`
-- `src/components/hud/` — `Speedometer`, `LapTimer`, `Countdown`, `MinimapDisplay`, `PositionIndicator`
-- `src/components/screens/` — `MainMenu`, `TrackSelect`, `CarSelect`, `LapSelect`, `RaceScreen`, `Scoreboard`
-- `src/constants/` — `cars.ts`, `track.ts`, `physics.ts`
-- `src/state/` — `GameStateEmitter`
+- `src/components/hud/` — `Speedometer`, `LapTimer`, `CheckpointTimer`, `Countdown`, `MinimapDisplay`, `PositionIndicator`, `WrongWayIndicator`, `VersusScoreDisplay`, `VersusRoundOverlay`
+- `src/components/screens/` — `MainMenu`, `TrackSelect`, `CarSelect`, `LapSelect`, `RaceScreen`, `PracticeScreen`, `VersusCarSelect`, `VersusRaceScreen`, `VersusEndScreen`, `Scoreboard`, `TrackEditor`
+- `src/constants/` — `cars.ts`, `track.ts`, `physics.ts`, `camera.ts`, `aiRacer.ts`
+- `src/state/` — `GameStateEmitter`, `VersusStateEmitter`
+- `src/hooks/` — `useGameState`, `useGameEngine`, `useVersusGameState`, `useVersusGameEngine`
 - `src/types/game.ts` — shared types
-- `src/assets/tracks/` — track preview images
 
-The Three.js game loop runs independently of React; React handles UI overlays (HUD, menus). `GameEngine` is instantiated imperatively inside `RaceScreen`.
+The Three.js game loop runs independently of React; React handles UI overlays (HUD, menus). Engine classes are instantiated imperatively inside their respective screen components.
 
 ## Physics & Driving Mechanics
 

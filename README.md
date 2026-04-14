@@ -1,73 +1,73 @@
-# React + TypeScript + Vite
+# 3D Racing Game Prototype
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A top-down 3D racing game built with React 19 + TypeScript + Three.js. Supports single-player racing, practice mode, and local versus (split-input) mode.
 
-Currently, two official plugins are available:
+## Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **React 19** — UI overlays (HUD, menus, screens)
+- **Three.js 0.183** — 3D rendering, game loop
+- **Yuka 0.7.8** — AI steering / pathfinding for bot opponents
+- **Vite 8** — dev server + build
+- **TypeScript 5.9** (strict mode)
 
-## React Compiler
+## Getting Started
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev       # Start dev server with HMR
+npm run preview   # Preview production build
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Game Modes
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- **Race** — single-player race against AI bots across multiple laps
+- **Practice** — free drive with no opponents or timers
+- **Versus** — local multiplayer (two players on one keyboard)
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Controls
+
+| Action | Player 1 | Player 2 |
+|--------|----------|----------|
+| Accelerate | W / ↑ | — |
+| Brake/Reverse | S / ↓ | — |
+| Steer | A / D | — |
+| Handbrake | Space | — |
+
+*(Versus mode binds a second set of keys for Player 2)*
+
+## Project Structure
+
+```
+src/
+├── App.tsx                     # Phase router: menu → trackSelect → carSelect → lapSelect → racing
+├── constants/                  # cars.ts, track.ts, physics.ts, camera.ts, aiRacer.ts
+├── types/game.ts               # Shared types
+├── state/                      # GameStateEmitter, VersusStateEmitter
+├── hooks/                      # useGameState, useGameEngine, useVersusGameState, useVersusGameEngine
+├── game/
+│   ├── GameEngine.ts           # Single-player game loop
+│   ├── VersusGameEngine.ts     # Versus game loop
+│   ├── PracticeEngine.ts       # Practice game loop
+│   ├── InputManager.ts
+│   ├── car/                    # CarFactory, CarPhysics, CarController
+│   ├── ai/                     # AIManager, pathUtils (Yuka-based)
+│   ├── track/                  # TrackDefinition, TrackBuilder, HazardSystem
+│   ├── race/                   # RaceManager, VersusRaceManager, StartSequence, Minimap
+│   ├── camera/                 # TopDownCamera
+│   ├── collision/              # CollisionSystem
+│   ├── effects/                # CollisionParticleSystem, TireSmokeSystem, SplatterDecalSystem, HazardSplashSystem
+│   └── scene/                  # TableScene, LightingSetup, ObstacleFactory, TrackBoundaryObjects, TireMarkSystem, KitchenItems, ProceduralTextures
+└── components/
+    ├── hud/                    # Speedometer, LapTimer, Countdown, MinimapDisplay, PositionIndicator, WrongWayIndicator, VersusScoreDisplay, VersusRoundOverlay, CheckpointTimer
+    └── screens/                # MainMenu, TrackSelect, CarSelect, LapSelect, RaceScreen, PracticeScreen, VersusCarSelect, VersusRaceScreen, VersusEndScreen, Scoreboard, TrackEditor
+```
+
+## Development Commands
+
+```bash
+npm run dev           # Dev server (HMR)
+npm run build         # Production build
+npm run type-check    # TypeScript check
+npm run lint          # ESLint (flat config v9+)
+npm run preview       # Preview build
 ```
