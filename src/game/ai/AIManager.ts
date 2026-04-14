@@ -40,6 +40,7 @@ export class AIManager {
   private readonly obstacleEntities: YUKA.GameEntity[];
   private readonly vehicles: Map<string, AiVehicleState> = new Map();
   private readonly yukaForce: YUKA.Vector3 = new YUKA.Vector3();
+  private readonly playerEntity: YUKA.Vehicle;
 
   constructor(
     track: TrackDefinition,
@@ -79,6 +80,9 @@ export class AIManager {
       }
       this.obstacleEntities.push(e);
     }
+
+    this.playerEntity = new YUKA.Vehicle();
+    this.playerEntity.boundingRadius = 2.5;
   }
 
   addCar(carId: string, skillLevel: number, params: DifficultyParams): void {
@@ -149,19 +153,29 @@ export class AIManager {
     });
   }
 
-  /** Set each vehicle's neighbors to all other AI vehicles for SeparationBehavior. */
+  /** Set each vehicle's neighbors to all other AI vehicles + player for SeparationBehavior. */
   linkNeighbors(): void {
-    const allVehicles = Array.from(this.vehicles.values()).map(
-      (s) => s.vehicle,
-    );
+    const allVehicles = Array.from(this.vehicles.values()).map((s) => s.vehicle);
     for (const state of this.vehicles.values()) {
-      // neighbors is typed readonly but Yuka expects it to be set externally for SeparationBehavior
-      (state.vehicle as { neighbors: YUKA.GameEntity[] }).neighbors =
-        allVehicles.filter((v) => v !== state.vehicle);
+      (state.vehicle as { neighbors: YUKA.GameEntity[] }).neighbors = [
+        ...allVehicles.filter((v) => v !== state.vehicle),
+        this.playerEntity,
+      ];
     }
   }
 
   update(cars: CarState[], dt: number): void {
+    // Sync player proxy for SeparationBehavior
+    const playerCar = cars.find((c) => c.isPlayer);
+    if (playerCar) {
+      this.playerEntity.position.set(playerCar.position.x, 0, playerCar.position.z);
+      this.playerEntity.velocity.set(
+        Math.sin(playerCar.rotation) * playerCar.speed,
+        0,
+        Math.cos(playerCar.rotation) * playerCar.speed,
+      );
+    }
+
     for (const car of cars) {
       if (car.isPlayer) continue;
       const state = this.vehicles.get(car.id);
