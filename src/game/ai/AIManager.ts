@@ -11,7 +11,7 @@ import {
 } from "../../constants/aiRacer.js";
 import { buildYukaPath } from "./pathUtils.js";
 
-const WAYPOINT_COUNT = 400;
+const WAYPOINT_COUNT = 600;
 
 interface DelayedInput {
   steer: number;
@@ -30,6 +30,8 @@ interface AiVehicleState {
   reverseTimer: number;
   wrongWayTimer: number;
   separation: YUKA.SeparationBehavior;
+  onPath: YUKA.OnPathBehavior;
+  followPath: YUKA.FollowPathBehavior;
 }
 
 export class AIManager {
@@ -142,6 +144,8 @@ export class AIManager {
       reverseTimer: 0,
       wrongWayTimer: 0,
       separation,
+      onPath,
+      followPath,
     });
   }
 
@@ -195,6 +199,23 @@ export class AIManager {
         state.wrongWayTimer = 0;
       }
 
+      // Dynamic look-ahead & corner containment
+      const tAhead = (car.currentT + 0.05) % 1;
+      const tangentAhead = this.track.getTangentAt(tAhead);
+      const cornerSharpness = 1 - tangentNow.dot(tangentAhead);
+
+      // 1. Dynamic look-ahead: 30 on straights → 8 in hairpins
+      state.followPath.nextWaypointDistance = Math.max(8, 30 * (1 - cornerSharpness * 5));
+
+      // 2. OnPath weight spike: base → up to 5.0 in hairpins
+      state.onPath.weight = Math.min(5.0, AI_BEHAVIOR_WEIGHTS.onPath + cornerSharpness * 4);
+
+      // 3. OnPath radius: 0.8×width on straights → 0.5×width in corners
+      state.onPath.radius = this.track.width * Math.max(0.5, 0.8 - cornerSharpness * 0.6);
+
+      // 4. MaxForce boost: base → up to +20 in hairpins
+      state.vehicle.maxForce = AI_VEHICLE.maxForce + cornerSharpness * 20;
+
       // C. Compute combined steering force from all 4 behaviors
       this.yukaForce.set(0, 0, 0);
       state.vehicle.steering.calculate(dt, this.yukaForce);
@@ -217,7 +238,10 @@ export class AIManager {
         if (Math.abs(angleDiff) < 0.05) {
           rawSteer = 0;
         } else {
-          rawSteer = Math.max(-1, Math.min(1, angleDiff * AI_CONFIG.steeringGain));
+          rawSteer = Math.max(
+            -1,
+            Math.min(1, angleDiff * AI_CONFIG.steeringGain),
+          );
         }
       }
 
