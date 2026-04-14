@@ -11,7 +11,7 @@ import {
 } from "../../constants/aiRacer.js";
 import { buildYukaPath } from "./pathUtils.js";
 
-const WAYPOINT_COUNT = 120;
+const WAYPOINT_COUNT = 400;
 
 interface DelayedInput {
   steer: number;
@@ -23,11 +23,12 @@ interface AiVehicleState {
   path: YUKA.Path;
   params: DifficultyParams;
   skillLevel: number;
-  pathInitialized: boolean;
   reactionBuffer: DelayedInput[];
   reactionHead: number;
   reactionSize: number;
   stuckTimer: number;
+  reverseTimer: number;
+  separation: YUKA.SeparationBehavior;
 }
 
 export class AIManager {
@@ -133,11 +134,12 @@ export class AIManager {
       path,
       params,
       skillLevel,
-      pathInitialized: false,
       reactionBuffer,
       reactionHead: 0,
       reactionSize,
       stuckTimer: 0,
+      reverseTimer: 0,
+      separation,
     });
   }
 
@@ -159,23 +161,23 @@ export class AIManager {
       const state = this.vehicles.get(car.id);
       if (!state) continue;
 
-      // A. Initialize path index on first frame
-      if (!state.pathInitialized) {
-        state.pathInitialized = true;
-        const targetIdx =
-          Math.round(car.currentT * WAYPOINT_COUNT) % WAYPOINT_COUNT;
-        for (let i = 0; i < targetIdx; i++) state.path.advance();
-      }
+      // A. Sync path index to current race progress every frame
+      const targetIdx = Math.floor(car.currentT * (WAYPOINT_COUNT - 1));
+      (state.path as any)._index = targetIdx;
 
       // B. Sync Yuka vehicle to real car state
       state.vehicle.position.set(car.position.x, 0, car.position.z);
       state.vehicle.rotation.fromEuler(0, car.rotation, 0);
-      const effectiveSpeed = Math.max(1, Math.abs(car.speed));
+      const effectiveSpeed = car.speed !== 0 ? car.speed : 1;
       state.vehicle.velocity.set(
         Math.sin(car.rotation) * effectiveSpeed,
         0,
         Math.cos(car.rotation) * effectiveSpeed,
       );
+
+      // Suppress separation before cars are moving to avoid start-grid diving
+      state.separation.weight =
+        car.speed < 3.0 ? 0 : AI_BEHAVIOR_WEIGHTS.separation;
 
       // C. Compute combined steering force from all 4 behaviors
       this.yukaForce.set(0, 0, 0);
@@ -229,15 +231,25 @@ export class AIManager {
       }
 
       // Stuck recovery
-      const STUCK_SPEED_THRESHOLD = 0.5;
-      const STUCK_RECOVERY_TIME = 1.0;
-      if (Math.abs(car.speed) < STUCK_SPEED_THRESHOLD) {
-        state.stuckTimer += dt;
-      } else {
+      const STUCK_SPEED = 2.0;
+      const STUCK_THRESH = 1.2; // seconds before triggering reverse
+      const REVERSE_DUR = 1.5; // seconds to stay in reverse
+
+      if (state.reverseTimer > 0) {
+        state.reverseTimer -= dt;
+        rawThrottle = -0.7;
+        rawSteer = -rawSteer; // invert steer so car swings away from wall
         state.stuckTimer = 0;
-      }
-      if (state.stuckTimer > STUCK_RECOVERY_TIME) {
-        rawThrottle = 1.0;
+      } else {
+        if (Math.abs(car.speed) < STUCK_SPEED && rawThrottle > 0) {
+          state.stuckTimer += dt;
+        } else {
+          state.stuckTimer = 0;
+        }
+        if (state.stuckTimer > STUCK_THRESH) {
+          state.reverseTimer = REVERSE_DUR;
+          state.stuckTimer = 0;
+        }
       }
 
       // H. Reaction delay ring buffer
