@@ -5,13 +5,13 @@ import type { Difficulty } from "../types/game.js";
 // The net force from all behaviors is summed and capped at maxForce.
 export const AI_BEHAVIOR_WEIGHTS = {
   /** Soft containment — wide radius does the work, low weight avoids fighting followPath. */
-  onPath: 2.5,
+  onPath: 3.0,
   /** Primary driver — dominates steering, advances along waypoints. */
   followPath: 1.5,
   /** Emergency swerve when a hazard zone or static obstacle is in the detection box. */
   obstacleAvoidance: 3.0,
   /** Gentle push-apart — low to avoid violent swerving during overtakes. */
-  separation: 0.8,
+  separation: 0.3,
 } as const;
 
 // ─── Yuka Vehicle Settings ──────────────────────────────────────────────────
@@ -80,20 +80,20 @@ export const DIFFICULTY_CONFIG: Record<Difficulty, DifficultyParams> = {
     steeringNoise: 0.18,
     reactionDelay: 0.1,
     brakeSensitivity: 0.28,
-    nextWaypointDistance: 25.0,
+    nextWaypointDistance: 30.0,
   },
   medium: {
     skillRange: [0.82, 0.9],
     steeringNoise: 0.09,
     reactionDelay: 0.07,
     brakeSensitivity: 0.38,
-    nextWaypointDistance: 22.0,
+    nextWaypointDistance: 30.0,
   },
   hard: {
     skillRange: [0.94, 1.0],
     steeringNoise: 0.03,
     reactionDelay: 0.02,
     brakeSensitivity: 0.48,
-    nextWaypointDistance: 20.0,
+    nextWaypointDistance: 30.0,
   },
 } as const;

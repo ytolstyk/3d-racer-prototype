@@ -28,6 +28,7 @@ interface AiVehicleState {
   reactionSize: number;
   stuckTimer: number;
   reverseTimer: number;
+  wrongWayTimer: number;
   separation: YUKA.SeparationBehavior;
 }
 
@@ -139,6 +140,7 @@ export class AIManager {
       reactionSize,
       stuckTimer: 0,
       reverseTimer: 0,
+      wrongWayTimer: 0,
       separation,
     });
   }
@@ -179,6 +181,20 @@ export class AIManager {
       state.separation.weight =
         car.speed < 3.0 ? 0 : AI_BEHAVIOR_WEIGHTS.separation;
 
+      // Wrong-way detection
+      const fwdX = Math.sin(car.rotation);
+      const fwdZ = Math.cos(car.rotation);
+      const tangentNow = this.track.getTangentAt(car.currentT);
+      const dotProduct = fwdX * tangentNow.x + fwdZ * tangentNow.z;
+      if (dotProduct < -0.5) {
+        state.wrongWayTimer += dt;
+        if (state.wrongWayTimer > 2.0) {
+          this.resetVehicle(car, state);
+        }
+      } else {
+        state.wrongWayTimer = 0;
+      }
+
       // C. Compute combined steering force from all 4 behaviors
       this.yukaForce.set(0, 0, 0);
       state.vehicle.steering.calculate(dt, this.yukaForce);
@@ -197,10 +213,12 @@ export class AIManager {
         let angleDiff = forceAngle - car.rotation;
         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
         while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-        rawSteer = Math.max(
-          -1,
-          Math.min(1, angleDiff * AI_CONFIG.steeringGain),
-        );
+        // Dead-zone: suppress micro-corrections on straightaways
+        if (Math.abs(angleDiff) < 0.05) {
+          rawSteer = 0;
+        } else {
+          rawSteer = Math.max(-1, Math.min(1, angleDiff * AI_CONFIG.steeringGain));
+        }
       }
 
       // F. Noise
@@ -208,7 +226,6 @@ export class AIManager {
       rawSteer = Math.max(-1, Math.min(1, rawSteer));
 
       // G. Throttle with look-ahead braking
-      const tangentNow = this.track.getTangentAt(car.currentT);
       const tMid = (car.currentT + AI_CONFIG.lookAhead * 2) % 1;
       const tFar = (car.currentT + AI_CONFIG.lookAhead * 4) % 1;
       const sharpMid = 1 - tangentNow.dot(this.track.getTangentAt(tMid));
@@ -266,6 +283,17 @@ export class AIManager {
       this.physics.applySteering(car, delayed.steer, dt);
       this.physics.updatePosition(car, dt);
     }
+  }
+
+  private resetVehicle(car: CarState, state: AiVehicleState): void {
+    const pt = this.track.getPointAt(car.currentT);
+    const tan = this.track.getTangentAt(car.currentT);
+    car.position.x = pt.x;
+    car.position.z = pt.z;
+    car.rotation = Math.atan2(tan.x, tan.z);
+    car.speed = 0;
+    state.stuckTimer = 0;
+    state.wrongWayTimer = 0;
   }
 
   dispose(): void {
