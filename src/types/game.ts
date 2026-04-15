@@ -45,6 +45,9 @@ export interface VersusGameState {
   stats: VersusStats;
   carPositions: MinimapCar[];
   trackPoints: MinimapPoint[];
+  p1WrongWay: boolean;
+  p2WrongWay: boolean;
+  startFinish: MinimapStartFinish | null;
 }
 
 export interface CarDefinition {
@@ -74,6 +77,7 @@ export interface CarState {
   previousT: number;
   hasPassedHalfway: boolean; // guard to prevent false lap on race start
   hasPassedQuarter: boolean; // additional guard for reverse cheating prevention
+  hasPassedThreeQuarter: boolean; // third waypoint guard
   completedLaps: number;
   bestLapTime: number;
   currentLapStart: number;
@@ -85,6 +89,10 @@ export interface CarState {
   burnoutTimer: number;
   boostMultiplier: number; // speed cap multiplier from boost pads/tracks (default 1.0)
   boostDecayRate: number;  // per-second lerp rate back to 1.0 (0 = no decay)
+  accelBoostTimer: number; // countdown for acceleration boost (seconds remaining)
+  accelBoostMultiplier: number; // current acceleration multiplier (decays to 1.0)
+  pushVelocityX: number; // pending rain push velocity X
+  pushVelocityZ: number; // pending rain push velocity Z
   // Checkpoint state
   checkpointBests: number[];
   lastCheckpointTime: number;
@@ -141,6 +149,7 @@ export interface GameState {
   results: RaceResult[];
   carPositions: MinimapCar[];
   trackPoints: MinimapPoint[];
+  startFinish: MinimapStartFinish | null;
   playerFinished: boolean;
   // Checkpoint HUD
   checkpointSegmentTime: number;
@@ -159,6 +168,13 @@ export interface MinimapCar {
 export interface MinimapPoint {
   x: number;
   z: number;
+}
+
+export interface MinimapStartFinish {
+  x: number;
+  z: number;
+  tx: number; // tangent x (for perpendicular orientation)
+  tz: number; // tangent z
 }
 
 export interface ObstacleDef {

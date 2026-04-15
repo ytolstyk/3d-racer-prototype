@@ -5,7 +5,7 @@ import { TRACKS } from '../../constants/track.js';
 import type { KitchenItemType, PlacedObject, TunnelSection, PlacedLight, LightType, SpeedStrip, BoostTrack, RainZone } from '../../types/game.js';
 import { OBJECT_HEIGHTS } from '../../game/scene/KitchenItems.js';
 
-type Tool = 'pen' | 'line' | 'eraser' | 'move' | 'startPoint' | 'insert' | 'object' | 'tunnel' | 'hazard' | 'light' | 'speedStrip' | 'boostTrack' | 'rain';
+type Tool = 'pen' | 'line' | 'eraser' | 'move' | 'startPoint' | 'insert' | 'object' | 'tunnel' | 'hazard' | 'light' | 'speedStrip' | 'boostTrack' | 'rain' | 'select';
 
 type HazardType = 'juice' | 'milk' | 'oil' | 'butter';
 
@@ -123,6 +123,8 @@ interface EditorState {
   rainZoneStartT: number | null; // temp state for rain zone placement
   activeBoostSide: 'left' | 'right';
   pointRotations: number[];
+  selectedPoints: number[];
+  selectionRect: { x1: number; y1: number; x2: number; y2: number } | null;
 }
 
 type EditorAction =
@@ -186,7 +188,12 @@ type EditorAction =
   | { type: 'ADD_RAIN_ZONE'; rainZone: RainZone }
   | { type: 'DELETE_RAIN_ZONE'; index: number }
   | { type: 'SET_RAIN_ZONE_START'; t: number | null }
-  | { type: 'SET_POINT_ROTATION'; index: number; rotation: number };
+  | { type: 'SET_POINT_ROTATION'; index: number; rotation: number }
+  | { type: 'SELECT_POINTS'; indices: number[]; append: boolean }
+  | { type: 'CLEAR_SELECTION' }
+  | { type: 'MOVE_SELECTED_POINTS'; dx: number; dz: number }
+  | { type: 'ROTATE_SELECTED_POINTS'; angle: number }
+  | { type: 'SET_SELECTION_RECT'; rect: { x1: number; y1: number; x2: number; y2: number } | null };
 
 const initialState: EditorState = {
   points: [],
@@ -221,6 +228,8 @@ const initialState: EditorState = {
   rainZoneStartT: null,
   activeBoostSide: 'left',
   pointRotations: [],
+  selectedPoints: [],
+  selectionRect: null,
 };
 
 function getInitialState(): EditorState {
@@ -352,7 +361,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     }
 
     case 'SET_TOOL':
-      return { ...state, activeTool: action.tool, selectedObjectIndex: -1, selectedHazardIndex: -1, selectedLightIndex: -1 };
+      return { ...state, activeTool: action.tool, selectedObjectIndex: -1, selectedHazardIndex: -1, selectedLightIndex: -1, selectedPoints: [], selectionRect: null };
 
     case 'SET_NAME':
       return { ...state, trackName: action.name };
@@ -598,6 +607,54 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       return { ...state, pointRotations: rotations };
     }
 
+    case 'SELECT_POINTS': {
+      if (action.append) {
+        const existing = new Set(state.selectedPoints);
+        for (const idx of action.indices) {
+          if (existing.has(idx)) existing.delete(idx);
+          else existing.add(idx);
+        }
+        return { ...state, selectedPoints: Array.from(existing) };
+      }
+      return { ...state, selectedPoints: action.indices };
+    }
+
+    case 'CLEAR_SELECTION':
+      return { ...state, selectedPoints: [], selectionRect: null };
+
+    case 'MOVE_SELECTED_POINTS': {
+      const pts = [...state.points] as [number, number][];
+      for (const idx of state.selectedPoints) {
+        if (idx >= 0 && idx < pts.length) {
+          pts[idx] = [pts[idx][0] + action.dx, pts[idx][1] + action.dz];
+        }
+      }
+      return { ...state, points: pts };
+    }
+
+    case 'ROTATE_SELECTED_POINTS': {
+      if (state.selectedPoints.length === 0) return state;
+      const pts = [...state.points] as [number, number][];
+      const sel = state.selectedPoints.filter(i => i >= 0 && i < pts.length);
+      if (sel.length === 0) return state;
+      // Compute centroid
+      let cx = 0, cy = 0;
+      for (const i of sel) { cx += pts[i][0]; cy += pts[i][1]; }
+      cx /= sel.length;
+      cy /= sel.length;
+      const cos = Math.cos(action.angle);
+      const sin = Math.sin(action.angle);
+      for (const i of sel) {
+        const dx = pts[i][0] - cx;
+        const dy = pts[i][1] - cy;
+        pts[i] = [cx + dx * cos - dy * sin, cy + dx * sin + dy * cos];
+      }
+      return { ...state, points: pts };
+    }
+
+    case 'SET_SELECTION_RECT':
+      return { ...state, selectionRect: action.rect };
+
     default:
       return state;
   }
@@ -697,6 +754,9 @@ export function TrackEditor() {
   const lightMoveRef = useRef<{ idx: number; offX: number; offZ: number } | null>(null);
   const lightTargetRef = useRef<{ idx: number } | null>(null);
   const lightDistanceRef = useRef<{ idx: number } | null>(null);
+  const selectRectStartRef = useRef<[number, number] | null>(null);
+  const selectDragLastRef = useRef<[number, number] | null>(null);
+  const selectDraggingPointsRef = useRef(false);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -1390,6 +1450,38 @@ export function TrackEditor() {
       ctx.stroke();
     }
 
+    // Selected points highlight (cyan ring) for select tool
+    {
+      const { selectedPoints, selectionRect } = stateRef.current;
+      if (selectedPoints.length > 0) {
+        for (const si of selectedPoints) {
+          if (si >= 0 && si < points.length) {
+            const [sx, sy] = points[si];
+            ctx.beginPath();
+            ctx.arc(sx, sy, ptR * 2.2, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(0, 255, 255, 0.85)';
+            ctx.lineWidth = 2.5 * invZoom;
+            ctx.stroke();
+          }
+        }
+      }
+      // Selection rectangle
+      if (selectionRect) {
+        const { x1, y1, x2, y2 } = selectionRect;
+        const rx = Math.min(x1, x2);
+        const ry = Math.min(y1, y2);
+        const rw = Math.abs(x2 - x1);
+        const rh = Math.abs(y2 - y1);
+        ctx.setLineDash([6 * invZoom, 4 * invZoom]);
+        ctx.strokeStyle = 'rgba(0, 255, 255, 0.7)';
+        ctx.lineWidth = 1.5 * invZoom;
+        ctx.strokeRect(rx, ry, rw, rh);
+        ctx.fillStyle = 'rgba(0, 255, 255, 0.08)';
+        ctx.fillRect(rx, ry, rw, rh);
+        ctx.setLineDash([]);
+      }
+    }
+
     // Hazard ghost preview when hovering in hazard tool (not over an existing hazard)
     if (activeTool === 'hazard' && hover) {
       ctx.beginPath();
@@ -1453,6 +1545,14 @@ export function TrackEditor() {
     if (!canvas) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
+
+      // Rotate selected points with scroll when select tool is active
+      if (stateRef.current.activeTool === 'select' && stateRef.current.selectedPoints.length > 0) {
+        const angle = (e.deltaY > 0 ? 1 : -1) * Math.PI / 36; // 5 degrees per tick
+        dispatch({ type: 'ROTATE_SELECTED_POINTS', angle });
+        draw();
+        return;
+      }
 
       // Normal zoom
       const rect = canvas.getBoundingClientRect();
@@ -1547,7 +1647,7 @@ export function TrackEditor() {
       }
 
       const map: Record<string, Tool> = {
-        p: 'pen', l: 'line', e: 'eraser', m: 'move', s: 'startPoint', i: 'insert', o: 'object', t: 'tunnel', x: 'hazard', v: 'light',
+        p: 'pen', l: 'line', e: 'eraser', m: 'move', s: 'startPoint', i: 'insert', o: 'object', t: 'tunnel', x: 'hazard', v: 'light', a: 'select',
       };
       const tool = map[e.key.toLowerCase()];
       if (tool) {
@@ -2016,6 +2116,31 @@ export function TrackEditor() {
           dispatch({ type: 'ADD_RAIN_ZONE', rainZone: { tStart, tEnd } });
         }
       }
+    } else if (activeTool === 'select') {
+      const nearIdx = findNearestPoint(pos, 10);
+      const { selectedPoints: selPts } = stateRef.current;
+
+      if (nearIdx !== -1) {
+        // Clicked near a point
+        if (e.shiftKey) {
+          // Toggle this point in selection
+          dispatch({ type: 'SELECT_POINTS', indices: [nearIdx], append: true });
+        } else if (selPts.includes(nearIdx)) {
+          // Clicking an already-selected point: prepare for drag-move
+          dispatch({ type: 'PUSH_HISTORY' });
+          selectDraggingPointsRef.current = true;
+          selectDragLastRef.current = pos;
+        } else {
+          // Replace selection with this point
+          dispatch({ type: 'SELECT_POINTS', indices: [nearIdx], append: false });
+        }
+      } else {
+        // Clicked empty space: start rectangle selection
+        if (!e.shiftKey) {
+          dispatch({ type: 'CLEAR_SELECTION' });
+        }
+        selectRectStartRef.current = pos;
+      }
     }
   };
 
@@ -2157,6 +2282,21 @@ export function TrackEditor() {
         dispatch({ type: 'SET_LIGHT_DISTANCE', index: idx, distance: newDist });
         return;
       }
+      if (activeTool === 'select' && selectDraggingPointsRef.current && selectDragLastRef.current) {
+        const dx = pos[0] - selectDragLastRef.current[0];
+        const dz = pos[1] - selectDragLastRef.current[1];
+        dispatch({ type: 'MOVE_SELECTED_POINTS', dx, dz });
+        selectDragLastRef.current = pos;
+        draw();
+        return;
+      }
+      if (activeTool === 'select' && selectRectStartRef.current) {
+        dispatch({
+          type: 'SET_SELECTION_RECT',
+          rect: { x1: selectRectStartRef.current[0], y1: selectRectStartRef.current[1], x2: pos[0], y2: pos[1] },
+        });
+        return;
+      }
     }
 
     draw();
@@ -2194,6 +2334,33 @@ export function TrackEditor() {
       hazardMoveRef.current = null;
       hazardEdgeRef.current = null;
       hazardRotateRef.current = null;
+      draw();
+      return;
+    }
+
+    if (activeTool === 'select') {
+      if (selectRectStartRef.current) {
+        // Complete rectangle selection
+        const rect = stateRef.current.selectionRect;
+        if (rect) {
+          const rx1 = Math.min(rect.x1, rect.x2);
+          const ry1 = Math.min(rect.y1, rect.y2);
+          const rx2 = Math.max(rect.x1, rect.x2);
+          const ry2 = Math.max(rect.y1, rect.y2);
+          const indices: number[] = [];
+          const pts = stateRef.current.points;
+          for (let i = 0; i < pts.length; i++) {
+            if (pts[i][0] >= rx1 && pts[i][0] <= rx2 && pts[i][1] >= ry1 && pts[i][1] <= ry2) {
+              indices.push(i);
+            }
+          }
+          dispatch({ type: 'SELECT_POINTS', indices, append: e.shiftKey });
+        }
+        dispatch({ type: 'SET_SELECTION_RECT', rect: null });
+        selectRectStartRef.current = null;
+      }
+      selectDraggingPointsRef.current = false;
+      selectDragLastRef.current = null;
       draw();
       return;
     }
@@ -2351,6 +2518,9 @@ export function TrackEditor() {
     lightMoveRef.current = null;
     lightTargetRef.current = null;
     lightDistanceRef.current = null;
+    selectRectStartRef.current = null;
+    selectDragLastRef.current = null;
+    selectDraggingPointsRef.current = false;
     draw();
   };
 
@@ -2523,6 +2693,7 @@ export function TrackEditor() {
     { id: 'speedStrip', label: 'Speed Strip', key: '' },
     { id: 'boostTrack', label: 'Boost Track', key: '' },
     { id: 'rain', label: 'Rain', key: '' },
+    { id: 'select', label: 'Select', key: 'A' },
   ];
 
   const selectedObj = state.selectedObjectIndex !== -1 ? state.objects[state.selectedObjectIndex] : null;

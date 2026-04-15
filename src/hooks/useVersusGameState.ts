@@ -31,6 +31,9 @@ const DEFAULT_STATE: VersusGameState = {
   },
   carPositions: [],
   trackPoints: [],
+  p1WrongWay: false,
+  p2WrongWay: false,
+  startFinish: null,
 };
 
 export function useVersusGameState(emitter: VersusStateEmitter): VersusGameState {

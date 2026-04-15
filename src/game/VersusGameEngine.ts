@@ -63,6 +63,7 @@ export class VersusGameEngine {
   private rainSystem: RainHazardSystem | null = null;
   private speedStrips: SpeedStrip[] = [];
   private boostTracks: BoostTrack[] = [];
+  private trackGroup: THREE.Group | null = null;
   private carHazardState: Map<string, CarHazardState> = new Map();
 
   private p1Score = 0;
@@ -133,7 +134,8 @@ export class VersusGameEngine {
     this.track = new TrackDefinition(trackConfig, reverse);
     this.speedStrips = trackConfig.speedStrips ?? [];
     this.boostTracks = trackConfig.boostTracks ?? [];
-    this.scene.add(new TrackBuilder().build(this.track, trackConfig.tunnels ?? [], this.speedStrips, this.boostTracks));
+    this.trackGroup = new TrackBuilder().build(this.track, trackConfig.tunnels ?? [], this.speedStrips, this.boostTracks);
+    this.scene.add(this.trackGroup);
 
     this.hazardSystem = new HazardSystem(this.track);
     this.scene.add(this.hazardSystem.buildMeshes());
@@ -254,6 +256,7 @@ export class VersusGameEngine {
         previousT: t,
         hasPassedHalfway: false,
         hasPassedQuarter: false,
+        hasPassedThreeQuarter: false,
         completedLaps: 0,
         bestLapTime: 0,
         currentLapStart: 0,
@@ -270,6 +273,10 @@ export class VersusGameEngine {
         burnoutTimer: 0,
         boostMultiplier: 1.0,
         boostDecayRate: 0,
+        accelBoostTimer: 0,
+        accelBoostMultiplier: 1.0,
+        pushVelocityX: 0,
+        pushVelocityZ: 0,
       };
     };
 
@@ -317,6 +324,7 @@ export class VersusGameEngine {
       car.previousT = car.currentT;
       car.hasPassedHalfway = false;
       car.hasPassedQuarter = false;
+      car.hasPassedThreeQuarter = false;
     };
 
     resetCar(this.car1, spawn1);
@@ -357,9 +365,11 @@ export class VersusGameEngine {
       for (const strip of this.speedStrips) {
         const crossed = (car.previousT < strip.t && car.currentT >= strip.t) ||
           (car.previousT > 0.9 && car.currentT < 0.1 && strip.t < car.currentT);
-        if (crossed && car.boostMultiplier < SPEED_STRIP.boostMultiplier) {
-          car.boostMultiplier = SPEED_STRIP.boostMultiplier;
-          car.boostDecayRate = SPEED_STRIP.decayRate;
+        if (crossed) {
+          car.boostMultiplier = Math.max(car.boostMultiplier, SPEED_STRIP.maxSpeedCap);
+          car.boostDecayRate = SPEED_STRIP.capDecayRate;
+          car.accelBoostTimer = SPEED_STRIP.accelBoostDuration;
+          car.accelBoostMultiplier = SPEED_STRIP.accelMultiplier;
         }
       }
       let onBoostTrack = false;
@@ -396,17 +406,26 @@ export class VersusGameEngine {
       const wasInHazard = hs.inHazard;
       hs.inHazard = true;
       hs.zoneType = effect.zoneType;
+      const color = HAZARD_HEX_COLORS[effect.zoneType] ?? 0xffffff;
+      const sinR = Math.sin(car.rotation);
+      const cosR = Math.cos(car.rotation);
+      const frontX = car.position.x + sinR * 2.5;
+      const frontZ = car.position.z + cosR * 2.5;
+      const leftPos = new THREE.Vector3(frontX + cosR * 1.2, car.position.y, frontZ - sinR * 1.2);
+      const rightPos = new THREE.Vector3(frontX - cosR * 1.2, car.position.y, frontZ + sinR * 1.2);
       if (!wasInHazard) {
         hs.drip = 0;
         hs.splashTimer = 0;
         if (Math.abs(car.speed) >= car.definition.maxSpeed * 0.1) {
-          this.hazardSplash?.emit(car.position, HAZARD_HEX_COLORS[effect.zoneType] ?? 0xffffff, car.speed, car.definition.maxSpeed);
+          this.hazardSplash?.emit(leftPos, color, car.speed, car.definition.maxSpeed, 28, car.rotation);
+          this.hazardSplash?.emit(rightPos, color, car.speed, car.definition.maxSpeed, 27, car.rotation);
         }
       } else if (Math.abs(car.speed) >= car.definition.maxSpeed * 0.1) {
         hs.splashTimer -= dt;
         if (hs.splashTimer <= 0) {
-          hs.splashTimer = 0.25;
-          this.hazardSplash?.emit(car.position, HAZARD_HEX_COLORS[effect.zoneType] ?? 0xffffff, car.speed, car.definition.maxSpeed, 25);
+          hs.splashTimer = 0.06;
+          this.hazardSplash?.emit(leftPos, color, car.speed, car.definition.maxSpeed, 4, car.rotation);
+          this.hazardSplash?.emit(rightPos, color, car.speed, car.definition.maxSpeed, 4, car.rotation);
         }
       }
       this.tireMarks?.addSubstanceMarks(car, hs.zoneType);
@@ -440,6 +459,8 @@ export class VersusGameEngine {
         if (this.car1 && this.car2) {
           this.versusRaceManager.updateT(this.car1);
           this.versusRaceManager.updateT(this.car2);
+          this.versusRaceManager.updateWrongWay(this.car1, dt);
+          this.versusRaceManager.updateWrongWay(this.car2, dt);
 
           this.p1Controller.update(this.car1, this.inputManager.getStateP1(), dt);
           this.p2Controller.update(this.car2, this.inputManager.getStateP2(), dt);
@@ -517,6 +538,11 @@ export class VersusGameEngine {
       );
     }
 
+    // Update animated track materials
+    if (this.trackGroup) {
+      TrackBuilder.updateAnimatedMaterials(this.trackGroup, now / 1000);
+    }
+
     this.renderer.render(this.scene, this.cameraController.camera);
     this.emitState(countdown);
 
@@ -546,6 +572,9 @@ export class VersusGameEngine {
       stats: { ...this.stats },
       carPositions: this.minimap?.getCarPositions(this.cars) ?? [],
       trackPoints: this.minimap?.getTrackPoints() ?? [],
+      p1WrongWay: this.versusRaceManager.isWrongWay(this.car1.id),
+      p2WrongWay: this.versusRaceManager.isWrongWay(this.car2.id),
+      startFinish: this.minimap?.getStartFinish() ?? null,
     };
     this.emitter.emit(state, countdown >= 0);
   }

@@ -54,14 +54,23 @@ export class RaceManager {
         this.wrongWayTimers.set(car.id, isGoingBack ? prev + dt : 0);
       }
 
-      // Track quarter point (anti-reverse guard)
-      if (car.currentT > 0.25 && car.currentT < 0.75) {
+      // Only set waypoint flags when going forward (tDelta > 0 or forward wrap)
+      const tDelta = car.currentT - car.previousT;
+      const goingForward = tDelta > 0.001 || tDelta < -0.5;
+
+      // Track quarter point (anti-reverse guard) — forward only
+      if (goingForward && car.currentT > 0.25 && car.currentT < 0.75) {
         car.hasPassedQuarter = true;
       }
 
-      // Track halfway point so race-start crossing doesn't count as a lap
-      if (car.currentT > 0.5) {
+      // Track halfway point so race-start crossing doesn't count as a lap — forward only
+      if (goingForward && car.currentT > 0.5) {
         car.hasPassedHalfway = true;
+      }
+
+      // Track three-quarter point — additional guard
+      if (goingForward && car.currentT > 0.75) {
+        car.hasPassedThreeQuarter = true;
       }
 
       // Checkpoint detection — forward crossing only
@@ -81,17 +90,18 @@ export class RaceManager {
       }
 
       // Lap detection: crossed start/finish from high T to low T (forward direction only)
-      const tDelta = car.currentT - car.previousT;
-      const isForward = tDelta < -0.5; // true only for genuine forward wrap
+      const isForwardLap = tDelta < -0.5; // true only for genuine forward wrap
       if (
         car.previousT > 0.95 &&
         car.currentT < 0.05 &&
         car.hasPassedHalfway &&
         car.hasPassedQuarter &&
-        isForward
+        car.hasPassedThreeQuarter &&
+        isForwardLap
       ) {
         car.hasPassedHalfway = false;
         car.hasPassedQuarter = false;
+        car.hasPassedThreeQuarter = false;
         car.completedLaps++;
 
         // Reset checkpoint tracking for new lap

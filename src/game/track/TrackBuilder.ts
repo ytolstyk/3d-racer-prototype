@@ -11,6 +11,7 @@ export class TrackBuilder {
     boostTracks: BoostTrack[] = [],
   ): THREE.Group {
     const group = new THREE.Group();
+    const animatedMaterials: THREE.ShaderMaterial[] = [];
 
     // Build track surface (chunked for frustum culling)
     const surface = this.buildSurfaceChunked(track);
@@ -42,15 +43,35 @@ export class TrackBuilder {
 
     // Build speed strips
     for (const strip of speedStrips) {
-      group.add(this.buildSpeedStrip(track, strip.t));
+      const mesh = this.buildSpeedStrip(track, strip.t);
+      group.add(mesh);
+      if ((mesh.material as THREE.ShaderMaterial).userData?.animated) {
+        animatedMaterials.push(mesh.material as THREE.ShaderMaterial);
+      }
     }
 
     // Build boost tracks
     for (const bt of boostTracks) {
-      group.add(this.buildBoostTrack(track, bt));
+      const mesh = this.buildBoostTrack(track, bt);
+      group.add(mesh);
+      if ((mesh.material as THREE.ShaderMaterial).userData?.animated) {
+        animatedMaterials.push(mesh.material as THREE.ShaderMaterial);
+      }
     }
 
+    // Store animated materials for per-frame updates
+    group.userData.animatedMaterials = animatedMaterials;
+
     return group;
+  }
+
+  /** Update all animated shader materials (boost tracks, speed strips) each frame. */
+  static updateAnimatedMaterials(group: THREE.Group, time: number): void {
+    const materials = group.userData.animatedMaterials as THREE.ShaderMaterial[] | undefined;
+    if (!materials) return;
+    for (const mat of materials) {
+      mat.uniforms.time.value = time;
+    }
   }
 
   private buildTunnel(track: TrackDefinition, tStart: number, tEnd: number): THREE.Mesh {
@@ -547,20 +568,65 @@ export class TrackBuilder {
   private buildSpeedStrip(track: TrackDefinition, t: number): THREE.Mesh {
     const point = track.getPointAt(t);
     const tangent = track.getTangentAt(t);
-    const tAngle = Math.atan2(tangent.x, tangent.z);
+    const normal = track.getNormalAt(t);
 
-    const geo = new THREE.PlaneGeometry(track.width - 2, SPEED_STRIP.stripWidth);
-    const mat = new THREE.MeshStandardMaterial({
-      color: SPEED_STRIP.color,
-      emissive: SPEED_STRIP.color,
-      emissiveIntensity: 0.8,
-      roughness: 0.3,
-      metalness: 0.5,
+    const stripWidth = track.width * 0.9;
+    const geo = new THREE.PlaneGeometry(stripWidth, SPEED_STRIP.stripWidth);
+
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        time: { value: 0 },
+        baseColor: { value: new THREE.Color(SPEED_STRIP.color) },
+        direction: { value: new THREE.Vector2(tangent.x, tangent.z).normalize() },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float time;
+        uniform vec3 baseColor;
+        uniform vec2 direction;
+        varying vec2 vUv;
+
+        void main() {
+          // Scrolling chevron pattern along v (track direction)
+          float v = vUv.y * 4.0 - time * 3.0;
+          float u = vUv.x;
+
+          // Chevron shape: V pointing in track direction
+          float chevron = abs(u - 0.5) * 2.0;
+          float pattern = fract(v - chevron * 0.5);
+          float arrow = step(0.55, pattern) * (1.0 - step(0.8, pattern));
+
+          // Pulsing opacity between 0.6 and 1.0
+          float pulse = 0.8 + 0.2 * sin(time * 4.0);
+
+          vec3 color = baseColor * (1.0 + arrow * 0.8);
+          float alpha = mix(0.6, 1.0, pulse) * (0.7 + arrow * 0.3);
+
+          gl_FragColor = vec4(color, alpha);
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
     });
+    mat.userData.animated = true;
 
     const mesh = new THREE.Mesh(geo, mat);
-    mesh.rotation.set(-Math.PI / 2, 0, 0);
-    mesh.rotateZ(-tAngle);
+
+    // Orient the plane flat on the XZ plane perpendicular to track direction
+    // using tangent and normal vectors
+    const up = new THREE.Vector3(0, 1, 0);
+    const basisX = new THREE.Vector3(normal.x, 0, normal.z).normalize();
+    const basisZ = new THREE.Vector3(tangent.x, 0, tangent.z).normalize();
+    const rotMatrix = new THREE.Matrix4().makeBasis(basisX, up, basisZ);
+    mesh.quaternion.setFromRotationMatrix(rotMatrix);
+
     mesh.position.set(point.x, 0.07, point.z);
     return mesh;
   }
@@ -570,8 +636,10 @@ export class TrackBuilder {
     const laneWidth = track.width * BOOST_TRACK.widthFraction;
     const sideSign = bt.side === 'left' ? 1 : -1;
     const laneOffset = (track.width / 2 - laneWidth / 2) * sideSign;
+    const surfaceY = 0.10;
 
     const vertices: number[] = [];
+    const uvs: number[] = [];
     const indices: number[] = [];
 
     for (let i = 0; i <= N; i++) {
@@ -582,9 +650,14 @@ export class TrackBuilder {
       const cx = center.x + normal.x * laneOffset;
       const cz = center.z + normal.z * laneOffset;
       vertices.push(
-        cx + normal.x * laneWidth / 2, BOOST_TRACK.surfaceY, cz + normal.z * laneWidth / 2,
-        cx - normal.x * laneWidth / 2, BOOST_TRACK.surfaceY, cz - normal.z * laneWidth / 2,
+        cx + normal.x * laneWidth / 2, surfaceY, cz + normal.z * laneWidth / 2,
+        cx - normal.x * laneWidth / 2, surfaceY, cz - normal.z * laneWidth / 2,
       );
+
+      // u = lateral 0-1, v = t progress 0-1
+      const vCoord = i / N;
+      uvs.push(0, vCoord);
+      uvs.push(1, vCoord);
 
       if (i > 0) {
         const base = (i - 1) * 2;
@@ -594,19 +667,60 @@ export class TrackBuilder {
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
     geo.setIndex(indices);
     geo.computeVertexNormals();
 
-    const mat = new THREE.MeshStandardMaterial({
-      color: BOOST_TRACK.color,
-      emissive: BOOST_TRACK.color,
-      emissiveIntensity: 0.4,
-      roughness: 0.5,
-      transparent: true,
-      opacity: 0.8,
-    });
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        time: { value: 0 },
+        baseColor: { value: new THREE.Color(BOOST_TRACK.color) },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float time;
+        uniform vec3 baseColor;
+        varying vec2 vUv;
 
-    return new THREE.Mesh(geo, mat);
+        void main() {
+          // Scrolling chevron pattern along track direction (v axis)
+          float v = vUv.y * 8.0 - time * 2.5;
+          float u = vUv.x;
+
+          // Chevron shape: ">" pointing in track direction
+          float chevron = abs(u - 0.5) * 2.0;
+          float pattern = fract(v - chevron * 0.5);
+          float arrow = step(0.5, pattern) * (1.0 - step(0.75, pattern));
+
+          // Pulsing emissive shimmer
+          float shimmer = 0.6 + 0.4 * sin(time * 3.0);
+
+          // Base orange with bright emissive on arrows
+          vec3 color = baseColor * (0.8 + arrow * 1.2 * shimmer);
+
+          // Edge fade for smooth blending
+          float edgeFade = smoothstep(0.0, 0.15, u) * smoothstep(0.0, 0.15, 1.0 - u);
+          float alpha = (0.6 + arrow * 0.4) * edgeFade;
+
+          gl_FragColor = vec4(color, alpha);
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      depthTest: true,
+      side: THREE.DoubleSide,
+    });
+    mat.userData.animated = true;
+
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.renderOrder = 2;
+    return mesh;
   }
 
   buildCheckpointGate(track: TrackDefinition, t: number, index: number): THREE.Group {

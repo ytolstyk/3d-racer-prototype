@@ -92,6 +92,7 @@ export class TireSmokeSystem {
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.count = PARTICLE_COUNT;
     this.mesh.frustumCulled = false;
+    this.mesh.renderOrder = 3;
     scene.add(this.mesh);
 
     for (let i = 0; i < PARTICLE_COUNT; i++) {

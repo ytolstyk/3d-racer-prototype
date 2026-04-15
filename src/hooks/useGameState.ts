@@ -18,6 +18,7 @@ const DEFAULT_STATE: GameState = {
   results: [],
   carPositions: [],
   trackPoints: [],
+  startFinish: null,
   playerFinished: false,
   checkpointSegmentTime: 0,
   checkpointBestTime: 0,

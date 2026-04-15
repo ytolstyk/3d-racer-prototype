@@ -108,6 +108,7 @@ export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, difficul
           <MinimapDisplay
             trackPoints={state.trackPoints}
             carPositions={state.carPositions}
+            startFinish={state.startFinish}
           />
           <CheckpointTimer
             segmentTime={state.checkpointSegmentTime}

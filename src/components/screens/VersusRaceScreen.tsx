@@ -8,6 +8,7 @@ import { Speedometer } from '../hud/Speedometer.js';
 import { VersusScoreDisplay } from '../hud/VersusScoreDisplay.js';
 import { VersusRoundOverlay } from '../hud/VersusRoundOverlay.js';
 import { MinimapDisplay } from '../hud/MinimapDisplay.js';
+import { WrongWayIndicator } from '../hud/WrongWayIndicator.js';
 import { VersusEndScreen } from './VersusEndScreen.js';
 
 interface VersusRaceScreenProps {
@@ -70,9 +71,12 @@ export function VersusRaceScreen({ selections, reverse, onMainMenu, onPlayAgain 
         </>
       )}
 
+      <WrongWayIndicator visible={state.p1WrongWay || state.p2WrongWay} />
+
       <MinimapDisplay
         trackPoints={state.trackPoints}
         carPositions={state.carPositions}
+        startFinish={state.startFinish}
       />
 
       {state.matchWinner !== null && (

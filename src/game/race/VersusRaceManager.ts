@@ -12,6 +12,7 @@ function tDiff(leader: number, follower: number): number {
 export class VersusRaceManager {
   private track: TrackDefinition;
   readonly pointsToWin = 3;
+  private wrongWayTimers = new Map<string, number>();
 
   constructor(track: TrackDefinition) {
     this.track = track;
@@ -20,6 +21,17 @@ export class VersusRaceManager {
   updateT(car: CarState): void {
     car.previousT = car.currentT;
     car.currentT = this.track.getClosestT(car.position, car.currentT);
+  }
+
+  isWrongWay(carId: string): boolean {
+    return (this.wrongWayTimers.get(carId) ?? 0) > 2.0;
+  }
+
+  updateWrongWay(car: CarState, dt: number): void {
+    const tDelta = car.currentT - car.previousT;
+    const isGoingBack = tDelta < -0.001 && Math.abs(tDelta) < 0.4;
+    const prev = this.wrongWayTimers.get(car.id) ?? 0;
+    this.wrongWayTimers.set(car.id, isGoingBack ? prev + dt : 0);
   }
 
   // Returns 1 if car1 is the back car, 2 if car2 is the back car

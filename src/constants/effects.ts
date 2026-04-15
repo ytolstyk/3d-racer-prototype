@@ -14,10 +14,14 @@ export const TIRE_SMOKE = {
 
 // ── Speed Strip (boost pad) ─────────────────────────────────────────────────
 export const SPEED_STRIP = {
-  boostMultiplier: 1.5, // speed cap multiplied by this on crossing
+  boostMultiplier: 1.5, // speed cap multiplied by this on crossing (legacy, now maxSpeedCap)
   decayRate: 2.0, // per-second lerp rate back to 1.0
   color: 0x00ffcc, // emissive strip color
   stripWidth: 3, // strip depth along track direction
+  accelMultiplier: 2.5, // acceleration multiplied by this during boost
+  accelBoostDuration: 0.5, // seconds the acceleration boost lasts
+  maxSpeedCap: 1.5, // max speed cap multiplier during boost (150% of normal max)
+  capDecayRate: 0.8, // per-second decay of speed cap back to 1.0
 } as const;
 
 // ── Boost Track (along-track lane) ──────────────────────────────────────────
@@ -44,6 +48,12 @@ export const RAIN_HAZARD = {
   shadowColor: 0x224466,
   dropColor: 0x4488cc,
   splashColor: 0x66aadd,
+  splashPoolSize: 150, // instanced mesh pool for ground splash
+  splashParticlesPerImpact: 12, // particles per drop impact
+  splashLifetime: 0.5, // seconds each splash particle lives
+  splashSpeed: 20, // outward radial speed
+  splashUpSpeed: 16, // upward velocity
+  pushDecay: 8, // exponential decay rate for push velocity
 } as const;
 
 // ── Collision Particles ─────────────────────────────────────────────────────

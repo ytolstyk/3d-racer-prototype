@@ -63,9 +63,16 @@ export class CarPhysics {
     }
 
     const hbAccelMult = (handbrake && throttle > 0) ? this._dp('handbrakeAccelMultiplier') : 1.0;
+    // Acceleration boost from speed strips
+    const accelBoost = car.accelBoostTimer > 0 ? car.accelBoostMultiplier : 1.0;
+    if (car.accelBoostTimer > 0) {
+      car.accelBoostTimer = Math.max(0, car.accelBoostTimer - dt);
+      if (car.accelBoostTimer <= 0) car.accelBoostMultiplier = 1.0;
+    }
     const force =
       throttle > 0 ? def.acceleration * throttle : def.braking * throttle;
-    car.speed += force * blend * tractionFactor * hbAccelMult;
+    const effectiveAccelBoost = throttle > 0 ? accelBoost : 1.0;
+    car.speed += force * blend * tractionFactor * hbAccelMult * effectiveAccelBoost;
     const effectiveMax = def.maxSpeed * (car.boostMultiplier ?? 1.0);
     car.speed = Math.max(
       -def.maxSpeed * this._dp('maxReverseSpeedFraction'),

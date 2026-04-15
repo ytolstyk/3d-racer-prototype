@@ -1,16 +1,17 @@
 import { useRef, useEffect } from 'react';
-import type { MinimapCar, MinimapPoint } from '../../types/game.js';
+import type { MinimapCar, MinimapPoint, MinimapStartFinish } from '../../types/game.js';
 
 interface MinimapDisplayProps {
   trackPoints: MinimapPoint[];
   carPositions: MinimapCar[];
+  startFinish?: MinimapStartFinish | null;
 }
 
 const MAP_WIDTH = 240;
 const MAP_HEIGHT = 160;
 const PADDING = 10;
 
-export function MinimapDisplay({ trackPoints, carPositions }: MinimapDisplayProps) {
+export function MinimapDisplay({ trackPoints, carPositions, startFinish }: MinimapDisplayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -60,6 +61,39 @@ export function MinimapDisplay({ trackPoints, carPositions }: MinimapDisplayProp
     ctx.closePath();
     ctx.stroke();
 
+    // Start/finish indicator
+    if (startFinish) {
+      const [sfx, sfy] = toScreen(startFinish.x, startFinish.z);
+      // Draw perpendicular line to track at start position
+      const perpX = -startFinish.tz;
+      const perpZ = startFinish.tx;
+      const lineLen = 8;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(sfx - perpX * lineLen, sfy - perpZ * lineLen);
+      ctx.lineTo(sfx + perpX * lineLen, sfy + perpZ * lineLen);
+      ctx.stroke();
+
+      // Checkerboard pattern (small 2x2 squares)
+      const sq = 2;
+      for (let r = 0; r < 2; r++) {
+        for (let c = -2; c <= 2; c++) {
+          const bx = sfx + perpX * (c * sq) + startFinish.tx * (r * sq - sq / 2);
+          const by = sfy + perpZ * (c * sq) + startFinish.tz * (r * sq - sq / 2);
+          ctx.fillStyle = (r + c) % 2 === 0 ? '#ffffff' : '#000000';
+          ctx.fillRect(bx - sq / 2, by - sq / 2, sq, sq);
+        }
+      }
+
+      // S/F label
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 8px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText('S/F', sfx, sfy - 6);
+    }
+
     // Car dots
     for (const car of carPositions) {
       const [sx, sy] = toScreen(car.x, car.z);
@@ -75,7 +109,7 @@ export function MinimapDisplay({ trackPoints, carPositions }: MinimapDisplayProp
         ctx.stroke();
       }
     }
-  }, [trackPoints, carPositions]);
+  }, [trackPoints, carPositions, startFinish]);
 
   return (
     <canvas

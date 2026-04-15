@@ -14,6 +14,14 @@ import {
   CONTROLLER_PHYSICS,
   HAZARD_EFFECTS,
 } from "../constants/physics.js";
+import {
+  TIRE_SMOKE,
+  HAZARD_SPLASH,
+  RAIN_HAZARD,
+  COLLISION_PARTICLES,
+  SPEED_STRIP,
+  BOOST_TRACK,
+} from "../constants/effects.js";
 import { CAMERA } from "../constants/camera.js";
 import { LightingSetup } from "./scene/LightingSetup.js";
 import { TableScene } from "./scene/TableScene.js";
@@ -81,6 +89,8 @@ export class PracticeEngine {
   private readonly _overrideMirror = new Map<string, number>();
   private readonly _cameraOverrideMirror = new Map<string, number>();
   private readonly _hazardOverrideMirror = new Map<string, number>();
+  private readonly _effectsOverrideMirror = new Map<string, number>();
+  private _effectsOriginals: Record<string, Record<string, number>> | null = null;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -139,6 +149,7 @@ export class PracticeEngine {
       previousT: 0,
       hasPassedHalfway: false,
       hasPassedQuarter: false,
+      hasPassedThreeQuarter: false,
       completedLaps: 0,
       bestLapTime: 0,
       currentLapStart: 0,
@@ -150,6 +161,10 @@ export class PracticeEngine {
       burnoutTimer: 0,
       boostMultiplier: 1.0,
       boostDecayRate: 0,
+      accelBoostTimer: 0,
+      accelBoostMultiplier: 1.0,
+      pushVelocityX: 0,
+      pushVelocityZ: 0,
       checkpointBests: [],
       lastCheckpointTime: 0,
       lastCheckpointSegmentTime: 0,
@@ -445,6 +460,73 @@ export class PracticeEngine {
     ].join("\n");
   }
 
+  private static readonly _EFFECTS_MAP: Record<string, Record<string, unknown>> = {
+    tiresmoke: TIRE_SMOKE,
+    hazardsplash: HAZARD_SPLASH,
+    rainhazard: RAIN_HAZARD,
+    collisionparticles: COLLISION_PARTICLES,
+    speedstrip: SPEED_STRIP,
+    boosttrack: BOOST_TRACK,
+  };
+
+  getEffectsDefaults(): Record<string, Record<string, number>> {
+    const result: Record<string, Record<string, number>> = {};
+    for (const [group, obj] of Object.entries(PracticeEngine._EFFECTS_MAP)) {
+      const entries: Record<string, number> = {};
+      for (const [k, v] of Object.entries(obj)) {
+        if (typeof v === 'number') entries[k] = v;
+      }
+      result[group] = entries;
+    }
+    return result;
+  }
+
+  setEffectsOverride(group: string, key: string, value: number): void {
+    const obj = PracticeEngine._EFFECTS_MAP[group];
+    if (!obj) return;
+    // Snapshot originals on first override
+    if (!this._effectsOriginals) {
+      this._effectsOriginals = this.getEffectsDefaults();
+    }
+    (obj as Record<string, number>)[key] = value;
+    this._effectsOverrideMirror.set(`${group}:${key}`, value);
+  }
+
+  resetEffects(): void {
+    if (this._effectsOriginals) {
+      for (const [group, originals] of Object.entries(this._effectsOriginals)) {
+        const obj = PracticeEngine._EFFECTS_MAP[group];
+        if (!obj) continue;
+        for (const [k, v] of Object.entries(originals)) {
+          (obj as Record<string, number>)[k] = v;
+        }
+      }
+      this._effectsOriginals = null;
+    }
+    this._effectsOverrideMirror.clear();
+  }
+
+  exportEffectsTS(): string {
+    const names: Record<string, string> = {
+      tiresmoke: 'TIRE_SMOKE',
+      hazardsplash: 'HAZARD_SPLASH',
+      rainhazard: 'RAIN_HAZARD',
+      collisionparticles: 'COLLISION_PARTICLES',
+      speedstrip: 'SPEED_STRIP',
+      boosttrack: 'BOOST_TRACK',
+    };
+    const blocks: string[] = [];
+    for (const [group, obj] of Object.entries(PracticeEngine._EFFECTS_MAP)) {
+      const constName = names[group] ?? group.toUpperCase();
+      const lines = Object.entries(obj)
+        .filter(([, v]) => typeof v === 'number')
+        .map(([k, v]) => `  ${k}: ${v},`)
+        .join('\n');
+      blocks.push(`export const ${constName} = {\n${lines}\n} as const;`);
+    }
+    return blocks.join('\n\n') + '\n';
+  }
+
   pause(): void {
     this.paused = true;
     this.inputManager.clearKeys();
@@ -528,17 +610,26 @@ export class PracticeEngine {
         const wasInHazard = hs.inHazard;
         hs.inHazard = true;
         hs.zoneType = activeHazardType;
+        const hColor = HAZARD_HEX_COLORS[activeHazardType] ?? 0xffffff;
+        const sinR = Math.sin(car.rotation);
+        const cosR = Math.cos(car.rotation);
+        const fX = car.position.x + sinR * 2.5;
+        const fZ = car.position.z + cosR * 2.5;
+        const lPos = new THREE.Vector3(fX + cosR * 1.2, car.position.y, fZ - sinR * 1.2);
+        const rPos = new THREE.Vector3(fX - cosR * 1.2, car.position.y, fZ + sinR * 1.2);
         if (!wasInHazard) {
           hs.drip = 0;
           hs.splashTimer = 0;
           if (Math.abs(car.speed) >= car.definition.maxSpeed * 0.1) {
-            this.hazardSplash.emit(car.position, HAZARD_HEX_COLORS[activeHazardType] ?? 0xffffff, car.speed, car.definition.maxSpeed);
+            this.hazardSplash.emit(lPos, hColor, car.speed, car.definition.maxSpeed, 28, car.rotation);
+            this.hazardSplash.emit(rPos, hColor, car.speed, car.definition.maxSpeed, 27, car.rotation);
           }
         } else if (Math.abs(car.speed) >= car.definition.maxSpeed * 0.1) {
           hs.splashTimer -= dt;
           if (hs.splashTimer <= 0) {
-            hs.splashTimer = 0.25;
-            this.hazardSplash.emit(car.position, HAZARD_HEX_COLORS[activeHazardType] ?? 0xffffff, car.speed, car.definition.maxSpeed, 25);
+            hs.splashTimer = 0.06;
+            this.hazardSplash.emit(lPos, hColor, car.speed, car.definition.maxSpeed, 4, car.rotation);
+            this.hazardSplash.emit(rPos, hColor, car.speed, car.definition.maxSpeed, 4, car.rotation);
           }
         }
         this.tireMarks.addSubstanceMarks(car, hs.zoneType);

@@ -1,13 +1,22 @@
 import type { TrackDefinition } from '../track/TrackDefinition.js';
-import type { CarState, MinimapCar, MinimapPoint } from '../../types/game.js';
+import type { CarState, MinimapCar, MinimapPoint, MinimapStartFinish } from '../../types/game.js';
 
 export class Minimap {
   private track: TrackDefinition;
   private trackPoints: MinimapPoint[] = [];
+  private startFinish: MinimapStartFinish;
 
   constructor(track: TrackDefinition) {
     this.track = track;
     this.computeTrackPoints();
+    const startPoint = track.getPointAt(0);
+    const tangent = track.getTangentAt(0);
+    this.startFinish = {
+      x: startPoint.x,
+      z: startPoint.z,
+      tx: tangent.x,
+      tz: tangent.z,
+    };
   }
 
   private computeTrackPoints(): void {
@@ -21,6 +30,10 @@ export class Minimap {
 
   getTrackPoints(): MinimapPoint[] {
     return this.trackPoints;
+  }
+
+  getStartFinish(): MinimapStartFinish {
+    return this.startFinish;
   }
 
   getCarPositions(cars: CarState[]): MinimapCar[] {

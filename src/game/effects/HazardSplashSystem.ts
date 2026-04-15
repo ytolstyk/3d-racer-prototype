@@ -18,7 +18,8 @@ export class HazardSplashSystem {
   private dummy = new THREE.Object3D();
 
   constructor(scene: THREE.Scene) {
-    const geo = new THREE.PlaneGeometry(1, 1);
+    // 3g: Circle particles instead of squares
+    const geo = new THREE.CircleGeometry(0.5, 8);
     const mat = new THREE.MeshBasicMaterial({
       transparent: true,
       depthWrite: false,
@@ -58,6 +59,7 @@ export class HazardSplashSystem {
    * @param carSpeed  current car speed (game units/s)
    * @param maxSpeed  car's max speed — used to compute a 0–1 speed ratio
    * @param count     number of particles to emit
+   * @param carRotation  heading in radians (used to bias splash direction)
    */
   emit(
     position: THREE.Vector3,
@@ -65,13 +67,16 @@ export class HazardSplashSystem {
     carSpeed = 0,
     maxSpeed = 1,
     count = 55,
+    carRotation?: number,
   ): void {
     const baseColor = new THREE.Color(color);
     const speedRatio = Math.min(1, Math.abs(carSpeed) / Math.max(1, maxSpeed));
 
-    const lateralBase = 6 + speedRatio * 55;
+    // 3d: Invert spread scaling — tighter at high speed, wider at low speed
+    const lateralBase = 15 + (1 - speedRatio) * 20;
     const upBase = 10 + speedRatio * 22;
-    const lifetime = 0.5 + speedRatio * 0.5;
+    // 3f: Slightly shorter lifetime
+    const lifetime = 0.3 + speedRatio * 0.3;
 
     for (let i = 0; i < count; i++) {
       const idx = this.nextIndex;
@@ -79,8 +84,24 @@ export class HazardSplashSystem {
       const p = this.particles[idx];
       p.life = lifetime * (0.7 + Math.random() * 0.6);
       p.maxLife = p.life;
-      p.size = 0.8 + Math.random() * 1.2 + speedRatio * 1.2;
-      const angle = Math.random() * Math.PI * 2;
+      // 3e: Smaller particle size
+      let size = 0.3 + Math.random() * 0.5 + speedRatio * 0.3;
+      // 3h: Speed-dependent splash scale — at low speeds, scale down further
+      if (speedRatio < 0.3) {
+        size *= 0.3 + speedRatio * 2.3;
+      }
+      p.size = size;
+
+      // 3b: Bias outward from car heading if carRotation provided
+      let angle: number;
+      if (carRotation !== undefined) {
+        // Emit in forward-to-sideways arc (±90° to ±180° from heading), never back toward car center
+        const perpendicular = carRotation + Math.PI / 2;
+        angle = perpendicular + (Math.random() - 0.5) * Math.PI;
+      } else {
+        angle = Math.random() * Math.PI * 2;
+      }
+
       const hspeed = lateralBase * (0.4 + Math.random() * 0.6);
       p.vx = Math.cos(angle) * hspeed;
       p.vy = upBase * (0.5 + Math.random() * 0.5);

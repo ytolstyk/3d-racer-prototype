@@ -102,6 +102,14 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
   const [showCameraExport, setShowCameraExport] = useState(false);
   const [cameraExportTs, setCameraExportTs] = useState('');
 
+  // Effects tuner state
+  const [effectsOpen, setEffectsOpen] = useState(false);
+  const [effectsGroup, setEffectsGroup] = useState('tiresmoke');
+  const [effectsDefaults, setEffectsDefaults] = useState<Record<string, Record<string, number>> | null>(null);
+  const [effectsOverrideMap, setEffectsOverrideMap] = useState<Record<string, number>>({});
+  const [showEffectsExport, setShowEffectsExport] = useState(false);
+  const [effectsExportTs, setEffectsExportTs] = useState('');
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -111,6 +119,8 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
     setOverrideMap({});
     setCameraDefaults(engineRef.current.getCameraDefaults());
     setCameraOverrideMap({});
+    setEffectsDefaults(engineRef.current.getEffectsDefaults());
+    setEffectsOverrideMap({});
     return () => {
       engineRef.current?.dispose();
       engineRef.current = null;
@@ -259,16 +269,37 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
     setShowCameraExport(true);
   }, []);
 
+  const handleEffectsOverride = useCallback((group: string, key: string, raw: string) => {
+    const value = parseFloat(raw);
+    if (isNaN(value)) return;
+    engineRef.current?.setEffectsOverride(group, key, value);
+    setEffectsOverrideMap(prev => ({ ...prev, [`${group}:${key}`]: value }));
+  }, []);
+
+  const handleResetEffects = useCallback(() => {
+    engineRef.current?.resetEffects();
+    setEffectsOverrideMap({});
+  }, []);
+
+  const handleEffectsExport = useCallback(() => {
+    setEffectsExportTs(engineRef.current?.exportEffectsTS() ?? '');
+    setShowEffectsExport(true);
+  }, []);
+
   const toggleTelemetry = useCallback(() => {
-    setTelemetryOpen(p => { if (!p) { setTunerOpen(false); setCameraOpen(false); } return !p; });
+    setTelemetryOpen(p => { if (!p) { setTunerOpen(false); setCameraOpen(false); setEffectsOpen(false); } return !p; });
   }, []);
 
   const toggleTuner = useCallback(() => {
-    setTunerOpen(p => { if (!p) { setTelemetryOpen(false); setCameraOpen(false); } return !p; });
+    setTunerOpen(p => { if (!p) { setTelemetryOpen(false); setCameraOpen(false); setEffectsOpen(false); } return !p; });
   }, []);
 
   const toggleCamera = useCallback(() => {
-    setCameraOpen(p => { if (!p) { setTelemetryOpen(false); setTunerOpen(false); } return !p; });
+    setCameraOpen(p => { if (!p) { setTelemetryOpen(false); setTunerOpen(false); setEffectsOpen(false); } return !p; });
+  }, []);
+
+  const toggleEffects = useCallback(() => {
+    setEffectsOpen(p => { if (!p) { setTelemetryOpen(false); setTunerOpen(false); setCameraOpen(false); } return !p; });
   }, []);
 
   const btnStyle: React.CSSProperties = {
@@ -562,6 +593,15 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
         >
           📷 Camera
         </button>
+        <button
+          style={{
+            ...btnStyle, fontSize: 10, padding: '2px 8px',
+            background: effectsOpen ? 'rgba(50,200,160,0.3)' : 'rgba(255,255,255,0.08)',
+          }}
+          onClick={toggleEffects}
+        >
+          ✦ Effects
+        </button>
       </div>
 
       {/* Telemetry panel */}
@@ -736,6 +776,84 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
           <div style={{ display: 'flex', gap: 6, marginTop: 8, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
             <button style={{ ...btnStyle, fontSize: 10, padding: '3px 8px' }} onClick={handleResetCamera}>↺ Reset All</button>
             <button style={{ ...btnStyle, fontSize: 10, padding: '3px 8px', background: 'rgba(100,200,100,0.2)' }} onClick={handleCameraExport}>Export as TypeScript</button>
+          </div>
+        </div>
+      )}
+
+      {/* Effects tuner panel */}
+      {effectsOpen && effectsDefaults && (
+        <div style={{
+          position: 'absolute', top: 40, left: 10, zIndex: 20,
+          background: 'rgba(0,0,0,0.88)', border: '1px solid rgba(50,200,160,0.25)',
+          borderRadius: 6, padding: '8px 10px', width: 260,
+          maxHeight: '75vh', overflowY: 'auto',
+        }}>
+          <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
+            {Object.keys(effectsDefaults).map(g => (
+              <button
+                key={g}
+                onClick={() => setEffectsGroup(g)}
+                style={{
+                  ...btnStyle, fontSize: 9, padding: '2px 6px',
+                  background: effectsGroup === g ? 'rgba(50,200,160,0.35)' : 'rgba(255,255,255,0.07)',
+                  borderColor: effectsGroup === g ? '#32c8a0' : 'rgba(255,255,255,0.2)',
+                }}
+              >
+                {g}
+              </button>
+            ))}
+          </div>
+
+          {effectsDefaults[effectsGroup] && Object.keys(effectsDefaults[effectsGroup]).map(key => {
+            const mapKey = `${effectsGroup}:${key}`;
+            const isModified = mapKey in effectsOverrideMap;
+            const defaultVal = effectsDefaults[effectsGroup][key];
+            return (
+              <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ color: isModified ? '#32c8a0' : 'rgba(255,255,255,0.55)', fontSize: 10, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={key}>
+                  {key}
+                </span>
+                <input
+                  type="number"
+                  defaultValue={defaultVal}
+                  step="any"
+                  onBlur={e => handleEffectsOverride(effectsGroup, key, e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleEffectsOverride(effectsGroup, key, (e.target as HTMLInputElement).value); }}
+                  style={{
+                    width: 90, fontSize: 10, fontFamily: 'monospace',
+                    background: '#0d0d1a', color: '#fff',
+                    border: `1px solid ${isModified ? '#32c8a0' : 'rgba(255,255,255,0.2)'}`,
+                    borderRadius: 3, padding: '2px 4px', textAlign: 'right',
+                  }}
+                />
+              </div>
+            );
+          })}
+
+          <div style={{ display: 'flex', gap: 6, marginTop: 8, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+            <button style={{ ...btnStyle, fontSize: 10, padding: '3px 8px' }} onClick={handleResetEffects}>↺ Reset All</button>
+            <button style={{ ...btnStyle, fontSize: 10, padding: '3px 8px', background: 'rgba(50,200,160,0.2)' }} onClick={handleEffectsExport}>Export as TypeScript</button>
+          </div>
+        </div>
+      )}
+
+      {/* Effects export modal */}
+      {showEffectsExport && (
+        <div style={{ ...overlayStyle, background: 'rgba(0,0,0,0.85)' }}>
+          <div style={{
+            background: '#1a1a2e', padding: 16, borderRadius: 8,
+            width: '80%', maxWidth: 700, display: 'flex', flexDirection: 'column', gap: 8,
+          }}>
+            <h3 style={{ color: '#fff', margin: 0 }}>effects.ts</h3>
+            <textarea
+              value={effectsExportTs}
+              readOnly
+              style={{ width: '100%', height: 400, fontFamily: 'monospace', fontSize: 11, background: '#0d0d1a', color: '#ccc', border: '1px solid #333', borderRadius: 4, padding: 8, boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button style={primaryBtnStyle} onClick={() => navigator.clipboard.writeText(effectsExportTs)}>Copy to Clipboard</button>
+              <button style={btnStyle} onClick={() => setShowEffectsExport(false)}>Close</button>
+            </div>
           </div>
         </div>
       )}
