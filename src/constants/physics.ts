@@ -40,7 +40,7 @@ export const HAZARD_EFFECTS: Record<string, HazardEffect> = {
 export const DRIFT_PHYSICS = {
   gripHigh: 8.0, // grip alignment rate (rad/s) at zero speed
   gripLow: 2.8, // grip alignment rate at max speed
-  handbrakeGripMultiplier: 0.12, // rear wheels locked — low = more drift
+  handbrakeGripMultiplier: 0.06, // rear wheels locked — low = more drift
   counterSteerBonus: 1.6, // multiplied when steering against slip
   corneringDragFactor: 0.18, // speed loss per radian of slip per second
   tractionLossMin: 0.35, // accel fraction remaining at 90° slip
@@ -73,4 +73,3 @@ export const CONTROLLER_PHYSICS = {
   handbrakeBrakeThrottle: -0.2, // active throttle applied when handbrake + forward and above cap
   postDriftBoostFraction: 0.0, // maxSpeed fraction added as boost on handbrake release
 } as const;
-
