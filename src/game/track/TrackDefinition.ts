@@ -3,6 +3,72 @@ import { TRACKS, TRACK_SAMPLES } from '../../constants/track.js';
 import type { TrackConfig } from '../../constants/track.js';
 import type { HazardZone } from '../../types/game.js';
 
+/**
+ * Cubic Hermite spline through closed control points.
+ * When pointRotations are provided, the tangent at that index is overridden
+ * with the specified canvas-space angle (converted to game-space direction).
+ * Otherwise the tangent is computed via the standard Catmull-Rom formula.
+ */
+class HermiteTrackCurve extends THREE.Curve<THREE.Vector3> {
+  private pts: THREE.Vector3[];
+  private tangents: THREE.Vector3[];
+  private n: number;
+
+  constructor(controlPoints: THREE.Vector3[], rotationOverrides: number[]) {
+    super();
+    this.pts = controlPoints;
+    this.n = controlPoints.length;
+    const n = this.n;
+
+    // Compute uniform Catmull-Rom tangents: m[i] = (p[i+1] - p[i-1]) / 2
+    this.tangents = [];
+    for (let i = 0; i < n; i++) {
+      const prev = controlPoints[(i - 1 + n) % n];
+      const next = controlPoints[(i + 1) % n];
+      const catmull = next.clone().sub(prev).multiplyScalar(0.5);
+
+      const rot = rotationOverrides[i];
+      if (rot !== undefined && rot !== 0) {
+        // Canvas angle → game-space direction: (-cos(a), 0, -sin(a))
+        const mag = catmull.length();
+        this.tangents.push(
+          new THREE.Vector3(-Math.cos(rot), 0, -Math.sin(rot)).normalize().multiplyScalar(mag)
+        );
+      } else {
+        this.tangents.push(catmull);
+      }
+    }
+  }
+
+  getPoint(t: number, optionalTarget?: THREE.Vector3): THREE.Vector3 {
+    const n = this.n;
+    let raw = t * n;
+    if (raw >= n) raw = n - 1e-10;
+
+    const seg = Math.floor(raw);
+    const u = raw - seg;
+
+    const i0 = seg % n;
+    const i1 = (seg + 1) % n;
+    const p0 = this.pts[i0], p1 = this.pts[i1];
+    const m0 = this.tangents[i0], m1 = this.tangents[i1];
+
+    const u2 = u * u, u3 = u2 * u;
+    const h00 = 2 * u3 - 3 * u2 + 1;
+    const h10 = u3 - 2 * u2 + u;
+    const h01 = -2 * u3 + 3 * u2;
+    const h11 = u3 - u2;
+
+    const out = optionalTarget ?? new THREE.Vector3();
+    out.set(
+      h00 * p0.x + h10 * m0.x + h01 * p1.x + h11 * m1.x,
+      h00 * p0.y + h10 * m0.y + h01 * p1.y + h11 * m1.y,
+      h00 * p0.z + h10 * m0.z + h01 * p1.z + h11 * m1.z,
+    );
+    return out;
+  }
+}
+
 export interface BoundaryPoint {
   left: THREE.Vector3;
   right: THREE.Vector3;
@@ -12,7 +78,7 @@ export interface BoundaryPoint {
 }
 
 export class TrackDefinition {
-  readonly curve: THREE.CatmullRomCurve3;
+  readonly curve: THREE.Curve<THREE.Vector3>;
   readonly width: number;
   readonly hazardZones: HazardZone[];
   readonly checkpoints: number[];
@@ -27,10 +93,13 @@ export class TrackDefinition {
 
     let controlPoints = cfg.controlPoints;
     let checkpoints = cfg.checkpoints ?? [0.25, 0.5, 0.75];
+    let pointRotations = cfg.pointRotations ?? [];
 
     if (reverse) {
       controlPoints = [...controlPoints].reverse();
       checkpoints = checkpoints.map(t => 1 - t).reverse();
+      // Reverse order and flip direction (add π) for each rotation
+      pointRotations = [...pointRotations].reverse().map(r => r !== 0 ? r + Math.PI : 0);
     }
 
     this.checkpoints = checkpoints;
@@ -38,7 +107,13 @@ export class TrackDefinition {
     const points = controlPoints.map(
       ([x, y, z]) => new THREE.Vector3(x, y, z)
     );
-    this.curve = new THREE.CatmullRomCurve3(points, true, 'centripetal');
+
+    const hasRotations = pointRotations.some(r => r !== 0);
+    if (hasRotations) {
+      this.curve = new HermiteTrackCurve(points, pointRotations);
+    } else {
+      this.curve = new THREE.CatmullRomCurve3(points, true, 'centripetal');
+    }
     this.computeBoundaries();
   }
 

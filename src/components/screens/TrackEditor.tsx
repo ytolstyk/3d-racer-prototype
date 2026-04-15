@@ -700,6 +700,73 @@ function catmullRomPoints(
   return result;
 }
 
+// 2D Hermite spline matching HermiteTrackCurve — respects pointRotations
+function hermiteTrackPoints(
+  pts: [number, number][],
+  rotations: number[],
+  closed: boolean,
+  segments: number
+): [number, number][] {
+  if (pts.length < 2) return pts;
+  const n = pts.length;
+
+  // Compute CatmullRom tangents, then override where rotation is set
+  const tx: number[] = [];
+  const ty: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const prev = pts[(i - 1 + n) % n];
+    const next = pts[(i + 1) % n];
+    const cx = (next[0] - prev[0]) * 0.5;
+    const cy = (next[1] - prev[1]) * 0.5;
+    const rot = rotations[i];
+    if (rot !== undefined && rot !== 0) {
+      const mag = Math.hypot(cx, cy);
+      tx.push(Math.cos(rot) * mag);
+      ty.push(Math.sin(rot) * mag);
+    } else {
+      tx.push(cx);
+      ty.push(cy);
+    }
+  }
+
+  const result: [number, number][] = [];
+  const count = closed ? n : n - 1;
+  for (let i = 0; i < count; i++) {
+    const i1 = (i + 1) % n;
+    const p0x = pts[i][0], p0y = pts[i][1];
+    const p1x = pts[i1][0], p1y = pts[i1][1];
+    const m0x = tx[i], m0y = ty[i];
+    const m1x = tx[i1], m1y = ty[i1];
+    for (let j = 0; j < segments; j++) {
+      const u = j / segments;
+      const u2 = u * u, u3 = u2 * u;
+      const h00 = 2*u3 - 3*u2 + 1;
+      const h10 = u3 - 2*u2 + u;
+      const h01 = -2*u3 + 3*u2;
+      const h11 = u3 - u2;
+      result.push([
+        h00*p0x + h10*m0x + h01*p1x + h11*m1x,
+        h00*p0y + h10*m0y + h01*p1y + h11*m1y,
+      ]);
+    }
+  }
+  if (!closed) result.push(pts[n - 1]);
+  return result;
+}
+
+// Use hermite when any point has a rotation override, else plain CatmullRom
+function trackCurvePoints(
+  pts: [number, number][],
+  rotations: number[],
+  closed: boolean,
+  segments: number
+): [number, number][] {
+  if (rotations.some(r => r !== 0)) {
+    return hermiteTrackPoints(pts, rotations, closed, segments);
+  }
+  return catmullRomPoints(pts, closed, segments);
+}
+
 function gameToCanvas(
   gx: number,
   gz: number,
@@ -850,7 +917,7 @@ export function TrackEditor() {
 
     // Track corridor and spline
     if (points.length >= 2) {
-      const curve = catmullRomPoints(points, loopClosed, 20);
+      const curve = trackCurvePoints(points, pointRotations, loopClosed, 20);
       splineSamplesRef.current = curve;
 
       if (curve.length > 1) {
@@ -939,7 +1006,7 @@ export function TrackEditor() {
             ctx.fillText(`r=${hz.radius.toFixed(0)}`, cx2, cy2 + hz.radius + 11 * invZoom);
           }
         } else if (hz.tStart !== undefined && hz.tEnd !== undefined) {
-          const curve2 = catmullRomPoints(points, loopClosed, 20);
+          const curve2 = trackCurvePoints(points, pointRotations, loopClosed, 20);
           const totalSamples = curve2.length;
           const startI = Math.round(hz.tStart * totalSamples);
           const endI = Math.round(hz.tEnd * totalSamples);
@@ -1389,7 +1456,7 @@ export function TrackEditor() {
 
     // Direction arrows along centerline
     if (showDirectionArrows && points.length >= 2) {
-      const arrowCurve = catmullRomPoints(points, loopClosed, 20);
+      const arrowCurve = trackCurvePoints(points, pointRotations, loopClosed, 20);
       const arrowSpacing = 80;
       const headLen = Math.max(6, trackWidth * 0.35) * invZoom;
       const headAngle = Math.PI / 5;
@@ -1548,8 +1615,18 @@ export function TrackEditor() {
 
       // Rotate selected points with scroll when select tool is active
       if (stateRef.current.activeTool === 'select' && stateRef.current.selectedPoints.length > 0) {
-        const angle = (e.deltaY > 0 ? 1 : -1) * Math.PI / 36; // 5 degrees per tick
-        dispatch({ type: 'ROTATE_SELECTED_POINTS', angle });
+        const { selectedPoints, pointRotations, points } = stateRef.current;
+        if (selectedPoints.length === 1) {
+          // Single point: adjust pointRotation (tangent direction hint)
+          const idx = selectedPoints[0];
+          const delta = (e.deltaY > 0 ? 1 : -1) * Math.PI / 36; // 5 degrees per tick
+          const rots = [...pointRotations];
+          while (rots.length < points.length) rots.push(0);
+          dispatch({ type: 'SET_POINT_ROTATION', index: idx, rotation: rots[idx] + delta });
+        } else {
+          const angle = (e.deltaY > 0 ? 1 : -1) * Math.PI / 36; // 5 degrees per tick
+          dispatch({ type: 'ROTATE_SELECTED_POINTS', angle });
+        }
         draw();
         return;
       }
@@ -3087,6 +3164,56 @@ export function TrackEditor() {
                 ))}
               </>
             )}
+          </div>
+        )}
+
+        {state.activeTool === 'select' && (
+          <div className="editor-section">
+            <label className="editor-label">Select Tool</label>
+            {state.selectedPoints.length === 0 && (
+              <span style={{ opacity: 0.5, fontSize: 9, display: 'block' }}>
+                click point to select · drag to box-select · shift-click to toggle
+              </span>
+            )}
+            {state.selectedPoints.length > 1 && (
+              <span style={{ opacity: 0.6, fontSize: 9, display: 'block' }}>
+                {state.selectedPoints.length} points selected · scroll=rotate · drag=move
+              </span>
+            )}
+            {state.selectedPoints.length === 1 && (() => {
+              const idx = state.selectedPoints[0];
+              const rot = state.pointRotations[idx] ?? 0;
+              const deg = Math.round((rot * 180) / Math.PI);
+              return (
+                <div>
+                  <label className="editor-label">Point {idx} — Direction Hint</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontSize: 9, opacity: 0.8, minWidth: 36, fontFamily: 'monospace' }}>{deg}°</span>
+                    <button
+                      className="tool-btn"
+                      style={{ padding: '0 6px', fontSize: 12, minWidth: 'auto' }}
+                      onClick={() => dispatch({ type: 'SET_POINT_ROTATION', index: idx, rotation: rot - Math.PI / 18 })}
+                      title="Rotate -10°"
+                    >−</button>
+                    <button
+                      className="tool-btn"
+                      style={{ padding: '0 6px', fontSize: 12, minWidth: 'auto' }}
+                      onClick={() => dispatch({ type: 'SET_POINT_ROTATION', index: idx, rotation: rot + Math.PI / 18 })}
+                      title="Rotate +10°"
+                    >+</button>
+                    <button
+                      className="tool-btn tool-btn-danger"
+                      style={{ padding: '0 5px', fontSize: 9, minWidth: 'auto' }}
+                      onClick={() => dispatch({ type: 'SET_POINT_ROTATION', index: idx, rotation: 0 })}
+                      title="Clear rotation"
+                    >clr</button>
+                  </div>
+                  <span style={{ fontSize: 9, opacity: 0.5, display: 'block', marginTop: 2 }}>
+                    scroll=rotate 5° · drag=move
+                  </span>
+                </div>
+              );
+            })()}
           </div>
         )}
 
