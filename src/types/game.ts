@@ -83,6 +83,8 @@ export interface CarState {
   isPlayer: boolean;
   hazardSteerFactor: number; // 0-1, 1=normal, decays back each frame
   burnoutTimer: number;
+  boostMultiplier: number; // speed cap multiplier from boost pads/tracks (default 1.0)
+  boostDecayRate: number;  // per-second lerp rate back to 1.0 (0 = no decay)
   // Checkpoint state
   checkpointBests: number[];
   lastCheckpointTime: number;
@@ -223,6 +225,21 @@ export interface PhysicsTelemetry {
   isSkidding: boolean;
   isBraking: boolean;
   burnoutTimer: number;
+}
+
+export interface SpeedStrip {
+  t: number; // spline parameter where strip is placed
+}
+
+export interface BoostTrack {
+  tStart: number;
+  tEnd: number;
+  side: 'left' | 'right';
+}
+
+export interface RainZone {
+  tStart: number;
+  tEnd: number;
 }
 
 export type PhysicsGroup = 'physics' | 'drift' | 'controller';

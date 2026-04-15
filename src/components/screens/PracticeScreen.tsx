@@ -77,6 +77,11 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
   const [splatterRadius, setSplatterRadius] = useState(40);
   const [splatterCount, setSplatterCount] = useState(0);
 
+  // Rain placement state
+  const [placingRain, setPlacingRain] = useState(false);
+  const [rainRadius, setRainRadius] = useState(60);
+  const [rainCount, setRainCount] = useState(0);
+
   const [carPos, setCarPos] = useState({ x: 0, y: 0, z: 0 });
 
   // Telemetry + tuner state
@@ -165,6 +170,12 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
       return;
     }
 
+    if (placingRain) {
+      engine.addRainZone(x, z, rainRadius);
+      setRainCount(engine.getRainZones().length);
+      return;
+    }
+
     // Select nearest object
     const objects = engine.getObjects();
     let nearestIdx = -1;
@@ -174,7 +185,7 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
       if (dist < nearestDist) { nearestDist = dist; nearestIdx = i; }
     }
     setSelectedObjIdx(nearestIdx);
-  }, [activeType, hazardType, hazardRadius, splatterType, splatterRadius, paused]);
+  }, [activeType, hazardType, hazardRadius, splatterType, splatterRadius, placingRain, rainRadius, paused]);
 
   const handleDeleteSelected = () => {
     if (selectedObjIdx === -1 || !engineRef.current) return;
@@ -187,9 +198,11 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
     engineRef.current?.removeAllObjects();
     engineRef.current?.removeAllHazards();
     engineRef.current?.removeAllSplatters();
+    engineRef.current?.removeAllRainZones();
     setObjectCount(0);
     setHazardCount(0);
     setSplatterCount(0);
+    setRainCount(0);
     setSelectedObjIdx(-1);
   };
 
@@ -279,7 +292,7 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
       <button
         style={{ ...btnStyle, position: 'absolute', top: 10, right: 10, zIndex: 10 }}
         onClick={() => setPaletteOpen(p => {
-          if (p) { setActiveType(null); setHazardType(null); setSplatterType(null); }
+          if (p) { setActiveType(null); setHazardType(null); setSplatterType(null); setPlacingRain(false); }
           return !p;
         })}
       >
@@ -370,10 +383,42 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
             <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10 }}>{splatterCount} splatters</div>
           </div>
 
+          {/* Rain section */}
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.12)', paddingTop: 6, marginTop: 2 }}>
+            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 9, letterSpacing: 1, marginBottom: 4 }}>RAIN</div>
+            <button
+              onClick={() => { setPlacingRain(p => !p); setActiveType(null); setHazardType(null); setSplatterType(null); }}
+              style={{
+                ...btnStyle,
+                fontSize: 10, padding: '3px 7px',
+                background: placingRain ? 'rgba(68,136,204,0.5)' : 'rgba(255,255,255,0.08)',
+                borderColor: placingRain ? '#4488cc' : 'rgba(255,255,255,0.25)',
+                color: placingRain ? '#88ccff' : '#fff',
+              }}
+            >
+              Rain Zone
+            </button>
+            {placingRain && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10 }}>radius</span>
+                <input
+                  type="range"
+                  min={20}
+                  max={150}
+                  value={rainRadius}
+                  onChange={e => setRainRadius(Number(e.target.value))}
+                  style={{ flex: 1 }}
+                />
+                <span style={{ color: '#fff', fontSize: 10, fontFamily: 'monospace', minWidth: 24 }}>{rainRadius}</span>
+              </div>
+            )}
+            <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10, marginTop: 2 }}>{rainCount} rain zone{rainCount !== 1 ? 's' : ''}</div>
+          </div>
+
           {/* Placement hint */}
-          {(activeType || hazardType || splatterType) ? (
+          {(activeType || hazardType || splatterType || placingRain) ? (
             <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', textAlign: 'center', marginTop: 4 }}>
-              Click canvas to place {activeType ? ITEM_LABELS[activeType] : hazardType ? `${hazardType} (r=${hazardRadius})` : `${splatterType} splatter (r=${splatterRadius})`}
+              Click canvas to place {activeType ? ITEM_LABELS[activeType] : hazardType ? `${hazardType} (r=${hazardRadius})` : placingRain ? `rain zone (r=${rainRadius})` : `${splatterType} splatter (r=${splatterRadius})`}
             </div>
           ) : (
             <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', textAlign: 'center', marginTop: 4 }}>

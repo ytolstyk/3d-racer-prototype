@@ -617,28 +617,41 @@ export class CarFactory {
   }
 
   createNameplate(name: string, color: number): THREE.Sprite {
+    const font = "bold 60px sans-serif";
+    const height = 64;
+    const paddingX = 20;
+    const colorBarWidth = 14;
+
+    // Measure text width before sizing the canvas
+    const measure = document.createElement("canvas").getContext("2d")!;
+    measure.font = font;
+    const textWidth = measure.measureText(name).width;
+
+    const width = Math.max(256, Math.ceil(colorBarWidth + paddingX + textWidth + paddingX));
+
     const canvas = document.createElement("canvas");
-    canvas.width = 256;
-    canvas.height = 64;
+    canvas.width = width;
+    canvas.height = height;
     const ctx = canvas.getContext("2d")!;
 
     ctx.fillStyle = "rgba(0,0,0,0.65)";
-    ctx.roundRect(4, 4, 248, 56, 10);
+    ctx.roundRect(4, 4, width - 8, height - 8, 10);
     ctx.fill();
 
     ctx.fillStyle = `#${color.toString(16).padStart(6, "0")}`;
-    ctx.fillRect(8, 8, 6, 48);
+    ctx.fillRect(8, 8, 6, height - 16);
 
     ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 60px sans-serif";
+    ctx.font = font;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(name, 132, 32);
+    ctx.fillText(name, (colorBarWidth + width) / 2, height / 2);
 
     const texture = new THREE.CanvasTexture(canvas);
     const material = new THREE.SpriteMaterial({ map: texture });
     const sprite = new THREE.Sprite(material);
-    sprite.scale.set(6, 1.5, 1);
+    // Keep the same world height (1.5); scale width proportionally
+    sprite.scale.set((width / height) * 1.5, 1.5, 1);
     sprite.position.y = 6;
 
     return sprite;

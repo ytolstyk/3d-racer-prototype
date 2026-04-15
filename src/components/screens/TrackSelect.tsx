@@ -1,9 +1,9 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { TRACKS } from "../../constants/track.js";
 import type { TrackConfig } from "../../constants/track.js";
 
 interface TrackSelectProps {
-  onSelect: (trackId: string) => void;
+  onSelect: (trackId: string, reverse?: boolean) => void;
   onBack: () => void;
 }
 
@@ -68,19 +68,32 @@ function TrackMinimap({ config }: { config: TrackConfig }) {
 }
 
 export function TrackSelect({ onSelect, onBack }: TrackSelectProps) {
+  const [reverse, setReverse] = useState(false);
+
   return (
     <div className="screen track-select">
       <h2>Choose Your Track</h2>
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12, gap: 12, alignItems: 'center' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', userSelect: 'none' }}>
+          <input
+            type="checkbox"
+            checked={reverse}
+            onChange={() => setReverse(r => !r)}
+            style={{ width: 18, height: 18 }}
+          />
+          <span style={{ fontSize: 14, fontWeight: 'bold' }}>Reverse Direction</span>
+        </label>
+      </div>
       <div className="track-grid">
         {TRACKS.map((track) => (
           <button
             key={track.id}
             className="track-card"
-            onClick={() => onSelect(track.id)}
+            onClick={() => onSelect(track.id, reverse)}
           >
             <TrackMinimap config={track} />
             <div className="track-info">
-              <h3>{track.name}</h3>
+              <h3>{track.name}{reverse ? ' (R)' : ''}</h3>
               <span className="track-width">Width: {track.width}m</span>
             </div>
           </button>

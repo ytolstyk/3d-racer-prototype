@@ -35,9 +35,11 @@ function GameApp() {
   const [isEditorTest] = useState(fromEditor);
   const [gameMode, setGameMode] = useState<'solo' | 'versus'>('solo');
   const [versusSelections, setVersusSelections] = useState<VersusSelections | null>(null);
+  const [reverse, setReverse] = useState(false);
 
-  const handleTrackSelect = (trackId: string) => {
+  const handleTrackSelect = (trackId: string, rev = false) => {
     setSelectedTrackId(trackId);
+    setReverse(rev);
     setPhase(gameMode === 'versus' ? 'versusCarSelect' : 'carSelect');
   };
 
@@ -108,6 +110,7 @@ function GameApp() {
           selectedCarId={selectedCarId}
           totalLaps={totalLaps}
           difficulty={difficulty}
+          reverse={reverse}
           onMainMenu={handleMainMenu}
           onRaceAgain={handleRaceAgain}
           onBackToEditor={isEditorTest ? handleBackToEditor : undefined}
@@ -125,6 +128,7 @@ function GameApp() {
       return versusSelections ? (
         <VersusRaceScreen
           selections={versusSelections}
+          reverse={reverse}
           onMainMenu={handleMainMenu}
           onPlayAgain={handleVersusPlayAgain}
         />

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { CarState } from '../../types/game.js';
+import { TIRE_SMOKE } from '../../constants/effects.js';
 
 interface SmokeParticle {
   life: number;
@@ -8,8 +9,8 @@ interface SmokeParticle {
   isDark: boolean;
 }
 
-const PARTICLE_COUNT = 400;
-const EMIT_INTERVAL = 1 / 20; // 20fps emit rate
+const PARTICLE_COUNT = TIRE_SMOKE.poolSize;
+const EMIT_INTERVAL = TIRE_SMOKE.emitRate;
 
 function makeSmokeTexture(): THREE.CanvasTexture {
   const size = 64;
@@ -153,8 +154,13 @@ export class TireSmokeSystem {
 
     const lateralX = cosR * 1.5;
     const lateralZ = -sinR * 1.5;
-    this.emitOne(rearX - lateralX, 0.3, rearZ - lateralZ);
-    this.emitOne(rearX + lateralX, 0.3, rearZ + lateralZ);
+
+    // Emit multiple particles per tire for denser smoke
+    for (let p = 0; p < TIRE_SMOKE.particlesPerEmit; p++) {
+      const offset = p === 0 ? 0 : (Math.random() - 0.5) * 1.5;
+      this.emitOne(rearX - lateralX + cosR * offset, 0.3, rearZ - lateralZ - sinR * offset);
+      this.emitOne(rearX + lateralX + cosR * offset, 0.3, rearZ + lateralZ - sinR * offset);
+    }
 
     this.mesh.instanceMatrix.needsUpdate = true;
     this.opacityAttr.needsUpdate = true;

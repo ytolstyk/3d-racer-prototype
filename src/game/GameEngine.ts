@@ -24,9 +24,12 @@ import { TireMarkSystem } from './scene/TireMarkSystem.js';
 import { CollisionParticleSystem } from './effects/CollisionParticleSystem.js';
 import { TireSmokeSystem } from './effects/TireSmokeSystem.js';
 import { HazardSplashSystem } from './effects/HazardSplashSystem.js';
+import { RainHazardSystem } from './effects/RainHazardSystem.js';
 import { KITCHEN_ITEM_FACTORIES } from './scene/KitchenItems.js';
 import { HAZARD_HEX_COLORS } from '../constants/physics.js';
 import { DIFFICULTY_CONFIG } from '../constants/aiRacer.js';
+import { SPEED_STRIP, BOOST_TRACK } from '../constants/effects.js';
+import type { SpeedStrip, BoostTrack } from '../types/game.js';
 
 interface CarHazardState {
   inHazard: boolean;
@@ -60,6 +63,9 @@ export class GameEngine {
   private collisionParticles: CollisionParticleSystem | null = null;
   private tireSmoke: TireSmokeSystem | null = null;
   private hazardSplash: HazardSplashSystem | null = null;
+  private rainSystem: RainHazardSystem | null = null;
+  private speedStrips: SpeedStrip[] = [];
+  private boostTracks: BoostTrack[] = [];
   private carHazardState: Map<string, CarHazardState> = new Map();
   private animFrameId = 0;
   private lastTime = 0;
@@ -77,6 +83,7 @@ export class GameEngine {
     totalLaps: number,
     difficulty: Difficulty,
     emitter: GameStateEmitter,
+    reverse = false,
   ) {
     this.difficulty = difficulty;
     this.emitter = emitter;
@@ -111,9 +118,11 @@ export class GameEngine {
       if (stored) trackConfig = JSON.parse(stored) as typeof TRACKS[0];
     }
     this.trackConfig = trackConfig;
-    this.track = new TrackDefinition(trackConfig);
+    this.track = new TrackDefinition(trackConfig, reverse);
+    this.speedStrips = trackConfig.speedStrips ?? [];
+    this.boostTracks = trackConfig.boostTracks ?? [];
     const trackBuilder = new TrackBuilder();
-    this.scene.add(trackBuilder.build(this.track, this.trackConfig.tunnels ?? []));
+    this.scene.add(trackBuilder.build(this.track, this.trackConfig.tunnels ?? [], this.speedStrips, this.boostTracks));
 
     // Hazards
     this.hazardSystem = new HazardSystem(this.track);
@@ -186,6 +195,15 @@ export class GameEngine {
 
     // Hazard splash particles
     this.hazardSplash = new HazardSplashSystem(this.scene);
+
+    // Rain zones
+    const rainZones = trackConfig.rainZones ?? [];
+    if (rainZones.length > 0) {
+      this.rainSystem = new RainHazardSystem(this.scene);
+      for (const rz of rainZones) {
+        this.rainSystem.addSplineZone(this.track, rz);
+      }
+    }
 
     // Input
     this.inputManager = new InputManager();
@@ -284,6 +302,8 @@ export class GameEngine {
         lastCheckpointCrossedAt: 0,
         hazardSteerFactor: 1.0,
         burnoutTimer: 0,
+        boostMultiplier: 1.0,
+        boostDecayRate: 0,
       };
 
       this.cars.push(car);
@@ -347,6 +367,12 @@ export class GameEngine {
         if (!car.isPlayer) this.updateCarHazard(car, dt);
       }
 
+      // Boost detection (speed strips + boost tracks)
+      this.updateBoosts(dt);
+
+      // Rain
+      this.rainSystem?.update(dt, this.cars);
+
       // Tire marks and smoke for skidding or braking cars
       for (const car of this.cars) {
         if (car.isSkidding || car.isBraking) this.tireMarks?.addMarks(car);
@@ -387,6 +413,53 @@ export class GameEngine {
 
     this.animFrameId = requestAnimationFrame(this.loop);
   };
+
+  private updateBoosts(dt: number): void {
+    for (const car of this.cars) {
+      // Speed strip crossing detection
+      for (const strip of this.speedStrips) {
+        const crossed = (car.previousT < strip.t && car.currentT >= strip.t) ||
+          (car.previousT > 0.9 && car.currentT < 0.1 && strip.t < car.currentT) ||
+          (car.previousT > strip.t - 0.01 && car.currentT > strip.t && car.previousT < strip.t);
+        if (crossed && car.boostMultiplier < SPEED_STRIP.boostMultiplier) {
+          car.boostMultiplier = SPEED_STRIP.boostMultiplier;
+          car.boostDecayRate = SPEED_STRIP.decayRate;
+        }
+      }
+
+      // Boost track lane detection
+      let onBoostTrack = false;
+      for (const bt of this.boostTracks) {
+        const inTRange = bt.tStart <= bt.tEnd
+          ? (car.currentT >= bt.tStart && car.currentT <= bt.tEnd)
+          : (car.currentT >= bt.tStart || car.currentT <= bt.tEnd);
+        if (!inTRange) continue;
+
+        // Check lateral position
+        const center = this.track.getPointAt(car.currentT);
+        const normal = this.track.getNormalAt(car.currentT);
+        const tocar = car.position.x - center.x;
+        const tocarz = car.position.z - center.z;
+        const lateralPos = tocar * normal.x + tocarz * normal.z;
+        const sideSign = bt.side === 'left' ? 1 : -1;
+        const laneCenter = (this.track.width / 2 - this.track.width * BOOST_TRACK.widthFraction / 2) * sideSign;
+        const laneHalfWidth = this.track.width * BOOST_TRACK.widthFraction / 2;
+        if (Math.abs(lateralPos - laneCenter) < laneHalfWidth) {
+          onBoostTrack = true;
+          car.boostMultiplier = Math.max(car.boostMultiplier, BOOST_TRACK.speedMultiplier);
+          car.boostDecayRate = 0; // Don't decay while on track
+          break;
+        }
+      }
+
+      // Decay boost back to 1.0
+      if (!onBoostTrack && car.boostMultiplier > 1.0) {
+        if (car.boostDecayRate > 0) {
+          car.boostMultiplier = Math.max(1.0, car.boostMultiplier - car.boostDecayRate * dt);
+        }
+      }
+    }
+  }
 
   private updateCarHazard(car: CarState, dt: number): void {
     const hs = this.carHazardState.get(car.id);
@@ -483,6 +556,7 @@ export class GameEngine {
     this.tireSmoke?.dispose();
     this.collisionParticles?.dispose();
     this.hazardSplash?.dispose();
+    this.rainSystem?.dispose();
     this.aiManager?.dispose();
     this.emitter.clear();
     this.renderer.dispose();

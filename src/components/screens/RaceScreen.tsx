@@ -17,6 +17,7 @@ interface RaceScreenProps {
   selectedCarId: string;
   totalLaps: number;
   difficulty: Difficulty;
+  reverse?: boolean;
   onMainMenu: () => void;
   onRaceAgain: () => void;
   onBackToEditor?: () => void;
@@ -30,12 +31,12 @@ const pauseOverlayStyle: React.CSSProperties = {
   zIndex: 100,
 };
 
-export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, difficulty, onMainMenu, onRaceAgain, onBackToEditor }: RaceScreenProps) {
+export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, difficulty, reverse, onMainMenu, onRaceAgain, onBackToEditor }: RaceScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const emitter = useMemo(() => new GameStateEmitter(), []);
   const [paused, setPaused] = useState(false);
 
-  const engineRef = useGameEngine(canvasRef, selectedTrackId, selectedCarId, totalLaps, difficulty, emitter);
+  const engineRef = useGameEngine(canvasRef, selectedTrackId, selectedCarId, totalLaps, difficulty, emitter, reverse);
   const state = useGameState(emitter);
 
   useEffect(() => {

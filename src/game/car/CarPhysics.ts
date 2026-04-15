@@ -66,9 +66,10 @@ export class CarPhysics {
     const force =
       throttle > 0 ? def.acceleration * throttle : def.braking * throttle;
     car.speed += force * blend * tractionFactor * hbAccelMult;
+    const effectiveMax = def.maxSpeed * (car.boostMultiplier ?? 1.0);
     car.speed = Math.max(
       -def.maxSpeed * this._dp('maxReverseSpeedFraction'),
-      Math.min(car.speed, def.maxSpeed),
+      Math.min(car.speed, effectiveMax),
     );
 
     // Burnout trigger: HB released while driftResidual high and throttle applied

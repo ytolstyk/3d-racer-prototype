@@ -12,11 +12,12 @@ import { VersusEndScreen } from './VersusEndScreen.js';
 
 interface VersusRaceScreenProps {
   selections: VersusSelections;
+  reverse?: boolean;
   onMainMenu: () => void;
   onPlayAgain: () => void;
 }
 
-export function VersusRaceScreen({ selections, onMainMenu, onPlayAgain }: VersusRaceScreenProps) {
+export function VersusRaceScreen({ selections, reverse, onMainMenu, onPlayAgain }: VersusRaceScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const emitter = useMemo(() => new VersusStateEmitter(), []);
 
@@ -28,6 +29,7 @@ export function VersusRaceScreen({ selections, onMainMenu, onPlayAgain }: Versus
     selections.p1Name,
     selections.p2Name,
     emitter,
+    reverse,
   );
 
   const state = useVersusGameState(emitter);

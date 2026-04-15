@@ -27,6 +27,7 @@ import { TireMarkSystem } from "./scene/TireMarkSystem.js";
 import { TireSmokeSystem } from "./effects/TireSmokeSystem.js";
 import { HazardSplashSystem } from "./effects/HazardSplashSystem.js";
 import { SplatterDecalSystem } from "./effects/SplatterDecalSystem.js";
+import { RainHazardSystem } from "./effects/RainHazardSystem.js";
 import { buildCircleHazardMesh } from "./track/HazardSystem.js";
 import { HAZARD_HEX_COLORS } from "../constants/physics.js";
 
@@ -67,6 +68,8 @@ export class PracticeEngine {
   private tireSmoke: TireSmokeSystem;
   private hazardSplash: HazardSplashSystem;
   private splatterSystem: SplatterDecalSystem;
+  private rainSystem: RainHazardSystem | null = null;
+  private rainCircles: { x: number; z: number; radius: number }[] = [];
   private hazardState: CarHazardState = { inHazard: false, zoneType: '', drip: 0, splashTimer: 0 };
   private _axisXMarker!: THREE.Mesh;
   private _axisZMarker!: THREE.Mesh;
@@ -145,6 +148,8 @@ export class PracticeEngine {
       isPlayer: true,
       hazardSteerFactor: 1.0,
       burnoutTimer: 0,
+      boostMultiplier: 1.0,
+      boostDecayRate: 0,
       checkpointBests: [],
       lastCheckpointTime: 0,
       lastCheckpointSegmentTime: 0,
@@ -237,6 +242,26 @@ export class PracticeEngine {
 
   getHazards(): PracticeHazard[] {
     return [...this.practiceHazards];
+  }
+
+  addRainZone(x: number, z: number, radius: number): void {
+    if (!this.rainSystem) {
+      this.rainSystem = new RainHazardSystem(this.scene);
+    }
+    this.rainSystem.addCircleZone(x, z, radius);
+    this.rainCircles.push({ x, z, radius });
+  }
+
+  removeAllRainZones(): void {
+    if (this.rainSystem) {
+      this.rainSystem.dispose();
+      this.rainSystem = null;
+    }
+    this.rainCircles = [];
+  }
+
+  getRainZones(): { x: number; z: number; radius: number }[] {
+    return [...this.rainCircles];
   }
 
   addSplatter(s: PlacedSplatter): void {
@@ -541,6 +566,7 @@ export class PracticeEngine {
       this.tireMarks.update(dt);
       this.tireSmoke.update(dt);
       this.hazardSplash.update(dt);
+      this.rainSystem?.update(dt, [car]);
 
       this.cameraController.update(
         car.position,
@@ -704,6 +730,7 @@ export class PracticeEngine {
     this.tireMarks.dispose();
     this.tireSmoke.dispose();
     this.hazardSplash.dispose();
+    this.rainSystem?.dispose();
     this.splatterSystem.dispose();
     this.renderer.dispose();
     this.scene.traverse((obj) => {

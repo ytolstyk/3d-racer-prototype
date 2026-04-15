@@ -1,9 +1,15 @@
 import * as THREE from 'three';
 import type { TrackDefinition } from './TrackDefinition.js';
-import type { TunnelSection } from '../../types/game.js';
+import type { TunnelSection, SpeedStrip, BoostTrack } from '../../types/game.js';
+import { SPEED_STRIP, BOOST_TRACK } from '../../constants/effects.js';
 
 export class TrackBuilder {
-  build(track: TrackDefinition, tunnels: TunnelSection[] = []): THREE.Group {
+  build(
+    track: TrackDefinition,
+    tunnels: TunnelSection[] = [],
+    speedStrips: SpeedStrip[] = [],
+    boostTracks: BoostTrack[] = [],
+  ): THREE.Group {
     const group = new THREE.Group();
 
     // Build track surface (chunked for frustum culling)
@@ -32,6 +38,16 @@ export class TrackBuilder {
     // Build tunnel sections
     for (const tunnel of tunnels) {
       group.add(this.buildTunnel(track, tunnel.tStart, tunnel.tEnd));
+    }
+
+    // Build speed strips
+    for (const strip of speedStrips) {
+      group.add(this.buildSpeedStrip(track, strip.t));
+    }
+
+    // Build boost tracks
+    for (const bt of boostTracks) {
+      group.add(this.buildBoostTrack(track, bt));
     }
 
     return group;
@@ -526,6 +542,71 @@ export class TrackBuilder {
         }
       }
     }
+  }
+
+  private buildSpeedStrip(track: TrackDefinition, t: number): THREE.Mesh {
+    const point = track.getPointAt(t);
+    const tangent = track.getTangentAt(t);
+    const tAngle = Math.atan2(tangent.x, tangent.z);
+
+    const geo = new THREE.PlaneGeometry(track.width - 2, SPEED_STRIP.stripWidth);
+    const mat = new THREE.MeshStandardMaterial({
+      color: SPEED_STRIP.color,
+      emissive: SPEED_STRIP.color,
+      emissiveIntensity: 0.8,
+      roughness: 0.3,
+      metalness: 0.5,
+    });
+
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.set(-Math.PI / 2, 0, 0);
+    mesh.rotateZ(-tAngle);
+    mesh.position.set(point.x, 0.07, point.z);
+    return mesh;
+  }
+
+  private buildBoostTrack(track: TrackDefinition, bt: BoostTrack): THREE.Mesh {
+    const N = 60;
+    const laneWidth = track.width * BOOST_TRACK.widthFraction;
+    const sideSign = bt.side === 'left' ? 1 : -1;
+    const laneOffset = (track.width / 2 - laneWidth / 2) * sideSign;
+
+    const vertices: number[] = [];
+    const indices: number[] = [];
+
+    for (let i = 0; i <= N; i++) {
+      const t = bt.tStart + (bt.tEnd - bt.tStart) * (i / N);
+      const center = track.getPointAt(t);
+      const normal = track.getNormalAt(t);
+
+      const cx = center.x + normal.x * laneOffset;
+      const cz = center.z + normal.z * laneOffset;
+      vertices.push(
+        cx + normal.x * laneWidth / 2, BOOST_TRACK.surfaceY, cz + normal.z * laneWidth / 2,
+        cx - normal.x * laneWidth / 2, BOOST_TRACK.surfaceY, cz - normal.z * laneWidth / 2,
+      );
+
+      if (i > 0) {
+        const base = (i - 1) * 2;
+        indices.push(base, base + 1, base + 2, base + 1, base + 3, base + 2);
+      }
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+
+    const mat = new THREE.MeshStandardMaterial({
+      color: BOOST_TRACK.color,
+      emissive: BOOST_TRACK.color,
+      emissiveIntensity: 0.4,
+      roughness: 0.5,
+      transparent: true,
+      opacity: 0.8,
+    });
+
+    return new THREE.Mesh(geo, mat);
   }
 
   buildCheckpointGate(track: TrackDefinition, t: number, index: number): THREE.Group {

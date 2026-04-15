@@ -3,6 +3,9 @@ import type {
   PlacedObject,
   PlacedLight,
   TunnelSection,
+  SpeedStrip,
+  BoostTrack,
+  RainZone,
 } from "../types/game.js";
 
 export interface TrackConfig {
@@ -15,6 +18,10 @@ export interface TrackConfig {
   objects?: PlacedObject[];
   tunnels?: TunnelSection[];
   lights?: PlacedLight[];
+  speedStrips?: SpeedStrip[];
+  boostTracks?: BoostTrack[];
+  rainZones?: RainZone[];
+  pointRotations?: number[];
 }
 
 export const TRACK_SAMPLES = 600;

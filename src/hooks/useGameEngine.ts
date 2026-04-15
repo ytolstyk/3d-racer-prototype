@@ -11,6 +11,7 @@ export function useGameEngine(
   totalLaps: number,
   difficulty: Difficulty,
   emitter: GameStateEmitter,
+  reverse?: boolean,
 ): MutableRefObject<GameEngine | null> {
   const engineRef = useRef<GameEngine | null>(null);
 
@@ -18,13 +19,13 @@ export function useGameEngine(
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    engineRef.current = new GameEngine(canvas, selectedTrackId, selectedCarId, totalLaps, difficulty, emitter);
+    engineRef.current = new GameEngine(canvas, selectedTrackId, selectedCarId, totalLaps, difficulty, emitter, reverse);
 
     return () => {
       engineRef.current?.dispose();
       engineRef.current = null;
     };
-  }, [canvasRef, selectedTrackId, selectedCarId, totalLaps, difficulty, emitter]);
+  }, [canvasRef, selectedTrackId, selectedCarId, totalLaps, difficulty, emitter, reverse]);
 
   return engineRef;
 }

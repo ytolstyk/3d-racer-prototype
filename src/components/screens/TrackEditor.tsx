@@ -2,10 +2,10 @@ import { useReducer, useRef, useEffect, useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { TrackConfig } from '../../constants/track.js';
 import { TRACKS } from '../../constants/track.js';
-import type { KitchenItemType, PlacedObject, TunnelSection, PlacedLight, LightType } from '../../types/game.js';
+import type { KitchenItemType, PlacedObject, TunnelSection, PlacedLight, LightType, SpeedStrip, BoostTrack, RainZone } from '../../types/game.js';
 import { OBJECT_HEIGHTS } from '../../game/scene/KitchenItems.js';
 
-type Tool = 'pen' | 'line' | 'eraser' | 'move' | 'startPoint' | 'insert' | 'object' | 'tunnel' | 'hazard' | 'light';
+type Tool = 'pen' | 'line' | 'eraser' | 'move' | 'startPoint' | 'insert' | 'object' | 'tunnel' | 'hazard' | 'light' | 'speedStrip' | 'boostTrack' | 'rain';
 
 type HazardType = 'juice' | 'milk' | 'oil' | 'butter';
 
@@ -116,6 +116,13 @@ interface EditorState {
   activeLightHeight: number;
   activeLightAngle: number;
   activeLightPenumbra: number;
+  speedStrips: SpeedStrip[];
+  boostTracks: BoostTrack[];
+  rainZones: RainZone[];
+  boostTrackStartT: number | null; // temp state for boost track placement
+  rainZoneStartT: number | null; // temp state for rain zone placement
+  activeBoostSide: 'left' | 'right';
+  pointRotations: number[];
 }
 
 type EditorAction =
@@ -137,7 +144,7 @@ type EditorAction =
   | { type: 'DELETE_HAZARD'; index: number }
   | { type: 'CLOSE_LOOP' }
   | { type: 'OPEN_LOOP' }
-  | { type: 'LOAD_STATE'; points: [number, number][]; trackName: string; trackWidth: number; hazards?: HazardDef[]; loopClosed?: boolean; objects?: PlacedObject[]; tunnels?: TunnelSection[]; lights?: PlacedLight[] }
+  | { type: 'LOAD_STATE'; points: [number, number][]; trackName: string; trackWidth: number; hazards?: HazardDef[]; loopClosed?: boolean; objects?: PlacedObject[]; tunnels?: TunnelSection[]; lights?: PlacedLight[]; speedStrips?: SpeedStrip[]; boostTracks?: BoostTrack[]; rainZones?: RainZone[]; pointRotations?: number[] }
   | { type: 'ADD_OBJECT'; object: PlacedObject }
   | { type: 'DELETE_OBJECT'; index: number }
   | { type: 'MOVE_OBJECT'; index: number; x: number; z: number }
@@ -169,7 +176,17 @@ type EditorAction =
   | { type: 'SET_ACTIVE_LIGHT_DISTANCE'; distance: number }
   | { type: 'SET_ACTIVE_LIGHT_HEIGHT'; height: number }
   | { type: 'SET_ACTIVE_LIGHT_ANGLE'; angle: number }
-  | { type: 'SET_ACTIVE_LIGHT_PENUMBRA'; penumbra: number };
+  | { type: 'SET_ACTIVE_LIGHT_PENUMBRA'; penumbra: number }
+  | { type: 'ADD_SPEED_STRIP'; strip: SpeedStrip }
+  | { type: 'DELETE_SPEED_STRIP'; index: number }
+  | { type: 'ADD_BOOST_TRACK'; boostTrack: BoostTrack }
+  | { type: 'DELETE_BOOST_TRACK'; index: number }
+  | { type: 'SET_BOOST_TRACK_START'; t: number | null }
+  | { type: 'SET_ACTIVE_BOOST_SIDE'; side: 'left' | 'right' }
+  | { type: 'ADD_RAIN_ZONE'; rainZone: RainZone }
+  | { type: 'DELETE_RAIN_ZONE'; index: number }
+  | { type: 'SET_RAIN_ZONE_START'; t: number | null }
+  | { type: 'SET_POINT_ROTATION'; index: number; rotation: number };
 
 const initialState: EditorState = {
   points: [],
@@ -197,6 +214,13 @@ const initialState: EditorState = {
   activeLightHeight: 8,
   activeLightAngle: 0.4,
   activeLightPenumbra: 0.2,
+  speedStrips: [],
+  boostTracks: [],
+  rainZones: [],
+  boostTrackStartT: null,
+  rainZoneStartT: null,
+  activeBoostSide: 'left',
+  pointRotations: [],
 };
 
 function getInitialState(): EditorState {
@@ -220,6 +244,10 @@ function getInitialState(): EditorState {
         objects?: PlacedObject[];
         tunnels?: TunnelSection[];
         lights?: PlacedLight[];
+        speedStrips?: SpeedStrip[];
+        boostTracks?: BoostTrack[];
+        rainZones?: RainZone[];
+        pointRotations?: number[];
       };
       return {
         ...initialState,
@@ -231,6 +259,10 @@ function getInitialState(): EditorState {
         objects: draft.objects ?? [],
         tunnels: draft.tunnels ?? [],
         lights: draft.lights ?? [],
+        speedStrips: draft.speedStrips ?? [],
+        boostTracks: draft.boostTracks ?? [],
+        rainZones: draft.rainZones ?? [],
+        pointRotations: draft.pointRotations ?? [],
       };
     }
   } catch { /* ignore */ }
@@ -365,6 +397,10 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         objects: action.objects ?? [],
         tunnels: action.tunnels ?? [],
         lights: action.lights ?? [],
+        speedStrips: action.speedStrips ?? [],
+        boostTracks: action.boostTracks ?? [],
+        rainZones: action.rainZones ?? [],
+        pointRotations: action.pointRotations ?? [],
       };
 
     case 'ADD_OBJECT': {
@@ -528,6 +564,40 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case 'SET_ACTIVE_LIGHT_PENUMBRA':
       return { ...state, activeLightPenumbra: action.penumbra };
 
+    case 'ADD_SPEED_STRIP':
+      return { ...state, speedStrips: [...state.speedStrips, action.strip] };
+
+    case 'DELETE_SPEED_STRIP':
+      return { ...state, speedStrips: state.speedStrips.filter((_, i) => i !== action.index) };
+
+    case 'ADD_BOOST_TRACK':
+      return { ...state, boostTracks: [...state.boostTracks, action.boostTrack], boostTrackStartT: null };
+
+    case 'DELETE_BOOST_TRACK':
+      return { ...state, boostTracks: state.boostTracks.filter((_, i) => i !== action.index) };
+
+    case 'SET_BOOST_TRACK_START':
+      return { ...state, boostTrackStartT: action.t };
+
+    case 'SET_ACTIVE_BOOST_SIDE':
+      return { ...state, activeBoostSide: action.side };
+
+    case 'ADD_RAIN_ZONE':
+      return { ...state, rainZones: [...state.rainZones, action.rainZone], rainZoneStartT: null };
+
+    case 'DELETE_RAIN_ZONE':
+      return { ...state, rainZones: state.rainZones.filter((_, i) => i !== action.index) };
+
+    case 'SET_RAIN_ZONE_START':
+      return { ...state, rainZoneStartT: action.t };
+
+    case 'SET_POINT_ROTATION': {
+      const rotations = [...state.pointRotations];
+      while (rotations.length < state.points.length) rotations.push(0);
+      rotations[action.index] = action.rotation;
+      return { ...state, pointRotations: rotations };
+    }
+
     default:
       return state;
   }
@@ -641,7 +711,7 @@ export function TrackEditor() {
     const invZoom = 1 / zoom;
     const originX = W / 2;
     const originY = H / 2;
-    const { points, trackWidth, activeTool, showDirectionArrows, hazards, loopClosed, objects, selectedObjectIndex, tunnels, selectedHazardIndex, activeHazardType, activeHazardRadius, lights, selectedLightIndex, activeLightType, activeLightDistance, activeLightColor, activeLightAngle } = stateRef.current;
+    const { points, trackWidth, activeTool, showDirectionArrows, hazards, loopClosed, objects, selectedObjectIndex, tunnels, selectedHazardIndex, activeHazardType, activeHazardRadius, lights, selectedLightIndex, activeLightType, activeLightDistance, activeLightColor, activeLightAngle, speedStrips, boostTracks, rainZones, boostTrackStartT, rainZoneStartT, pointRotations } = stateRef.current;
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#1a0a04';
@@ -1050,6 +1120,140 @@ export function TrackEditor() {
         ctx.textBaseline = 'alphabetic';
       }
 
+      // Draw speed strips as bright perpendicular lines
+      for (let si2 = 0; si2 < speedStrips.length; si2++) {
+        const strip = speedStrips[si2];
+        const samples = splineSamplesRef.current;
+        if (samples.length < 2) continue;
+        const n = samples.length;
+        const idx = Math.round(strip.t * (n - 1));
+        const pt = samples[Math.min(idx, n - 1)];
+        const prev = samples[(idx - 1 + n) % n];
+        const next = samples[(idx + 1) % n];
+        const dx = next[0] - prev[0];
+        const dy = next[1] - prev[1];
+        const len = Math.hypot(dx, dy) || 1;
+        const nx = -dy / len;
+        const ny = dx / len;
+        const hw = trackWidth / 2;
+        ctx.beginPath();
+        ctx.moveTo(pt[0] + nx * hw, pt[1] + ny * hw);
+        ctx.lineTo(pt[0] - nx * hw, pt[1] - ny * hw);
+        ctx.strokeStyle = '#00ffcc';
+        ctx.lineWidth = 3 * invZoom;
+        ctx.shadowColor = '#00ffcc';
+        ctx.shadowBlur = 6;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#00ffcc';
+        ctx.font = `bold ${8 * invZoom}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText(`SS${si2 + 1}`, pt[0], pt[1] - hw - 6 * invZoom);
+      }
+
+      // Draw boost tracks as colored bands along track
+      for (let bi = 0; bi < boostTracks.length; bi++) {
+        const bt = boostTracks[bi];
+        const samples = splineSamplesRef.current;
+        if (samples.length < 2) continue;
+        const n = samples.length;
+        const startI = Math.round(bt.tStart * (n - 1));
+        const endI = Math.round(bt.tEnd * (n - 1));
+        const s = Math.min(startI, endI);
+        const e2 = Math.max(startI, endI);
+        if (e2 <= s + 1) continue;
+        const hw = trackWidth / 2;
+        const laneW = trackWidth * 0.25;
+        const sideSign = bt.side === 'left' ? 1 : -1;
+        const laneCenter = sideSign * (hw - laneW / 2);
+        const band: [number, number][] = [];
+        const band2: [number, number][] = [];
+        for (let ii = s; ii <= e2; ii++) {
+          const prev = samples[(ii - 1 + n) % n];
+          const next = samples[(ii + 1) % n];
+          const dx = next[0] - prev[0];
+          const dy = next[1] - prev[1];
+          const len2 = Math.hypot(dx, dy) || 1;
+          const nx = -dy / len2;
+          const ny = dx / len2;
+          band.push([samples[ii][0] + nx * (laneCenter + laneW / 2), samples[ii][1] + ny * (laneCenter + laneW / 2)]);
+          band2.push([samples[ii][0] + nx * (laneCenter - laneW / 2), samples[ii][1] + ny * (laneCenter - laneW / 2)]);
+        }
+        ctx.beginPath();
+        ctx.moveTo(band[0][0], band[0][1]);
+        for (const p of band) ctx.lineTo(p[0], p[1]);
+        for (let ii = band2.length - 1; ii >= 0; ii--) ctx.lineTo(band2[ii][0], band2[ii][1]);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(255, 136, 0, 0.3)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255, 136, 0, 0.7)';
+        ctx.lineWidth = 1.5 * invZoom;
+        ctx.stroke();
+        const midI = Math.floor((s + e2) / 2);
+        ctx.fillStyle = 'rgba(255, 136, 0, 0.9)';
+        ctx.font = `bold ${8 * invZoom}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`BT${bi + 1} ${bt.side[0].toUpperCase()}`, samples[midI][0], samples[midI][1]);
+        ctx.textBaseline = 'alphabetic';
+      }
+
+      // Draw rain zones as blue-tinted bands along track
+      for (let ri = 0; ri < rainZones.length; ri++) {
+        const rz = rainZones[ri];
+        const samples = splineSamplesRef.current;
+        if (samples.length < 2) continue;
+        const n = samples.length;
+        const startI = Math.round(rz.tStart * (n - 1));
+        const endI = Math.round(rz.tEnd * (n - 1));
+        const s = Math.min(startI, endI);
+        const e2 = Math.max(startI, endI);
+        if (e2 <= s + 1) continue;
+        ctx.beginPath();
+        ctx.moveTo(samples[s][0], samples[s][1]);
+        for (let ii = s + 1; ii <= e2; ii++) ctx.lineTo(samples[ii][0], samples[ii][1]);
+        ctx.strokeStyle = 'rgba(68, 136, 204, 0.4)';
+        ctx.lineWidth = trackWidth * 0.7 * invZoom;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+        ctx.lineCap = 'butt';
+        const midI = Math.floor((s + e2) / 2);
+        ctx.fillStyle = 'rgba(68, 136, 204, 0.9)';
+        ctx.font = `bold ${9 * invZoom}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`RN${ri + 1}`, samples[midI][0], samples[midI][1]);
+        ctx.textBaseline = 'alphabetic';
+      }
+
+      // Boost track start indicator (pending first click)
+      if (activeTool === 'boostTrack' && boostTrackStartT !== null) {
+        const samples = splineSamplesRef.current;
+        if (samples.length > 1) {
+          const si3 = Math.round(boostTrackStartT * (samples.length - 1));
+          const sp = samples[Math.min(si3, samples.length - 1)];
+          ctx.beginPath();
+          ctx.arc(sp[0], sp[1], 8 * invZoom, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(255, 136, 0, 0.9)';
+          ctx.lineWidth = 2 * invZoom;
+          ctx.stroke();
+        }
+      }
+
+      // Rain zone start indicator (pending first click)
+      if (activeTool === 'rain' && rainZoneStartT !== null) {
+        const samples = splineSamplesRef.current;
+        if (samples.length > 1) {
+          const si3 = Math.round(rainZoneStartT * (samples.length - 1));
+          const sp = samples[Math.min(si3, samples.length - 1)];
+          ctx.beginPath();
+          ctx.arc(sp[0], sp[1], 8 * invZoom, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(68, 136, 204, 0.9)';
+          ctx.lineWidth = 2 * invZoom;
+          ctx.stroke();
+        }
+      }
+
       // Tunnel start indicator (pending first click)
       if (activeTool === 'tunnel' && tunnelStartRef.current !== null) {
         const samples = splineSamplesRef.current;
@@ -1093,6 +1297,24 @@ export function TrackEditor() {
       ctx.textBaseline = 'middle';
       ctx.fillStyle = i === 0 ? '#fff' : '#000';
       ctx.fillText(String(i), x, y);
+
+      // Point rotation indicator
+      const rot = pointRotations[i];
+      if (rot && rot !== 0) {
+        const arrowLen = 16 * invZoom;
+        const ax = x + Math.cos(rot) * arrowLen;
+        const ay = y + Math.sin(rot) * arrowLen;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(ax, ay);
+        ctx.strokeStyle = '#ff66ff';
+        ctx.lineWidth = 2 * invZoom;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(ax, ay, 3 * invZoom, 0, Math.PI * 2);
+        ctx.fillStyle = '#ff66ff';
+        ctx.fill();
+      }
     }
 
     // Highlight ring on first point when pen can close loop
@@ -1744,6 +1966,56 @@ export function TrackEditor() {
         }
         dispatch({ type: 'ADD_LIGHT', light: newLight });
       }
+    } else if (activeTool === 'speedStrip') {
+      const samples = splineSamplesRef.current;
+      if (samples.length >= 2) {
+        let nearestI = 0;
+        let nearestDist = Infinity;
+        for (let ii = 0; ii < samples.length; ii++) {
+          const dist = Math.hypot(pos[0] - samples[ii][0], pos[1] - samples[ii][1]);
+          if (dist < nearestDist) { nearestDist = dist; nearestI = ii; }
+        }
+        const t = nearestI / (samples.length - 1);
+        dispatch({ type: 'ADD_SPEED_STRIP', strip: { t } });
+      }
+    } else if (activeTool === 'boostTrack') {
+      const samples = splineSamplesRef.current;
+      if (samples.length >= 2) {
+        let nearestI = 0;
+        let nearestDist = Infinity;
+        for (let ii = 0; ii < samples.length; ii++) {
+          const dist = Math.hypot(pos[0] - samples[ii][0], pos[1] - samples[ii][1]);
+          if (dist < nearestDist) { nearestDist = dist; nearestI = ii; }
+        }
+        const t = nearestI / (samples.length - 1);
+        if (stateRef.current.boostTrackStartT === null) {
+          dispatch({ type: 'SET_BOOST_TRACK_START', t });
+          draw();
+        } else {
+          const tStart = Math.min(stateRef.current.boostTrackStartT, t);
+          const tEnd = Math.max(stateRef.current.boostTrackStartT, t);
+          dispatch({ type: 'ADD_BOOST_TRACK', boostTrack: { tStart, tEnd, side: stateRef.current.activeBoostSide } });
+        }
+      }
+    } else if (activeTool === 'rain') {
+      const samples = splineSamplesRef.current;
+      if (samples.length >= 2) {
+        let nearestI = 0;
+        let nearestDist = Infinity;
+        for (let ii = 0; ii < samples.length; ii++) {
+          const dist = Math.hypot(pos[0] - samples[ii][0], pos[1] - samples[ii][1]);
+          if (dist < nearestDist) { nearestDist = dist; nearestI = ii; }
+        }
+        const t = nearestI / (samples.length - 1);
+        if (stateRef.current.rainZoneStartT === null) {
+          dispatch({ type: 'SET_RAIN_ZONE_START', t });
+          draw();
+        } else {
+          const tStart = Math.min(stateRef.current.rainZoneStartT, t);
+          const tEnd = Math.max(stateRef.current.rainZoneStartT, t);
+          dispatch({ type: 'ADD_RAIN_ZONE', rainZone: { tStart, tEnd } });
+        }
+      }
     }
   };
 
@@ -1943,7 +2215,7 @@ export function TrackEditor() {
 
   const handleContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
-    const { activeTool, tunnels } = stateRef.current;
+    const { activeTool, tunnels, speedStrips: ss, boostTracks: bts, rainZones: rzs } = stateRef.current;
 
     if (activeTool === 'light') {
       const pos = getPos(e);
@@ -1960,6 +2232,77 @@ export function TrackEditor() {
       if (hIdx !== -1) {
         dispatch({ type: 'DELETE_HAZARD', index: hIdx });
         dispatch({ type: 'SELECT_HAZARD', index: -1 });
+      }
+      return;
+    }
+
+    if (activeTool === 'speedStrip') {
+      const pos = getPos(e);
+      const samples = splineSamplesRef.current;
+      const hitR2 = 12 / zoomRef.current;
+      for (let si2 = 0; si2 < ss.length; si2++) {
+        const n = samples.length;
+        if (n < 2) continue;
+        const idx = Math.round(ss[si2].t * (n - 1));
+        const pt = samples[Math.min(idx, n - 1)];
+        if (Math.hypot(pos[0] - pt[0], pos[1] - pt[1]) < hitR2) {
+          dispatch({ type: 'DELETE_SPEED_STRIP', index: si2 });
+          return;
+        }
+      }
+      return;
+    }
+
+    if (activeTool === 'boostTrack') {
+      if (stateRef.current.boostTrackStartT !== null) {
+        dispatch({ type: 'SET_BOOST_TRACK_START', t: null });
+        draw();
+        return;
+      }
+      const pos = getPos(e);
+      const samples = splineSamplesRef.current;
+      const hitR2 = 8 / zoomRef.current;
+      for (let bi = 0; bi < bts.length; bi++) {
+        const bt = bts[bi];
+        const n = samples.length;
+        if (n < 2) continue;
+        const startI = Math.round(bt.tStart * (n - 1));
+        const endI = Math.round(bt.tEnd * (n - 1));
+        const s = Math.min(startI, endI);
+        const e2 = Math.max(startI, endI);
+        for (let ii = s; ii <= e2; ii++) {
+          if (Math.hypot(pos[0] - samples[ii][0], pos[1] - samples[ii][1]) < hitR2) {
+            dispatch({ type: 'DELETE_BOOST_TRACK', index: bi });
+            return;
+          }
+        }
+      }
+      return;
+    }
+
+    if (activeTool === 'rain') {
+      if (stateRef.current.rainZoneStartT !== null) {
+        dispatch({ type: 'SET_RAIN_ZONE_START', t: null });
+        draw();
+        return;
+      }
+      const pos = getPos(e);
+      const samples = splineSamplesRef.current;
+      const hitR2 = 8 / zoomRef.current;
+      for (let ri = 0; ri < rzs.length; ri++) {
+        const rz = rzs[ri];
+        const n = samples.length;
+        if (n < 2) continue;
+        const startI = Math.round(rz.tStart * (n - 1));
+        const endI = Math.round(rz.tEnd * (n - 1));
+        const s = Math.min(startI, endI);
+        const e2 = Math.max(startI, endI);
+        for (let ii = s; ii <= e2; ii++) {
+          if (Math.hypot(pos[0] - samples[ii][0], pos[1] - samples[ii][1]) < hitR2) {
+            dispatch({ type: 'DELETE_RAIN_ZONE', index: ri });
+            return;
+          }
+        }
       }
       return;
     }
@@ -2014,7 +2357,7 @@ export function TrackEditor() {
   const handleTest = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const { points, trackName, trackWidth, hazards, loopClosed, objects, tunnels, lights } = stateRef.current;
+    const { points, trackName, trackWidth, hazards, loopClosed, objects, tunnels, lights, speedStrips, boostTracks, rainZones, pointRotations } = stateRef.current;
     if (points.length < 3) {
       alert('Add at least 3 points to test the track.');
       return;
@@ -2035,9 +2378,13 @@ export function TrackEditor() {
       objects,
       tunnels,
       lights,
+      speedStrips,
+      boostTracks,
+      rainZones,
+      pointRotations,
     };
     sessionStorage.setItem('editor_track', JSON.stringify(config));
-    sessionStorage.setItem('editor_draft', JSON.stringify({ points, trackName, trackWidth, hazards, loopClosed, objects, tunnels, lights }));
+    sessionStorage.setItem('editor_draft', JSON.stringify({ points, trackName, trackWidth, hazards, loopClosed, objects, tunnels, lights, speedStrips, boostTracks, rainZones, pointRotations }));
     navigate('/', { state: { fromEditor: true } });
   };
 
@@ -2046,7 +2393,7 @@ export function TrackEditor() {
     if (!canvas) return;
     const originX = canvas.width / 2;
     const originY = canvas.height / 2;
-    const { points, trackName, trackWidth, hazards, objects, tunnels, lights } = stateRef.current;
+    const { points, trackName, trackWidth, hazards, objects, tunnels, lights, speedStrips, boostTracks, rainZones, pointRotations } = stateRef.current;
     const controlPoints = points.map(([cx, cy]) =>
       canvasToGame(cx, cy, originX, originY).map(v => Math.round(v * 100) / 100) as [number, number, number]
     );
@@ -2060,6 +2407,10 @@ export function TrackEditor() {
       objects,
       tunnels,
       lights,
+      speedStrips,
+      boostTracks,
+      rainZones,
+      pointRotations,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -2088,6 +2439,10 @@ export function TrackEditor() {
           objects?: PlacedObject[];
           tunnels?: TunnelSection[];
           lights?: PlacedLight[];
+          speedStrips?: SpeedStrip[];
+          boostTracks?: BoostTrack[];
+          rainZones?: RainZone[];
+          pointRotations?: number[];
         };
         const points = data.controlPoints.map(([gx, , gz]) =>
           gameToCanvas(gx, gz, originX, originY)
@@ -2109,6 +2464,10 @@ export function TrackEditor() {
           objects: data.objects ?? [],
           tunnels: data.tunnels ?? [],
           lights,
+          speedStrips: data.speedStrips ?? [],
+          boostTracks: data.boostTracks ?? [],
+          rainZones: data.rainZones ?? [],
+          pointRotations: data.pointRotations ?? [],
         });
       } catch {
         alert('Failed to parse JSON file.');
@@ -2161,6 +2520,9 @@ export function TrackEditor() {
     { id: 'tunnel', label: 'Tunnel', key: 'T' },
     { id: 'hazard', label: 'Hazards', key: 'X' },
     { id: 'light', label: 'Lights', key: 'V' },
+    { id: 'speedStrip', label: 'Speed Strip', key: '' },
+    { id: 'boostTrack', label: 'Boost Track', key: '' },
+    { id: 'rain', label: 'Rain', key: '' },
   ];
 
   const selectedObj = state.selectedObjectIndex !== -1 ? state.objects[state.selectedObjectIndex] : null;
@@ -2486,6 +2848,101 @@ export function TrackEditor() {
               <span style={{ opacity: 0.6, fontSize: 9, marginTop: 4, display: 'block' }}>
                 {state.lights.length} light{state.lights.length !== 1 ? 's' : ''} placed
               </span>
+            )}
+          </div>
+        )}
+
+        {state.activeTool === 'speedStrip' && (
+          <div className="editor-section">
+            <label className="editor-label">Speed Strip Tool</label>
+            <span style={{ opacity: 0.6, fontSize: 9, display: 'block', marginBottom: 4 }}>
+              Click track to place boost pad (1.5x speed) · right-click to delete
+            </span>
+            {state.speedStrips.length > 0 && (
+              <>
+                <label className="editor-label">Speed Strips ({state.speedStrips.length})</label>
+                {state.speedStrips.map((ss, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 3, marginBottom: 2 }}>
+                    <span style={{ flex: 1, fontSize: 9, fontFamily: 'monospace', background: 'rgba(0,255,204,0.3)', color: '#fff', padding: '1px 4px', borderRadius: 2 }}>
+                      t={( ss.t * 100).toFixed(0)}%
+                    </span>
+                    <button
+                      className="tool-btn tool-btn-danger"
+                      style={{ padding: '0 5px', fontSize: 10, minWidth: 'auto' }}
+                      onClick={() => dispatch({ type: 'DELETE_SPEED_STRIP', index: i })}
+                    >x</button>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        )}
+
+        {state.activeTool === 'boostTrack' && (
+          <div className="editor-section">
+            <label className="editor-label">Boost Track Tool</label>
+            <span style={{ opacity: 0.6, fontSize: 9, display: 'block', marginBottom: 4 }}>
+              {state.boostTrackStartT === null
+                ? 'Click track to set start'
+                : 'Click track to set end · right-click to cancel'}
+            </span>
+            <label className="editor-label">Side</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+              {(['left', 'right'] as const).map(side => (
+                <button
+                  key={side}
+                  className={`tool-btn${state.activeBoostSide === side ? ' active' : ''}`}
+                  style={{ fontSize: 9, padding: '2px 4px' }}
+                  onClick={() => dispatch({ type: 'SET_ACTIVE_BOOST_SIDE', side })}
+                >
+                  {side}
+                </button>
+              ))}
+            </div>
+            {state.boostTracks.length > 0 && (
+              <>
+                <label className="editor-label" style={{ marginTop: 6 }}>Boost Tracks ({state.boostTracks.length})</label>
+                {state.boostTracks.map((bt, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 3, marginBottom: 2 }}>
+                    <span style={{ flex: 1, fontSize: 9, fontFamily: 'monospace', background: 'rgba(255,136,0,0.3)', color: '#fff', padding: '1px 4px', borderRadius: 2 }}>
+                      {(bt.tStart * 100).toFixed(0)}%–{(bt.tEnd * 100).toFixed(0)}% {bt.side[0].toUpperCase()}
+                    </span>
+                    <button
+                      className="tool-btn tool-btn-danger"
+                      style={{ padding: '0 5px', fontSize: 10, minWidth: 'auto' }}
+                      onClick={() => dispatch({ type: 'DELETE_BOOST_TRACK', index: i })}
+                    >x</button>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        )}
+
+        {state.activeTool === 'rain' && (
+          <div className="editor-section">
+            <label className="editor-label">Rain Zone Tool</label>
+            <span style={{ opacity: 0.6, fontSize: 9, display: 'block', marginBottom: 4 }}>
+              {state.rainZoneStartT === null
+                ? 'Click track to set rain start'
+                : 'Click track to set rain end · right-click to cancel'}
+            </span>
+            {state.rainZones.length > 0 && (
+              <>
+                <label className="editor-label">Rain Zones ({state.rainZones.length})</label>
+                {state.rainZones.map((rz, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 3, marginBottom: 2 }}>
+                    <span style={{ flex: 1, fontSize: 9, fontFamily: 'monospace', background: 'rgba(68,136,204,0.3)', color: '#fff', padding: '1px 4px', borderRadius: 2 }}>
+                      {(rz.tStart * 100).toFixed(0)}%–{(rz.tEnd * 100).toFixed(0)}%
+                    </span>
+                    <button
+                      className="tool-btn tool-btn-danger"
+                      style={{ padding: '0 5px', fontSize: 10, minWidth: 'auto' }}
+                      onClick={() => dispatch({ type: 'DELETE_RAIN_ZONE', index: i })}
+                    >x</button>
+                  </div>
+                ))}
+              </>
             )}
           </div>
         )}

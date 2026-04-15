@@ -19,14 +19,23 @@ export class TrackDefinition {
   readonly name: string;
   private boundaryPoints: BoundaryPoint[] = [];
 
-  constructor(config?: TrackConfig) {
+  constructor(config?: TrackConfig, reverse = false) {
     const cfg = config ?? TRACKS[0];
     this.width = cfg.width;
     this.hazardZones = cfg.hazards;
-    this.checkpoints = cfg.checkpoints ?? [0.25, 0.5, 0.75];
     this.name = cfg.name;
 
-    const points = cfg.controlPoints.map(
+    let controlPoints = cfg.controlPoints;
+    let checkpoints = cfg.checkpoints ?? [0.25, 0.5, 0.75];
+
+    if (reverse) {
+      controlPoints = [...controlPoints].reverse();
+      checkpoints = checkpoints.map(t => 1 - t).reverse();
+    }
+
+    this.checkpoints = checkpoints;
+
+    const points = controlPoints.map(
       ([x, y, z]) => new THREE.Vector3(x, y, z)
     );
     this.curve = new THREE.CatmullRomCurve3(points, true, 'centripetal');
