@@ -95,7 +95,7 @@ export function buildCircleHazardMesh(
   );
   primaryMesh.rotation.x = -Math.PI / 2;
   primaryMesh.position.y = 0.075;
-  primaryMesh.renderOrder = 3;
+  primaryMesh.renderOrder = 1;
   group.add(primaryMesh);
 
   const secondaryMesh = new THREE.Mesh(
@@ -105,7 +105,7 @@ export function buildCircleHazardMesh(
   secondaryMesh.rotation.x = -Math.PI / 2;
   secondaryMesh.rotation.z = Math.PI / 6;
   secondaryMesh.position.y = 0.076;
-  secondaryMesh.renderOrder = 3;
+  secondaryMesh.renderOrder = 1;
   group.add(secondaryMesh);
 
   const light = new THREE.PointLight(color, 0.6, 25);

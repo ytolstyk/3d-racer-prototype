@@ -50,7 +50,7 @@ export class TireMarkSystem {
     );
     this.mesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
     this.mesh.count = 0;
-    this.mesh.renderOrder = 1;
+    this.mesh.renderOrder = 2;
     this.mesh.frustumCulled = false;
     scene.add(this.mesh);
 
@@ -71,7 +71,7 @@ export class TireMarkSystem {
     );
     this.substanceMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
     this.substanceMesh.count = 0;
-    this.substanceMesh.renderOrder = 1;
+    this.substanceMesh.renderOrder = 2;
     this.substanceMesh.frustumCulled = false;
     scene.add(this.substanceMesh);
 
