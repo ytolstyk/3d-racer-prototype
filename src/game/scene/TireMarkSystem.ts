@@ -3,6 +3,7 @@ import type { CarState } from '../../types/game.js';
 
 const MAX_MARKS = 1200;
 const MAX_SUBSTANCE_MARKS = 400;
+const MAX_FIRE_MARKS = 200;
 const MARK_SPACING = 0.9;
 
 const SUBSTANCE_COLORS: Record<string, THREE.Color> = {
@@ -16,18 +17,23 @@ const SUBSTANCE_COLORS: Record<string, THREE.Color> = {
 export class TireMarkSystem {
   private mesh: THREE.InstancedMesh;
   private substanceMesh: THREE.InstancedMesh;
+  private fireMarkMesh: THREE.InstancedMesh;
   private nextIndex = 0;
   private count = 0;
   private substanceNextIndex = 0;
   private substanceCount = 0;
+  private fireNextIndex = 0;
+  private fireMarkCount = 0;
   private dummy = new THREE.Object3D();
   private lastMarkPos = new Map<string, THREE.Vector3>();
   private lastSubstancePos = new Map<string, THREE.Vector3>();
   private markCreationTime: Float32Array;
   private substanceCreationTime: Float32Array;
+  private fireMarkCreationTime: Float32Array;
   private substanceColors: THREE.Color[];
   private elapsed = 0;
   private baseColor = new THREE.Color(0x111111);
+  private fireStartColor = new THREE.Color(0xff6600);
   private transparent = new THREE.Color(0x000000);
 
   constructor(scene: THREE.Scene) {
@@ -78,6 +84,30 @@ export class TireMarkSystem {
     this.markCreationTime = new Float32Array(MAX_MARKS).fill(-100);
     this.substanceCreationTime = new Float32Array(MAX_SUBSTANCE_MARKS).fill(-100);
     this.substanceColors = Array.from({ length: MAX_SUBSTANCE_MARKS }, () => new THREE.Color());
+
+    // Fire mark pool (boost tire tracks)
+    const fireGeo = new THREE.PlaneGeometry(0.65, 1.1);
+    fireGeo.rotateX(-Math.PI / 2);
+
+    const fireMat = new THREE.MeshBasicMaterial({
+      color: 0xff6600,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+    });
+
+    this.fireMarkMesh = new THREE.InstancedMesh(fireGeo, fireMat, MAX_FIRE_MARKS);
+    this.fireMarkMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.fireMarkMesh.instanceColor = new THREE.InstancedBufferAttribute(
+      new Float32Array(MAX_FIRE_MARKS * 3), 3
+    );
+    this.fireMarkMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+    this.fireMarkMesh.count = 0;
+    this.fireMarkMesh.renderOrder = 3;
+    this.fireMarkMesh.frustumCulled = false;
+    scene.add(this.fireMarkMesh);
+
+    this.fireMarkCreationTime = new Float32Array(MAX_FIRE_MARKS).fill(-100);
   }
 
   addMarks(car: CarState): void {
@@ -161,6 +191,35 @@ export class TireMarkSystem {
     if (this.substanceMesh.instanceColor) this.substanceMesh.instanceColor.needsUpdate = true;
   }
 
+  addFireMarks(car: CarState): void {
+    const sinR = Math.sin(car.rotation);
+    const cosR = Math.cos(car.rotation);
+    const rearX = car.position.x - sinR * 2.0;
+    const rearZ = car.position.z - cosR * 2.0;
+
+    const wheelOffsets = [-1.4, 1.4];
+    for (const offset of wheelOffsets) {
+      const wx = rearX + cosR * offset;
+      const wz = rearZ - sinR * offset;
+
+      this.dummy.position.set(wx, 0.067, wz);
+      this.dummy.rotation.set(0, car.rotation, 0);
+      this.dummy.scale.set(1, 1, 1);
+      this.dummy.updateMatrix();
+      this.fireMarkMesh.setMatrixAt(this.fireNextIndex, this.dummy.matrix);
+      this.fireMarkMesh.setColorAt(this.fireNextIndex, this.fireStartColor);
+      this.fireMarkCreationTime[this.fireNextIndex] = this.elapsed;
+      this.fireNextIndex = (this.fireNextIndex + 1) % MAX_FIRE_MARKS;
+      if (this.fireMarkCount < MAX_FIRE_MARKS) {
+        this.fireMarkCount++;
+        this.fireMarkMesh.count = this.fireMarkCount;
+      }
+    }
+
+    this.fireMarkMesh.instanceMatrix.needsUpdate = true;
+    if (this.fireMarkMesh.instanceColor) this.fireMarkMesh.instanceColor.needsUpdate = true;
+  }
+
   update(dt: number): void {
     this.elapsed += dt;
     let dirty = false;
@@ -198,8 +257,26 @@ export class TireMarkSystem {
       }
     }
 
+    // Fade fire marks: start fading at 0.3s, fully transparent at 1.5s (smooth-step)
+    let fireDirty = false;
+    for (let i = 0; i < this.fireMarkCount; i++) {
+      const age = this.elapsed - this.fireMarkCreationTime[i];
+      if (age > 0.3 && age < 1.5) {
+        const t = Math.min(1, (age - 0.3) / 1.2);
+        const fade = 1 - (t * t * (3 - 2 * t)); // smooth-step
+        const c = this.fireStartColor.clone().lerp(this.transparent, 1 - fade);
+        this.fireMarkMesh.setColorAt(i, c);
+        fireDirty = true;
+      } else if (age >= 1.5 && this.fireMarkCreationTime[i] > -50) {
+        this.fireMarkMesh.setColorAt(i, this.transparent);
+        this.fireMarkCreationTime[i] = -100;
+        fireDirty = true;
+      }
+    }
+
     if (dirty && this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
     if (subDirty && this.substanceMesh.instanceColor) this.substanceMesh.instanceColor.needsUpdate = true;
+    if (fireDirty && this.fireMarkMesh.instanceColor) this.fireMarkMesh.instanceColor.needsUpdate = true;
   }
 
   dispose(): void {
@@ -207,5 +284,7 @@ export class TireMarkSystem {
     (this.mesh.material as THREE.Material).dispose();
     this.substanceMesh.geometry.dispose();
     (this.substanceMesh.material as THREE.Material).dispose();
+    this.fireMarkMesh.geometry.dispose();
+    (this.fireMarkMesh.material as THREE.Material).dispose();
   }
 }

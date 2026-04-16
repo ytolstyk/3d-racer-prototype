@@ -162,9 +162,13 @@ export class RainHazardSystem {
       };
     }
     // Spline zone: random t within range, random lateral offset
+    // Use raw-parameter getPoint/getTangent (not arc-length getPointAt) to match
+    // tStart/tEnd values which are raw parameter indices from the editor.
     const t = zone.tStart + Math.random() * (zone.tEnd - zone.tStart);
-    const center = zone.track.getPointAt(t);
-    const normal = zone.track.getNormalAt(t);
+    const center = zone.track.curve.getPoint(t);
+    const tangent = zone.track.curve.getTangent(t).normalize();
+    const up = new THREE.Vector3(0, 1, 0);
+    const normal = new THREE.Vector3().crossVectors(tangent, up).normalize();
     const lateralOffset = (Math.random() - 0.5) * zone.track.width;
     return {
       x: center.x + normal.x * lateralOffset,

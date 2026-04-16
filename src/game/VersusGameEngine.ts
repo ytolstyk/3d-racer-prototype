@@ -477,6 +477,7 @@ export class VersusGameEngine {
           for (const car of this.cars) {
             if (car.isSkidding || car.isBraking) this.tireMarks?.addMarks(car);
             if (car.isSkidding) this.tireSmoke?.emitForCar(car, dt);
+            if (car.accelBoostTimer > 0) this.tireMarks?.addFireMarks(car);
           }
           this.tireMarks?.update(dt);
           this.tireSmoke?.update(dt);

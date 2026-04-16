@@ -34,19 +34,15 @@ export class CarController {
       throttle = goingForward ? -this._cp('directionReversalBrakeForce') : -1;
     }
 
-    // Handbrake: override throttle — brake to cap if above it, coast to stop if no input
+    // Handbrake: block reversing entirely; brake to stop if already reversing
     if (input.handbrake) {
-      const speedCap = car.definition.maxSpeed * this._cp('handbrakeSpeedCap');
-      if (input.forward || input.backward) {
-        const targetDir = input.forward ? 1 : -1;
-        if (car.speed * targetDir > speedCap) {
-          throttle = targetDir * this._cp('handbrakeBrakeThrottle');
-        } else {
-          throttle = targetDir; // let handbrakeAccelMultiplier in applyAcceleration limit the force
-        }
-      } else {
-        throttle = 0; // no input — coast to stop via drag
+      if (car.speed < -this._cp('directionReversalBrakeThreshold')) {
+        throttle = 1; // actively brake a reversing car to stop
+      } else if (input.forward) {
+        const speedCap = car.definition.maxSpeed * this._cp('handbrakeSpeedCap');
+        throttle = car.speed > speedCap ? this._cp('handbrakeBrakeThrottle') : 1;
       }
+      // else: backward input or no input — throttle stays 0, drag stops the car
     }
 
     // Steering

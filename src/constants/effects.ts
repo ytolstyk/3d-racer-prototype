@@ -2,10 +2,10 @@
 export const TIRE_SMOKE = {
   poolSize: 800, // instanced mesh pool (was 400)
   emitRate: 1 / 30, // seconds between emits (30 fps, was 20)
-  particlesPerEmit: 4, // per-tire particles per emit (was 2, implicit from emitOne×2)
+  particlesPerEmit: 2, // per-tire particles per emit (was 2, implicit from emitOne×2)
   lifetime: 1.5, // seconds each puff lives
-  initialSize: 1.0, // start scale
-  maxGrowth: 3.2, // added to initialSize over lifetime
+  initialSize: 2.0, // start scale
+  maxGrowth: 5.2, // added to initialSize over lifetime
   initialOpacity: 0.85,
   collisionSizeMultiplier: 1.3, // collision smoke is 30% bigger
   collisionInitialSize: 0.39,
@@ -17,7 +17,7 @@ export const SPEED_STRIP = {
   boostMultiplier: 1.5, // speed cap multiplied by this on crossing (legacy, now maxSpeedCap)
   decayRate: 2.0, // per-second lerp rate back to 1.0
   color: 0x00ffcc, // emissive strip color
-  stripWidth: 3, // strip depth along track direction
+  stripWidth: 8, // strip depth along track direction
   accelMultiplier: 2.5, // acceleration multiplied by this during boost
   accelBoostDuration: 0.5, // seconds the acceleration boost lasts
   maxSpeedCap: 1.5, // max speed cap multiplier during boost (150% of normal max)
