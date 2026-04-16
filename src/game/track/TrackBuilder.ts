@@ -743,7 +743,6 @@ export class TrackBuilder {
   private buildSpeedStrip(track: TrackDefinition, t: number): THREE.Mesh {
     const point = track.getPointAt(t);
     const tangent = track.getTangentAt(t);
-    const normal = track.getNormalAt(t);
 
     const stripWidth = track.width * 0.9;
     const geo = new THREE.PlaneGeometry(stripWidth, SPEED_STRIP.stripWidth);
@@ -797,14 +796,7 @@ export class TrackBuilder {
 
     const mesh = new THREE.Mesh(geo, mat);
 
-    // Orient the plane flat on the XZ plane perpendicular to track direction
-    // using tangent and normal vectors
-    const up = new THREE.Vector3(0, 1, 0);
-    const basisX = new THREE.Vector3(normal.x, 0, normal.z).normalize();
-    const basisZ = new THREE.Vector3(tangent.x, 0, tangent.z).normalize();
-    const rotMatrix = new THREE.Matrix4().makeBasis(basisX, up, basisZ);
-    mesh.quaternion.setFromRotationMatrix(rotMatrix);
-
+    mesh.rotation.y = Math.atan2(tangent.x, tangent.z) + Math.PI;
     mesh.position.set(point.x, 0.07, point.z);
     return mesh;
   }

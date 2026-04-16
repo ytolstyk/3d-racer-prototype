@@ -36,6 +36,17 @@ export class TireMarkSystem {
   private fireStartColor = new THREE.Color(0xff6600);
   private transparent = new THREE.Color(0x000000);
 
+  // Fire sparkles
+  private fireSparkMesh: THREE.InstancedMesh;
+  private sparkPos: Float32Array;
+  private sparkVel: Float32Array;
+  private sparkBorn: Float32Array;
+  private sparkNext = 0;
+  private sparkCount = 0;
+  private readonly SPARK_LIFETIME = 0.6;
+  private readonly MAX_SPARKS = 500;
+  private sparkColor = new THREE.Color(0xffee77);
+
   constructor(scene: THREE.Scene) {
     // Geometry lies flat in XZ plane (baked rotation)
     const geo = new THREE.PlaneGeometry(0.65, 1.1);
@@ -108,6 +119,29 @@ export class TireMarkSystem {
     scene.add(this.fireMarkMesh);
 
     this.fireMarkCreationTime = new Float32Array(MAX_FIRE_MARKS).fill(-100);
+
+    // Fire sparkle pool
+    const sparkGeo = new THREE.PlaneGeometry(1, 1);
+    sparkGeo.rotateX(-Math.PI / 2);
+    const sparkMat = new THREE.MeshBasicMaterial({
+      color: 0xffee77,
+      transparent: true,
+      depthWrite: false,
+    });
+    this.fireSparkMesh = new THREE.InstancedMesh(sparkGeo, sparkMat, this.MAX_SPARKS);
+    this.fireSparkMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.fireSparkMesh.instanceColor = new THREE.InstancedBufferAttribute(
+      new Float32Array(this.MAX_SPARKS * 3), 3
+    );
+    this.fireSparkMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+    this.fireSparkMesh.count = 0;
+    this.fireSparkMesh.renderOrder = 4;
+    this.fireSparkMesh.frustumCulled = false;
+    scene.add(this.fireSparkMesh);
+
+    this.sparkPos = new Float32Array(this.MAX_SPARKS * 3).fill(0);
+    this.sparkVel = new Float32Array(this.MAX_SPARKS * 3).fill(0);
+    this.sparkBorn = new Float32Array(this.MAX_SPARKS).fill(-100);
   }
 
   addMarks(car: CarState): void {
@@ -214,6 +248,25 @@ export class TireMarkSystem {
         this.fireMarkCount++;
         this.fireMarkMesh.count = this.fireMarkCount;
       }
+
+      // Emit 2 sparks per wheel
+      for (let s = 0; s < 2; s++) {
+        const si = this.sparkNext;
+        this.sparkPos[si * 3]     = wx + (Math.random() - 0.5) * 0.8;
+        this.sparkPos[si * 3 + 1] = 0.12;
+        this.sparkPos[si * 3 + 2] = wz + (Math.random() - 0.5) * 0.8;
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 1.5 + Math.random() * 2.0;
+        this.sparkVel[si * 3]     = Math.cos(angle) * speed;
+        this.sparkVel[si * 3 + 1] = 1.2 + Math.random() * 1.3;
+        this.sparkVel[si * 3 + 2] = Math.sin(angle) * speed;
+        this.sparkBorn[si] = this.elapsed;
+        this.sparkNext = (this.sparkNext + 1) % this.MAX_SPARKS;
+        if (this.sparkCount < this.MAX_SPARKS) {
+          this.sparkCount++;
+          this.fireSparkMesh.count = this.sparkCount;
+        }
+      }
     }
 
     this.fireMarkMesh.instanceMatrix.needsUpdate = true;
@@ -277,6 +330,46 @@ export class TireMarkSystem {
     if (dirty && this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
     if (subDirty && this.substanceMesh.instanceColor) this.substanceMesh.instanceColor.needsUpdate = true;
     if (fireDirty && this.fireMarkMesh.instanceColor) this.fireMarkMesh.instanceColor.needsUpdate = true;
+
+    // Update fire sparkles
+    let sparkDirty = false;
+    for (let i = 0; i < this.sparkCount; i++) {
+      const born = this.sparkBorn[i];
+      if (born < -50) continue;
+      const age = this.elapsed - born;
+      if (age >= this.SPARK_LIFETIME) {
+        this.dummy.position.set(0, -1000, 0);
+        this.dummy.scale.set(0, 0, 0);
+        this.dummy.rotation.set(0, 0, 0);
+        this.dummy.updateMatrix();
+        this.fireSparkMesh.setMatrixAt(i, this.dummy.matrix);
+        this.sparkBorn[i] = -100;
+        sparkDirty = true;
+        continue;
+      }
+      // Integrate position
+      this.sparkPos[i * 3]     += this.sparkVel[i * 3]     * dt;
+      this.sparkPos[i * 3 + 1] += this.sparkVel[i * 3 + 1] * dt;
+      this.sparkPos[i * 3 + 2] += this.sparkVel[i * 3 + 2] * dt;
+      // Gravity
+      this.sparkVel[i * 3 + 1] -= 4 * dt;
+
+      const ageRatio = age / this.SPARK_LIFETIME;
+      const s = 0.80 * (1 - ageRatio);
+      this.dummy.position.set(this.sparkPos[i * 3], this.sparkPos[i * 3 + 1], this.sparkPos[i * 3 + 2]);
+      this.dummy.scale.set(s, s, s);
+      this.dummy.rotation.set(0, 0, 0);
+      this.dummy.updateMatrix();
+      this.fireSparkMesh.setMatrixAt(i, this.dummy.matrix);
+      const alpha = 1 - ageRatio;
+      const c = this.sparkColor.clone().multiplyScalar(alpha);
+      this.fireSparkMesh.setColorAt(i, c);
+      sparkDirty = true;
+    }
+    if (sparkDirty) {
+      this.fireSparkMesh.instanceMatrix.needsUpdate = true;
+      if (this.fireSparkMesh.instanceColor) this.fireSparkMesh.instanceColor.needsUpdate = true;
+    }
   }
 
   dispose(): void {
@@ -286,5 +379,7 @@ export class TireMarkSystem {
     (this.substanceMesh.material as THREE.Material).dispose();
     this.fireMarkMesh.geometry.dispose();
     (this.fireMarkMesh.material as THREE.Material).dispose();
+    this.fireSparkMesh.geometry.dispose();
+    (this.fireSparkMesh.material as THREE.Material).dispose();
   }
 }
