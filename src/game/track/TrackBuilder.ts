@@ -695,7 +695,7 @@ export class TrackBuilder {
 
           // Chevron shape: ">" pointing in track direction
           float chevron = abs(u - 0.5) * 2.0;
-          float pattern = fract(v - chevron * 0.5);
+          float pattern = fract(v + chevron * 0.5);
           float arrow = step(0.5, pattern) * (1.0 - step(0.75, pattern));
 
           // Pulsing emissive shimmer
