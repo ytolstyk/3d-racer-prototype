@@ -744,7 +744,7 @@ export class TrackBuilder {
     const point = track.getPointAt(t);
     const tangent = track.getTangentAt(t);
 
-    const stripWidth = track.width * 0.9;
+    const stripWidth = track.width;
     const geo = new THREE.PlaneGeometry(stripWidth, SPEED_STRIP.stripWidth);
     geo.rotateX(-Math.PI / 2); // lay flat in XZ plane before basis rotation
 
@@ -772,7 +772,7 @@ export class TrackBuilder {
         void main() {
           // Scrolling chevron pattern along v (track direction)
           float v = vUv.y * 4.0 - time * 3.0;
-          float u = vUv.x;
+          float u = fract(vUv.x * 4.0); // tile 4 chevrons across track width
 
           // Chevron shape: V pointing in track direction
           float chevron = abs(u - 0.5) * 2.0;
