@@ -38,6 +38,7 @@ import { SplatterDecalSystem } from "./effects/SplatterDecalSystem.js";
 import { RainHazardSystem } from "./effects/RainHazardSystem.js";
 import { buildCircleHazardMesh } from "./track/HazardSystem.js";
 import { HAZARD_HEX_COLORS } from "../constants/physics.js";
+import { AudioManager } from "./audio/AudioManager.js";
 
 const BOUND_X = 600;
 const BOUND_Z = 450;
@@ -79,6 +80,7 @@ export class PracticeEngine {
   private rainSystem: RainHazardSystem | null = null;
   private rainCircles: { x: number; z: number; radius: number }[] = [];
   private hazardState: CarHazardState = { inHazard: false, zoneType: '', drip: 0, splashTimer: 0 };
+  private audioManager: AudioManager | null = null;
   private _axisXMarker!: THREE.Mesh;
   private _axisZMarker!: THREE.Mesh;
   private animFrameId = 0;
@@ -178,6 +180,12 @@ export class PracticeEngine {
 
     this.boundHandleResize = this._handleResize.bind(this);
     window.addEventListener("resize", this.boundHandleResize);
+
+    // Audio
+    this.audioManager = new AudioManager(this.cameraController.camera);
+    if (this.playerCar) this.audioManager.addCar(this.playerCar, true);
+    const resumeOnce = () => { this.audioManager?.resumeAudio(); window.removeEventListener('click', resumeOnce); };
+    window.addEventListener('click', resumeOnce);
 
     this.lastTime = performance.now();
     this._loop();
@@ -572,6 +580,7 @@ export class PracticeEngine {
           car.position.x += (dx / dist) * overlap;
           car.position.z += (dz / dist) * overlap;
           car.speed *= 0.5;
+          this.audioManager?.onCollision(car.position);
         }
       }
 
@@ -623,6 +632,7 @@ export class PracticeEngine {
           if (Math.abs(car.speed) >= car.definition.maxSpeed * 0.1) {
             this.hazardSplash.emit(lPos, hColor, car.speed, car.definition.maxSpeed, 28, car.rotation);
             this.hazardSplash.emit(rPos, hColor, car.speed, car.definition.maxSpeed, 27, car.rotation);
+            this.audioManager?.onSplash();
           }
         } else if (Math.abs(car.speed) >= car.definition.maxSpeed * 0.1) {
           hs.splashTimer -= dt;
@@ -659,6 +669,7 @@ export class PracticeEngine {
       this.tireSmoke.update(dt);
       this.hazardSplash.update(dt);
       this.rainSystem?.update(dt, [car]);
+      this.audioManager?.update([car], car, this.cameraController.camera);
 
       this.cameraController.update(
         car.position,
@@ -819,6 +830,7 @@ export class PracticeEngine {
     cancelAnimationFrame(this.animFrameId);
     window.removeEventListener("resize", this.boundHandleResize);
     this.inputManager.dispose();
+    this.audioManager?.dispose();
     this.tireMarks.dispose();
     this.tireSmoke.dispose();
     this.hazardSplash.dispose();

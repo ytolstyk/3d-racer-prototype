@@ -30,6 +30,7 @@ import { HAZARD_HEX_COLORS } from '../constants/physics.js';
 import { DIFFICULTY_CONFIG } from '../constants/aiRacer.js';
 import { SPEED_STRIP, BOOST_TRACK } from '../constants/effects.js';
 import type { SpeedStrip, BoostTrack } from '../types/game.js';
+import { AudioManager } from './audio/AudioManager.js';
 
 interface CarHazardState {
   inHazard: boolean;
@@ -68,6 +69,7 @@ export class GameEngine {
   private boostTracks: BoostTrack[] = [];
   private trackGroup: THREE.Group | null = null;
   private carHazardState: Map<string, CarHazardState> = new Map();
+  private audioManager: AudioManager | null = null;
   private animFrameId = 0;
   private lastTime = 0;
   private raceStarted = false;
@@ -185,7 +187,14 @@ export class GameEngine {
     this.collisionParticles = new CollisionParticleSystem(this.scene, this.tireSmoke);
     this.collisionSystem.onCollision = (pos, dir, color, carVelocity) => {
       this.collisionParticles?.emit(pos, dir, color, carVelocity);
+      this.audioManager?.onCollision(pos);
     };
+
+    // Audio
+    this.audioManager = new AudioManager(this.cameraController.camera);
+    for (const car of this.cars) this.audioManager.addCar(car, car.isPlayer);
+    const resumeOnce = () => { this.audioManager?.resumeAudio(); window.removeEventListener('click', resumeOnce); };
+    window.addEventListener('click', resumeOnce);
 
     // Race
     this.raceManager = new RaceManager(this.track, totalLaps);
@@ -402,6 +411,9 @@ export class GameEngine {
       // Collisions
       this.collisionSystem.update(this.cars, dt);
 
+      // Audio
+      this.audioManager?.update(this.cars, this.playerCar ?? null, this.cameraController.camera);
+
       // Check if player just finished
       if (this.playerCar?.finished && !this.playerFinished) {
         this.playerFinished = true;
@@ -500,6 +512,7 @@ export class GameEngine {
         if (Math.abs(car.speed) >= car.definition.maxSpeed * 0.1) {
           this.hazardSplash?.emit(leftPos, color, car.speed, car.definition.maxSpeed, 28, car.rotation);
           this.hazardSplash?.emit(rightPos, color, car.speed, car.definition.maxSpeed, 27, car.rotation);
+          if (car.isPlayer) this.audioManager?.onSplash();
         }
       } else if (Math.abs(car.speed) >= car.definition.maxSpeed * 0.1) {
         hs.splashTimer -= dt;
@@ -577,6 +590,7 @@ export class GameEngine {
     cancelAnimationFrame(this.animFrameId);
     window.removeEventListener('resize', this.handleResize);
     this.inputManager.dispose();
+    this.audioManager?.dispose();
     this.tireMarks?.dispose();
     this.tireSmoke?.dispose();
     this.collisionParticles?.dispose();

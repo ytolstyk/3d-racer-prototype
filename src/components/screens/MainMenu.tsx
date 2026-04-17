@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { MenuMusicPlayer } from '../../game/audio/MenuMusicPlayer.js';
 
 interface MainMenuProps {
   onStart: () => void;
@@ -9,6 +11,13 @@ interface MainMenuProps {
 
 export function MainMenu({ onStart, onVersus, onPractice, onBackToEditor }: MainMenuProps) {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const player = new MenuMusicPlayer();
+    player.play();
+    return () => { player.dispose(); };
+  }, []);
+
   return (
     <div className="screen main-menu">
       <div className="menu-content">

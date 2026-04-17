@@ -27,6 +27,7 @@ import { KITCHEN_ITEM_FACTORIES } from './scene/KitchenItems.js';
 import { HAZARD_HEX_COLORS } from '../constants/physics.js';
 import { SPEED_STRIP, BOOST_TRACK } from '../constants/effects.js';
 import type { SpeedStrip, BoostTrack } from '../types/game.js';
+import { AudioManager } from './audio/AudioManager.js';
 
 interface CarHazardState {
   inHazard: boolean;
@@ -92,6 +93,7 @@ export class VersusGameEngine {
     closestGap: Infinity,
   };
 
+  private audioManager: AudioManager | null = null;
   private animFrameId = 0;
   private lastTime = 0;
   private disposed = false;
@@ -180,6 +182,7 @@ export class VersusGameEngine {
     this.collisionParticles = new CollisionParticleSystem(this.scene, this.tireSmoke);
     this.collisionSystem.onCollision = (pos, dir, color, carVelocity) => {
       this.collisionParticles?.emit(pos, dir, color, carVelocity);
+      this.audioManager?.onCollision(pos);
     };
 
     this.versusRaceManager = new VersusRaceManager(this.track);
@@ -201,6 +204,13 @@ export class VersusGameEngine {
 
     this.handleResize = this.handleResize.bind(this);
     window.addEventListener('resize', this.handleResize);
+
+    // Audio
+    this.audioManager = new AudioManager(this.cameraController.camera);
+    if (this.car1) this.audioManager.addCar(this.car1, true);
+    if (this.car2) this.audioManager.addCar(this.car2, true);
+    const resumeOnce = () => { this.audioManager?.resumeAudio(); window.removeEventListener('click', resumeOnce); };
+    window.addEventListener('click', resumeOnce);
 
     this.startRound();
 
@@ -419,6 +429,7 @@ export class VersusGameEngine {
         if (Math.abs(car.speed) >= car.definition.maxSpeed * 0.1) {
           this.hazardSplash?.emit(leftPos, color, car.speed, car.definition.maxSpeed, 28, car.rotation);
           this.hazardSplash?.emit(rightPos, color, car.speed, car.definition.maxSpeed, 27, car.rotation);
+          if (car.id === 'player1') this.audioManager?.onSplash();
         }
       } else if (Math.abs(car.speed) >= car.definition.maxSpeed * 0.1) {
         hs.splashTimer -= dt;
@@ -484,6 +495,8 @@ export class VersusGameEngine {
           this.collisionParticles?.update(dt);
           this.hazardSplash?.update(dt);
           this.collisionSystem.update(this.cars, dt);
+
+          this.audioManager?.update(this.cars, this.car1, this.cameraController.camera);
 
           this.updateStats(dt);
 
@@ -595,6 +608,7 @@ export class VersusGameEngine {
     cancelAnimationFrame(this.animFrameId);
     window.removeEventListener('resize', this.handleResize);
     this.inputManager.dispose();
+    this.audioManager?.dispose();
     this.tireMarks?.dispose();
     this.tireSmoke?.dispose();
     this.collisionParticles?.dispose();
