@@ -8,10 +8,18 @@ export interface EngineNodes {
   gainNode: GainNode;
   filterNode: BiquadFilterNode;
   baseFreq: number;
+  sputterLFO?: OscillatorNode;
+  sputterDepthGain?: GainNode;
 }
 
 export interface SkidNodes {
   source: AudioBufferSourceNode;
+  filterNode: BiquadFilterNode;
+  gainNode: GainNode;
+}
+
+export interface BoostNodes {
+  osc: OscillatorNode;
   filterNode: BiquadFilterNode;
   gainNode: GainNode;
 }
@@ -76,7 +84,17 @@ export function createEngineNodes(
   buzzGain.connect(filterNode);
   oscBuzz.start();
 
-  return { osc1, osc2, osc3, oscBuzz, gainNode, filterNode, baseFreq };
+  // Sputter LFO — AM tremolo that fades out at high speed
+  const sputterLFO = ctx.createOscillator();
+  sputterLFO.type = 'sine';
+  sputterLFO.frequency.value = S.sputterFreqIdle;
+  const sputterDepthGain = ctx.createGain();
+  sputterDepthGain.gain.value = S.sputterDepthMax * S.engineGainBase;
+  sputterLFO.connect(sputterDepthGain);
+  sputterDepthGain.connect(gainNode.gain);
+  sputterLFO.start();
+
+  return { osc1, osc2, osc3, oscBuzz, gainNode, filterNode, baseFreq, sputterLFO, sputterDepthGain };
 }
 
 export function updateEngineFreq(nodes: EngineNodes, speedRatio: number, ctx: AudioContext): void {
@@ -92,6 +110,18 @@ export function updateEngineFreq(nodes: EngineNodes, speedRatio: number, ctx: Au
 
   const filterFreq = S.engineFilterFreqIdle + speedRatio * (S.engineFilterFreqMax - S.engineFilterFreqIdle);
   nodes.filterNode.frequency.setTargetAtTime(filterFreq, t, timeConst);
+
+  // Random osc2 detune jitter at high speed
+  if (speedRatio > S.maxSpeedJitterThreshold) {
+    const jitter = (Math.random() * 2 - 1) * S.maxSpeedJitterCents;
+    nodes.osc2.detune.setTargetAtTime(jitter, t, 0.12);
+  }
+
+  // Sputter depth inversely proportional to speed
+  const sputterDepth = S.sputterDepthMax * S.engineGainBase * Math.max(0, 1 - speedRatio * 2);
+  if (nodes.sputterDepthGain) {
+    nodes.sputterDepthGain.gain.setTargetAtTime(sputterDepth, t, 0.15);
+  }
 }
 
 export function stopEngineNodes(nodes: EngineNodes): void {
@@ -99,12 +129,15 @@ export function stopEngineNodes(nodes: EngineNodes): void {
   try { nodes.osc2.stop(); } catch { /* already stopped */ }
   try { nodes.osc3.stop(); } catch { /* already stopped */ }
   try { nodes.oscBuzz.stop(); } catch { /* already stopped */ }
+  if (nodes.sputterLFO) { try { nodes.sputterLFO.stop(); } catch { /* already stopped */ } }
   nodes.osc1.disconnect();
   nodes.osc2.disconnect();
   nodes.osc3.disconnect();
   nodes.oscBuzz.disconnect();
   nodes.gainNode.disconnect();
   nodes.filterNode.disconnect();
+  if (nodes.sputterLFO) nodes.sputterLFO.disconnect();
+  if (nodes.sputterDepthGain) nodes.sputterDepthGain.disconnect();
 }
 
 export function createSkidNodes(
@@ -151,7 +184,8 @@ export function playCollision(
   const vol = Math.max(0, distanceFactor);
   const decay = S.collisionDecayMin + Math.random() * (S.collisionDecayMax - S.collisionDecayMin);
 
-  // Noise burst
+  // Noise burst with randomized filter frequency
+  const noiseFreq = S.collisionNoiseFreqMin + Math.random() * (S.collisionNoiseFreqMax - S.collisionNoiseFreqMin);
   const noiseGain = ctx.createGain();
   noiseGain.gain.setValueAtTime(S.collisionNoiseGain * vol, t);
   noiseGain.gain.exponentialRampToValueAtTime(0.0001, t + decay);
@@ -159,7 +193,7 @@ export function playCollision(
 
   const noiseFilter = ctx.createBiquadFilter();
   noiseFilter.type = 'bandpass';
-  noiseFilter.frequency.value = 800;
+  noiseFilter.frequency.value = noiseFreq;
   noiseFilter.Q.value = 1.0;
   noiseFilter.connect(noiseGain);
 
@@ -169,7 +203,8 @@ export function playCollision(
   noiseSrc.start(t);
   noiseSrc.stop(t + decay + 0.05);
 
-  // Thud
+  // Thud with randomized frequency
+  const thudFreq = S.collisionThudFreqMin + Math.random() * (S.collisionThudFreqMax - S.collisionThudFreqMin);
   const thudGain = ctx.createGain();
   thudGain.gain.setValueAtTime(S.collisionThudGain * vol, t);
   thudGain.gain.exponentialRampToValueAtTime(0.0001, t + decay * 0.6);
@@ -177,10 +212,32 @@ export function playCollision(
 
   const thudOsc = ctx.createOscillator();
   thudOsc.type = 'sine';
-  thudOsc.frequency.value = S.collisionThudFreq;
+  thudOsc.frequency.value = thudFreq;
   thudOsc.connect(thudGain);
   thudOsc.start(t);
   thudOsc.stop(t + decay * 0.6 + 0.05);
+
+  // 30% chance: metallic high-freq overtone
+  if (Math.random() < S.collisionMetalChance) {
+    const metalFreq = S.collisionMetalFreqMin + Math.random() * (S.collisionMetalFreqMax - S.collisionMetalFreqMin);
+    const metalQ = 8 + Math.random() * 12;
+    const metalGain = ctx.createGain();
+    metalGain.gain.setValueAtTime(S.collisionNoiseGain * vol * 0.5, t);
+    metalGain.gain.exponentialRampToValueAtTime(0.0001, t + decay * 0.3);
+    metalGain.connect(destination);
+
+    const metalFilter = ctx.createBiquadFilter();
+    metalFilter.type = 'bandpass';
+    metalFilter.frequency.value = metalFreq;
+    metalFilter.Q.value = metalQ;
+    metalFilter.connect(metalGain);
+
+    const metalSrc = ctx.createBufferSource();
+    metalSrc.buffer = noiseBuffer;
+    metalSrc.connect(metalFilter);
+    metalSrc.start(t);
+    metalSrc.stop(t + decay * 0.3 + 0.05);
+  }
 }
 
 export function playSplash(
@@ -209,4 +266,102 @@ export function playSplash(
   src.connect(filterNode);
   src.start(t);
   src.stop(t + duration + 0.05);
+}
+
+export function playCountdownBeep(ctx: AudioContext, destination: AudioNode, step: number): void {
+  const S = AUDIO_SYNTH;
+  const t = ctx.currentTime;
+  const freq = S.countdownBeepFreqs[step] ?? 440;
+  const dur = S.countdownBeepDuration;
+
+  const gainNode = ctx.createGain();
+  gainNode.gain.setValueAtTime(0, t);
+  gainNode.gain.linearRampToValueAtTime(S.countdownBeepGain, t + 0.003);
+  gainNode.gain.setValueAtTime(S.countdownBeepGain, t + dur - 0.01);
+  gainNode.gain.linearRampToValueAtTime(0, t + dur);
+  gainNode.connect(destination);
+
+  const osc = ctx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  osc.connect(gainNode);
+  osc.start(t);
+  osc.stop(t + dur + 0.01);
+}
+
+export function playCountdownFanfare(ctx: AudioContext, destination: AudioNode): void {
+  const t = ctx.currentTime;
+  const freqs = [293.66, 370, 440]; // D4, F#4, A4
+  for (const freq of freqs) {
+    const gainNode = ctx.createGain();
+    gainNode.gain.setValueAtTime(0, t);
+    gainNode.gain.linearRampToValueAtTime(0.18, t + 0.005);
+    gainNode.gain.setValueAtTime(0.18, t + 0.300);
+    gainNode.gain.linearRampToValueAtTime(0, t + 0.700);
+    gainNode.connect(destination);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    osc.connect(gainNode);
+    osc.start(t);
+    osc.stop(t + 0.720);
+  }
+}
+
+export function playSpeedStripWoosh(
+  ctx: AudioContext,
+  destination: AudioNode,
+  noiseBuffer: AudioBuffer,
+): void {
+  const S = AUDIO_SYNTH;
+  const t = ctx.currentTime;
+  const dur = S.wooshDuration;
+
+  const gainNode = ctx.createGain();
+  gainNode.gain.setValueAtTime(S.wooshGain, t);
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  gainNode.connect(destination);
+
+  const filterNode = ctx.createBiquadFilter();
+  filterNode.type = 'bandpass';
+  filterNode.Q.value = 1.5;
+  filterNode.frequency.setValueAtTime(S.wooshFilterStart, t);
+  filterNode.frequency.linearRampToValueAtTime(S.wooshFilterEnd, t + dur);
+  filterNode.connect(gainNode);
+
+  const src = ctx.createBufferSource();
+  src.buffer = noiseBuffer;
+  src.connect(filterNode);
+  src.start(t);
+  src.stop(t + dur + 0.05);
+}
+
+export function createBoostNodes(ctx: AudioContext, destination: AudioNode): BoostNodes {
+  const S = AUDIO_SYNTH;
+
+  const gainNode = ctx.createGain();
+  gainNode.gain.value = 0;
+  gainNode.connect(destination);
+
+  const filterNode = ctx.createBiquadFilter();
+  filterNode.type = 'bandpass';
+  filterNode.frequency.value = S.boostHumFilterFreq;
+  filterNode.Q.value = S.boostHumFilterQ;
+  filterNode.connect(gainNode);
+
+  const osc = ctx.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.value = S.boostHumFreq;
+  osc.connect(filterNode);
+  osc.start();
+
+  return { osc, filterNode, gainNode };
+}
+
+export function stopBoostNodes(nodes: BoostNodes): void {
+  try { nodes.osc.stop(); } catch { /* already stopped */ }
+  nodes.osc.disconnect();
+  nodes.filterNode.disconnect();
+  nodes.gainNode.disconnect();
 }

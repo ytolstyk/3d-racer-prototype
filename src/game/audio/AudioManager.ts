@@ -11,6 +11,11 @@ import {
   stopSkidNodes,
   playCollision,
   playSplash,
+  playCountdownBeep,
+  playCountdownFanfare,
+  playSpeedStripWoosh,
+  createBoostNodes,
+  stopBoostNodes,
 } from './SoundSynthesizer.js';
 
 export class AudioManager {
@@ -18,6 +23,7 @@ export class AudioManager {
   private masterGain: GainNode;
   private carNodes: Map<string, CarAudioNode> = new Map();
   private noiseBuffer: AudioBuffer;
+  private lastWooshTime = -1;
 
   constructor(_camera: THREE.PerspectiveCamera) {
     this.ctx = new AudioContext();
@@ -29,6 +35,31 @@ export class AudioManager {
 
   resumeAudio(): void {
     void this.ctx.resume();
+  }
+
+  setMasterVolume(v: number): void {
+    this.masterGain.gain.setTargetAtTime(Math.max(0, Math.min(1, v)), this.ctx.currentTime, 0.05);
+  }
+
+  getMasterVolume(): number {
+    return this.masterGain.gain.value;
+  }
+
+  onSpeedStripCrossed(): void {
+    const now = this.ctx.currentTime;
+    if (now - this.lastWooshTime < 0.2) return;
+    this.lastWooshTime = now;
+    playSpeedStripWoosh(this.ctx, this.masterGain, this.noiseBuffer);
+  }
+
+  onCountdownTick(step: number): void {
+    if (step === 0) {
+      playCountdownFanfare(this.ctx, this.masterGain);
+    } else {
+      // step 3→index 0, 2→index 1, 1→index 2
+      const idx = 3 - step;
+      playCountdownBeep(this.ctx, this.masterGain, idx);
+    }
   }
 
   addCar(car: CarState, isPlayer: boolean): void {
@@ -51,8 +82,10 @@ export class AudioManager {
     const engineNodes = createEngineNodes(ctx, cullGain, idleJitter);
 
     let skidNodes = null;
+    let boostNodes = null;
     if (isPlayer) {
       skidNodes = createSkidNodes(ctx, this.noiseBuffer, cullGain);
+      boostNodes = createBoostNodes(ctx, cullGain);
     }
 
     this.carNodes.set(car.id, {
@@ -64,6 +97,8 @@ export class AudioManager {
       cullGain,
       cullGainCurrent: 0,
       isVisible: false,
+      boostNodes,
+      boostVolumeCurrent: 0,
     });
   }
 
@@ -72,6 +107,7 @@ export class AudioManager {
     if (!node) return;
     stopEngineNodes(node.engineNodes);
     if (node.skidNodes) stopSkidNodes(node.skidNodes);
+    if (node.boostNodes) stopBoostNodes(node.boostNodes);
     node.cullGain.disconnect();
     node.pannerNode.disconnect();
     this.carNodes.delete(carId);
@@ -117,6 +153,15 @@ export class AudioManager {
           0.02,
         );
       }
+
+      // Boost hum
+      if (node.boostNodes) {
+        const active = car.boostMultiplier > 1.001;
+        const target = active ? S.boostHumGain : 0;
+        const rate = active ? S.boostFadeInRate : S.boostFadeOutRate;
+        node.boostVolumeCurrent += (target - node.boostVolumeCurrent) * rate;
+        node.boostNodes.gainNode.gain.setTargetAtTime(Math.max(0, node.boostVolumeCurrent), t, 0.05);
+      }
     }
   }
 
@@ -146,6 +191,7 @@ export class AudioManager {
     for (const node of this.carNodes.values()) {
       stopEngineNodes(node.engineNodes);
       if (node.skidNodes) stopSkidNodes(node.skidNodes);
+      if (node.boostNodes) stopBoostNodes(node.boostNodes);
       node.cullGain.disconnect();
       node.pannerNode.disconnect();
     }

@@ -31,6 +31,7 @@ import { DIFFICULTY_CONFIG } from '../constants/aiRacer.js';
 import { SPEED_STRIP, BOOST_TRACK } from '../constants/effects.js';
 import type { SpeedStrip, BoostTrack } from '../types/game.js';
 import { AudioManager } from './audio/AudioManager.js';
+import { loadAudioPrefs } from './audio/AudioPrefs.js';
 
 interface CarHazardState {
   inHazard: boolean;
@@ -195,6 +196,7 @@ export class GameEngine {
     for (const car of this.cars) this.audioManager.addCar(car, car.isPlayer);
     const resumeOnce = () => { this.audioManager?.resumeAudio(); window.removeEventListener('click', resumeOnce); };
     window.addEventListener('click', resumeOnce);
+    this.audioManager.setMasterVolume(loadAudioPrefs().masterVolume);
 
     // Race
     this.raceManager = new RaceManager(this.track, totalLaps);
@@ -232,7 +234,7 @@ export class GameEngine {
         car.currentLapStart = now;
         car.lastCheckpointTime = now;
       }
-    });
+    }, (v) => this.audioManager?.onCountdownTick(v));
 
     // Start render loop
     this.lastTime = performance.now();
@@ -350,6 +352,10 @@ export class GameEngine {
     return this.trackConfig;
   }
 
+  getAudioManager(): AudioManager | null {
+    return this.audioManager;
+  }
+
   private loop = (): void => {
     if (this.disposed) return;
 
@@ -451,6 +457,7 @@ export class GameEngine {
           car.boostDecayRate = SPEED_STRIP.capDecayRate;
           car.accelBoostTimer = SPEED_STRIP.accelBoostDuration;
           car.accelBoostMultiplier = SPEED_STRIP.accelMultiplier;
+          if (car.isPlayer) this.audioManager?.onSpeedStripCrossed();
         }
       }
 

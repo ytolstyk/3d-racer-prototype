@@ -3,6 +3,8 @@ import type { KitchenItemType, PhysicsTelemetry, PhysicsGroup, HazardZone } from
 import { PracticeEngine, PRACTICE_DEFAULT_OBJECTS } from '../../game/PracticeEngine.js';
 import { CAR_DEFINITIONS } from '../../constants/cars.js';
 import { HAZARD_COLORS, HAZARD_EFFECTS } from '../../constants/physics.js';
+import { VolumeControls } from '../hud/VolumeControls.js';
+import { loadAudioPrefs, saveAudioPrefs } from '../../game/audio/AudioPrefs.js';
 
 const KITCHEN_ITEM_TYPES: KitchenItemType[] = [
   'mug', 'spoon', 'plate', 'fork', 'napkin',
@@ -58,6 +60,7 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
   const engineRef = useRef<PracticeEngine | null>(null);
   const [selectedCarId, setSelectedCarId] = useState('racer-red');
   const [paused, setPaused] = useState(false);
+  const [prefs, setPrefs] = useState(() => loadAudioPrefs());
   const [speed, setSpeed] = useState(0);
   const [maxSpeed, setMaxSpeed] = useState(1);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -928,6 +931,19 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
           <button style={btnStyle} onClick={onMainMenu}>
             Main Menu
           </button>
+          <VolumeControls
+            masterVolume={prefs.masterVolume}
+            musicVolume={prefs.musicVolume}
+            onMasterChange={(v) => {
+              setPrefs(p => ({ ...p, masterVolume: v }));
+              saveAudioPrefs({ masterVolume: v });
+              engineRef.current?.getAudioManager()?.setMasterVolume(v);
+            }}
+            onMusicChange={(v) => {
+              setPrefs(p => ({ ...p, musicVolume: v }));
+              saveAudioPrefs({ musicVolume: v });
+            }}
+          />
         </div>
       )}
     </div>

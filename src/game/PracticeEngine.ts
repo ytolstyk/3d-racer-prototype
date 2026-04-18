@@ -39,6 +39,7 @@ import { RainHazardSystem } from "./effects/RainHazardSystem.js";
 import { buildCircleHazardMesh } from "./track/HazardSystem.js";
 import { HAZARD_HEX_COLORS } from "../constants/physics.js";
 import { AudioManager } from "./audio/AudioManager.js";
+import { loadAudioPrefs } from "./audio/AudioPrefs.js";
 
 const BOUND_X = 600;
 const BOUND_Z = 450;
@@ -186,6 +187,7 @@ export class PracticeEngine {
     if (this.playerCar) this.audioManager.addCar(this.playerCar, true);
     const resumeOnce = () => { this.audioManager?.resumeAudio(); window.removeEventListener('click', resumeOnce); };
     window.addEventListener('click', resumeOnce);
+    this.audioManager.setMasterVolume(loadAudioPrefs().masterVolume);
 
     this.lastTime = performance.now();
     this._loop();
@@ -682,6 +684,10 @@ export class PracticeEngine {
     this.renderer.render(this.scene, this.cameraController.camera);
     this.animFrameId = requestAnimationFrame(this._loop);
   };
+
+  getAudioManager(): AudioManager | null {
+    return this.audioManager;
+  }
 
   private _handleResize(): void {
     const canvas = this.renderer.domElement;

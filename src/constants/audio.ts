@@ -11,4 +11,34 @@ export const AUDIO_SYNTH = {
   pannerRefDistance: 20, pannerMaxDistance: 250, pannerRolloffFactor: 1.8,
   frustumCullMargin: 0.08,
   masterGain: 0.8,
-} as const;
+
+  // Countdown beeps
+  countdownBeepFreqs: [330, 370, 440],
+  countdownBeepGain: 0.5,
+  countdownBeepDuration: 0.12,
+
+  // Engine sputter LFO
+  sputterFreqIdle: 4.0,
+  sputterDepthMax: 0.06,
+
+  // Max-speed random detune jitter
+  maxSpeedJitterThreshold: 0.80,
+  maxSpeedJitterCents: 14,
+
+  // Speed strip woosh
+  wooshDuration: 0.22,
+  wooshGain: 0.55,
+  wooshFilterStart: 400, wooshFilterEnd: 4200,
+
+  // Boost turbo hum
+  boostHumFreq: 180,
+  boostHumGain: 0.28,
+  boostHumFilterFreq: 600, boostHumFilterQ: 3.0,
+  boostFadeInRate: 0.08, boostFadeOutRate: 0.04,
+
+  // Collision variety ranges
+  collisionNoiseFreqMin: 400, collisionNoiseFreqMax: 1200,
+  collisionThudFreqMin: 40,  collisionThudFreqMax: 90,
+  collisionMetalChance: 0.30,
+  collisionMetalFreqMin: 2000, collisionMetalFreqMax: 4000,
+};

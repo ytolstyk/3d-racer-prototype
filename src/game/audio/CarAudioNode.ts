@@ -1,4 +1,4 @@
-import type { EngineNodes, SkidNodes } from './SoundSynthesizer.js';
+import type { EngineNodes, SkidNodes, BoostNodes } from './SoundSynthesizer.js';
 
 export interface CarAudioNode {
   carId: string;
@@ -9,4 +9,6 @@ export interface CarAudioNode {
   cullGain: GainNode;
   cullGainCurrent: number;
   isVisible: boolean;
+  boostNodes: BoostNodes | null;
+  boostVolumeCurrent: number;
 }

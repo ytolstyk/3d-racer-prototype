@@ -1,6 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MenuMusicPlayer } from '../../game/audio/MenuMusicPlayer.js';
+import { loadAudioPrefs, saveAudioPrefs } from '../../game/audio/AudioPrefs.js';
+import { VolumeControls } from '../hud/VolumeControls.js';
 
 interface MainMenuProps {
   onStart: () => void;
@@ -11,12 +13,27 @@ interface MainMenuProps {
 
 export function MainMenu({ onStart, onVersus, onPractice, onBackToEditor }: MainMenuProps) {
   const navigate = useNavigate();
+  const playerRef = useRef<MenuMusicPlayer | null>(null);
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [prefs, setPrefs] = useState(() => loadAudioPrefs());
 
   useEffect(() => {
     const player = new MenuMusicPlayer();
+    playerRef.current = player;
     player.play();
-    return () => { player.dispose(); };
+    return () => { player.dispose(); playerRef.current = null; };
   }, []);
+
+  const handleMasterChange = (v: number) => {
+    setPrefs(p => ({ ...p, masterVolume: v }));
+    saveAudioPrefs({ masterVolume: v });
+  };
+
+  const handleMusicChange = (v: number) => {
+    setPrefs(p => ({ ...p, musicVolume: v }));
+    saveAudioPrefs({ musicVolume: v });
+    playerRef.current?.setMusicVolume(v);
+  };
 
   return (
     <div className="screen main-menu">
@@ -53,6 +70,21 @@ export function MainMenu({ onStart, onVersus, onPractice, onBackToEditor }: Main
             </button>
           )}
         </div>
+        <div style={{ marginTop: '0.75rem' }}>
+          <button className="btn btn-secondary" onClick={() => setOptionsOpen(o => !o)}>
+            {optionsOpen ? 'Hide Options' : 'Options'}
+          </button>
+        </div>
+        {optionsOpen && (
+          <div style={{ marginTop: '0.75rem' }}>
+            <VolumeControls
+              masterVolume={prefs.masterVolume}
+              musicVolume={prefs.musicVolume}
+              onMasterChange={handleMasterChange}
+              onMusicChange={handleMusicChange}
+            />
+          </div>
+        )}
       </div>
       <div className="menu-cars">
         <div className="car-silhouette" />

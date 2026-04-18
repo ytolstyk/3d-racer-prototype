@@ -2,13 +2,17 @@ export class StartSequence {
   private countdown = -1;
   private startTime = 0;
   private onComplete: (() => void) | null = null;
+  private onTick: ((v: number) => void) | null = null;
   private active = false;
+  private lastCountdown = -1;
 
-  start(onComplete: () => void): void {
+  start(onComplete: () => void, onTick?: (value: number) => void): void {
     this.countdown = 3;
     this.startTime = performance.now();
     this.onComplete = onComplete;
+    this.onTick = onTick ?? null;
     this.active = true;
+    this.lastCountdown = -1;
   }
 
   update(): number {
@@ -30,6 +34,11 @@ export class StartSequence {
     } else {
       this.active = false;
       this.countdown = -1;
+    }
+
+    if (this.countdown !== this.lastCountdown && this.countdown >= 0) {
+      this.onTick?.(this.countdown);
+      this.lastCountdown = this.countdown;
     }
 
     return this.countdown;

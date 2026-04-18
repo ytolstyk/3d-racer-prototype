@@ -28,6 +28,7 @@ import { HAZARD_HEX_COLORS } from '../constants/physics.js';
 import { SPEED_STRIP, BOOST_TRACK } from '../constants/effects.js';
 import type { SpeedStrip, BoostTrack } from '../types/game.js';
 import { AudioManager } from './audio/AudioManager.js';
+import { loadAudioPrefs } from './audio/AudioPrefs.js';
 
 interface CarHazardState {
   inHazard: boolean;
@@ -211,6 +212,7 @@ export class VersusGameEngine {
     if (this.car2) this.audioManager.addCar(this.car2, true);
     const resumeOnce = () => { this.audioManager?.resumeAudio(); window.removeEventListener('click', resumeOnce); };
     window.addEventListener('click', resumeOnce);
+    this.audioManager.setMasterVolume(loadAudioPrefs().masterVolume);
 
     this.startRound();
 
@@ -309,7 +311,7 @@ export class VersusGameEngine {
     this.startSequence.start(() => {
       this.raceStarted = true;
       this.roundState = 'racing';
-    });
+    }, (v) => this.audioManager?.onCountdownTick(v));
   }
 
   private isOffScreen(worldPos: THREE.Vector3): boolean {
@@ -380,6 +382,7 @@ export class VersusGameEngine {
           car.boostDecayRate = SPEED_STRIP.capDecayRate;
           car.accelBoostTimer = SPEED_STRIP.accelBoostDuration;
           car.accelBoostMultiplier = SPEED_STRIP.accelMultiplier;
+          if (car.id === 'player1' || car.id === 'player2') this.audioManager?.onSpeedStripCrossed();
         }
       }
       let onBoostTrack = false;
@@ -591,6 +594,10 @@ export class VersusGameEngine {
       startFinish: this.minimap?.getStartFinish() ?? null,
     };
     this.emitter.emit(state, countdown >= 0);
+  }
+
+  getAudioManager(): AudioManager | null {
+    return this.audioManager;
   }
 
   private handleResize(): void {
