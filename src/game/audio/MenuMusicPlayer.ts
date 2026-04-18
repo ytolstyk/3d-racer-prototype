@@ -120,21 +120,14 @@ export class MenuMusicPlayer {
 
   play(): void {
     if (this.ctx) return;
-    this.ctx = new AudioContext();
-    void this.ctx.resume();
-
-    if (this.ctx.state === 'suspended') {
-      this.clickListener = () => {
-        void this.ctx?.resume().then(() => this.startScheduling());
-        if (this.clickListener) {
-          document.removeEventListener('click', this.clickListener);
-          this.clickListener = null;
-        }
-      };
-      document.addEventListener('click', this.clickListener, { once: true });
-    } else {
-      this.startScheduling();
-    }
+    // AudioContext must be created after a user gesture; defer until first click
+    this.clickListener = () => {
+      this.clickListener = null;
+      if (this.ctx) return;
+      this.ctx = new AudioContext();
+      void this.ctx.resume().then(() => this.startScheduling());
+    };
+    document.addEventListener('click', this.clickListener, { once: true });
   }
 
   private startScheduling(): void {
