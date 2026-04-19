@@ -1,4 +1,5 @@
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useState, useEffect } from 'react';
+import { Button, Stack, Title } from '@mantine/core';
 import type { VersusSelections } from '../../types/game.js';
 import { VersusStateEmitter } from '../../state/VersusStateEmitter.js';
 import { useVersusGameEngine } from '../../hooks/useVersusGameEngine.js';
@@ -18,11 +19,20 @@ interface VersusRaceScreenProps {
   onPlayAgain: () => void;
 }
 
+const pauseOverlayStyle = {
+  position: 'absolute' as const, inset: 0,
+  background: 'rgba(0,0,0,0.65)',
+  display: 'flex', flexDirection: 'column' as const,
+  alignItems: 'center', justifyContent: 'center',
+  zIndex: 100,
+};
+
 export function VersusRaceScreen({ selections, reverse, onMainMenu, onPlayAgain }: VersusRaceScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const emitter = useMemo(() => new VersusStateEmitter(), []);
+  const [paused, setPaused] = useState(false);
 
-  useVersusGameEngine(
+  const engineRef = useVersusGameEngine(
     canvasRef,
     selections.trackId,
     selections.p1CarId,
@@ -35,9 +45,38 @@ export function VersusRaceScreen({ selections, reverse, onMainMenu, onPlayAgain 
 
   const state = useVersusGameState(emitter);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code !== 'Escape') return;
+      e.preventDefault();
+      setPaused(prev => {
+        const next = !prev;
+        if (next) engineRef.current?.pause();
+        else engineRef.current?.resume();
+        return next;
+      });
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [engineRef]);
+
   return (
     <div className="race-screen">
       <canvas ref={canvasRef} className="game-canvas" />
+
+      {paused && (
+        <div style={pauseOverlayStyle}>
+          <Stack align="center" gap="sm">
+            <Title order={2} c="white">Paused</Title>
+            <Button color="yellow" onClick={() => { setPaused(false); engineRef.current?.resume(); }}>
+              Resume
+            </Button>
+            <Button variant="default" onClick={onMainMenu}>
+              Main Menu
+            </Button>
+          </Stack>
+        </div>
+      )}
 
       <VersusScoreDisplay
         p1Name={state.p1Name}

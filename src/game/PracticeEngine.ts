@@ -540,11 +540,13 @@ export class PracticeEngine {
   pause(): void {
     this.paused = true;
     this.inputManager.clearKeys();
+    this.audioManager?.suspendAudio();
   }
 
   resume(): void {
     this.paused = false;
     this.lastTime = performance.now();
+    this.audioManager?.resumeAudio();
   }
 
   private _loop = (): void => {

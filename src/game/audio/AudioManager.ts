@@ -37,6 +37,10 @@ export class AudioManager {
     void this.ctx.resume();
   }
 
+  suspendAudio(): void {
+    void this.ctx.suspend();
+  }
+
   setMasterVolume(v: number): void {
     this.masterGain.gain.setTargetAtTime(Math.max(0, Math.min(1, v)), this.ctx.currentTime, 0.05);
   }

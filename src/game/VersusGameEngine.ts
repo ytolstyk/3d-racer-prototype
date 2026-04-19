@@ -98,6 +98,7 @@ export class VersusGameEngine {
   private animFrameId = 0;
   private lastTime = 0;
   private disposed = false;
+  private paused = false;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -457,6 +458,8 @@ export class VersusGameEngine {
 
   private loop = (): void => {
     if (this.disposed) return;
+    this.animFrameId = requestAnimationFrame(this.loop);
+    if (this.paused) return;
 
     const now = performance.now();
     const dt = Math.min((now - this.lastTime) / 1000, 0.05);
@@ -562,8 +565,6 @@ export class VersusGameEngine {
 
     this.renderer.render(this.scene, this.cameraController.camera);
     this.emitState(countdown);
-
-    this.animFrameId = requestAnimationFrame(this.loop);
   };
 
   private emitState(countdown: number): void {
@@ -594,6 +595,18 @@ export class VersusGameEngine {
       startFinish: this.minimap?.getStartFinish() ?? null,
     };
     this.emitter.emit(state, countdown >= 0);
+  }
+
+  pause(): void {
+    this.paused = true;
+    this.inputManager.clearKeys();
+    this.audioManager?.suspendAudio();
+  }
+
+  resume(): void {
+    this.paused = false;
+    this.lastTime = performance.now();
+    this.audioManager?.resumeAudio();
   }
 
   getAudioManager(): AudioManager | null {
