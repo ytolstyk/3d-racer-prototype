@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { Button, Group, TextInput, Title } from '@mantine/core';
 import { CAR_DEFINITIONS } from '../../constants/cars.js';
 import type { CarDefinition, VersusSelections } from '../../types/game.js';
 import { CarFactory } from '../../game/car/CarFactory.js';
@@ -97,21 +98,18 @@ function PlayerPanel({ player, selectedCarId, name, onNameChange, onCarSelect }:
       <div style={{ color, fontSize: '1.3rem', fontWeight: 800 }}>Player {player}</div>
       <div style={{ color: '#aaa', fontSize: '0.8rem' }}>{controls}</div>
 
-      <input
-        type="text"
+      <TextInput
         maxLength={12}
         value={name}
         onChange={e => onNameChange(e.target.value)}
-        style={{
-          background: 'rgba(255,255,255,0.1)',
-          border: `1px solid ${color}`,
-          borderRadius: '6px',
-          padding: '6px 12px',
-          color: '#fff',
-          fontSize: '1rem',
-          textAlign: 'center',
-          width: '160px',
-          outline: 'none',
+        styles={{
+          input: {
+            background: 'rgba(255,255,255,0.1)',
+            border: `1px solid ${color}`,
+            color: '#fff',
+            textAlign: 'center',
+            width: 160,
+          },
         }}
       />
 
@@ -184,7 +182,7 @@ export function VersusCarSelect({ trackId, onReady, onBack }: VersusCarSelectPro
       padding: '16px',
       gap: '16px',
     }}>
-      <h2 style={{ textAlign: 'center', margin: 0 }}>Local Versus — Choose Your Cars</h2>
+      <Title order={2} ta="center">Local Versus — Choose Your Cars</Title>
 
       <div style={{ display: 'flex', flex: 1, gap: 0 }}>
         <PlayerPanel
@@ -203,16 +201,16 @@ export function VersusCarSelect({ trackId, onReady, onBack }: VersusCarSelectPro
         />
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
+      <Group justify="center" gap="sm">
         {canStart && (
-          <button className="btn btn-primary btn-large" onClick={handleStart}>
+          <Button size="lg" color="yellow" onClick={handleStart}>
             Start Versus
-          </button>
+          </Button>
         )}
-        <button className="btn btn-secondary" onClick={onBack}>
+        <Button variant="default" onClick={onBack}>
           Back
-        </button>
-      </div>
+        </Button>
+      </Group>
     </div>
   );
 }

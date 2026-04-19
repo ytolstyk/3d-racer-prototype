@@ -31,7 +31,8 @@
       "WebFetch(domain:registry.npmjs.org)",
       "Bash(./node_modules/.bin/eslint src/components/screens/TrackEditor.tsx)",
       "Bash(npm --version)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(npm ls:*)"
     ]
   }
 }

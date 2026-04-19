@@ -1,3 +1,4 @@
+import { Button, Group, Table, Title } from '@mantine/core';
 import type { RaceResult } from '../../types/game.js';
 
 interface ScoreboardProps {
@@ -20,47 +21,41 @@ export function Scoreboard({ results, raceFinished, onMainMenu, onRaceAgain, onB
   return (
     <div className="scoreboard-overlay">
       <div className="scoreboard">
-        <h2>{raceFinished ? 'Final Results' : 'Race In Progress...'}</h2>
-        <table className="results-table">
-          <thead>
-            <tr>
-              <th>Pos</th>
-              <th>Name</th>
-              <th>Total Time</th>
-              <th>Best Lap</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Title order={2}>{raceFinished ? 'Final Results' : 'Race In Progress...'}</Title>
+        <Table className="results-table" mt="md">
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Pos</Table.Th>
+              <Table.Th>Name</Table.Th>
+              <Table.Th>Total Time</Table.Th>
+              <Table.Th>Best Lap</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
             {results.map((r) => (
-              <tr key={r.carId} className={r.isPlayer ? 'player-row' : ''}>
-                <td className="pos-cell">{r.totalTime > 0 ? r.position : '-'}</td>
-                <td className="name-cell">
+              <Table.Tr key={r.carId} className={r.isPlayer ? 'player-row' : ''}>
+                <Table.Td className="pos-cell">{r.totalTime > 0 ? r.position : '-'}</Table.Td>
+                <Table.Td className="name-cell">
                   <span
                     className="color-dot"
                     style={{ backgroundColor: `#${r.color.toString(16).padStart(6, '0')}` }}
                   />
                   {r.name}
                   {r.isPlayer && <span className="you-badge">YOU</span>}
-                </td>
-                <td>{formatTime(r.totalTime)}</td>
-                <td>{formatTime(r.bestLap)}</td>
-              </tr>
+                </Table.Td>
+                <Table.Td>{formatTime(r.totalTime)}</Table.Td>
+                <Table.Td>{formatTime(r.bestLap)}</Table.Td>
+              </Table.Tr>
             ))}
-          </tbody>
-        </table>
-        <div className="scoreboard-actions">
-          <button className="btn btn-primary" onClick={onRaceAgain}>
-            Race Again
-          </button>
-          <button className="btn btn-secondary" onClick={onMainMenu}>
-            Main Menu
-          </button>
+          </Table.Tbody>
+        </Table>
+        <Group gap="sm" mt="md" className="scoreboard-actions">
+          <Button color="yellow" onClick={onRaceAgain}>Race Again</Button>
+          <Button variant="default" onClick={onMainMenu}>Main Menu</Button>
           {onBackToEditor && (
-            <button className="btn btn-secondary" onClick={onBackToEditor}>
-              ← Back to Editor
-            </button>
+            <Button variant="default" onClick={onBackToEditor}>← Back to Editor</Button>
           )}
-        </div>
+        </Group>
       </div>
     </div>
   );

@@ -1,3 +1,4 @@
+import { Button, Group, Stack, Table, Title } from '@mantine/core';
 import type { VersusGameState } from '../../types/game.js';
 
 interface VersusEndScreenProps {
@@ -40,62 +41,53 @@ export function VersusEndScreen({ state, onPlayAgain, onMainMenu }: VersusEndScr
       inset: 0,
       background: 'rgba(0,0,0,0.82)',
       display: 'flex',
-      flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
       zIndex: 100,
-      gap: '24px',
     }}>
-      <div style={{ color: winnerColor, fontSize: '2.2rem', fontWeight: 900 }}>
-        {winnerName} wins!
-      </div>
+      <Stack align="center" gap="lg">
+        <Title order={2} style={{ color: winnerColor }}>
+          {winnerName} wins!
+        </Title>
 
-      <div style={{
-        background: 'rgba(255,255,255,0.08)',
-        borderRadius: '12px',
-        padding: '16px 32px',
-        minWidth: '360px',
-      }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', color: '#fff', fontSize: '0.9rem' }}>
-          <thead>
-            <tr>
-              <th style={{ textAlign: 'left', paddingBottom: '8px', color: '#aaa' }}>Stat</th>
-              <th style={{ textAlign: 'right', paddingBottom: '8px', color: toHex(p1Color) }}>{p1Name}</th>
-              <th style={{ textAlign: 'right', paddingBottom: '8px', color: toHex(p2Color) }}>{p2Name}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td style={{ padding: '4px 0', color: '#ccc' }}>Top Speed</td>
-              <td style={{ textAlign: 'right', padding: '4px 0' }}>{fmtSpeed(stats.p1TopSpeed)}</td>
-              <td style={{ textAlign: 'right', padding: '4px 0' }}>{fmtSpeed(stats.p2TopSpeed)}</td>
-            </tr>
-            <tr>
-              <td style={{ padding: '4px 0', color: '#ccc' }}>Total Drift</td>
-              <td style={{ textAlign: 'right', padding: '4px 0' }}>{fmtDrift(stats.p1TotalDrift)}</td>
-              <td style={{ textAlign: 'right', padding: '4px 0' }}>{fmtDrift(stats.p2TotalDrift)}</td>
-            </tr>
-            <tr>
-              <td style={{ padding: '4px 0', color: '#ccc' }}>Time in Lead</td>
-              <td style={{ textAlign: 'right', padding: '4px 0' }}>{fmtTime(stats.p1TimeInLead)}</td>
-              <td style={{ textAlign: 'right', padding: '4px 0' }}>{fmtTime(stats.p2TimeInLead)}</td>
-            </tr>
-            <tr>
-              <td style={{ padding: '4px 0', color: '#ccc' }}>Closest Gap</td>
-              <td style={{ textAlign: 'right', padding: '4px 0' }} colSpan={2}>{fmtGap(stats.closestGap)}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+        <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: '16px 32px', minWidth: 360 }}>
+          <Table>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th c="dimmed">Stat</Table.Th>
+                <Table.Th ta="right" style={{ color: toHex(p1Color) }}>{p1Name}</Table.Th>
+                <Table.Th ta="right" style={{ color: toHex(p2Color) }}>{p2Name}</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              <Table.Tr>
+                <Table.Td c="dimmed">Top Speed</Table.Td>
+                <Table.Td ta="right">{fmtSpeed(stats.p1TopSpeed)}</Table.Td>
+                <Table.Td ta="right">{fmtSpeed(stats.p2TopSpeed)}</Table.Td>
+              </Table.Tr>
+              <Table.Tr>
+                <Table.Td c="dimmed">Total Drift</Table.Td>
+                <Table.Td ta="right">{fmtDrift(stats.p1TotalDrift)}</Table.Td>
+                <Table.Td ta="right">{fmtDrift(stats.p2TotalDrift)}</Table.Td>
+              </Table.Tr>
+              <Table.Tr>
+                <Table.Td c="dimmed">Time in Lead</Table.Td>
+                <Table.Td ta="right">{fmtTime(stats.p1TimeInLead)}</Table.Td>
+                <Table.Td ta="right">{fmtTime(stats.p2TimeInLead)}</Table.Td>
+              </Table.Tr>
+              <Table.Tr>
+                <Table.Td c="dimmed">Closest Gap</Table.Td>
+                <Table.Td ta="right" colSpan={2}>{fmtGap(stats.closestGap)}</Table.Td>
+              </Table.Tr>
+            </Table.Tbody>
+          </Table>
+        </div>
 
-      <div style={{ display: 'flex', gap: '12px' }}>
-        <button className="btn btn-primary" onClick={onPlayAgain}>
-          Play Again
-        </button>
-        <button className="btn btn-secondary" onClick={onMainMenu}>
-          Main Menu
-        </button>
-      </div>
+        <Group gap="sm">
+          <Button color="yellow" onClick={onPlayAgain}>Play Again</Button>
+          <Button variant="default" onClick={onMainMenu}>Main Menu</Button>
+        </Group>
+      </Stack>
     </div>
   );
 }

@@ -471,15 +471,18 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case "SMOOTH": {
       if (state.points.length < 3) return state;
       const pts = state.points;
+      const rots = state.pointRotations;
       const n = pts.length;
       const result: [number, number][] = [];
+      const newRotations: number[] = new Array(n * 2).fill(0);
       for (let i = 0; i < n; i++) {
         const a = pts[i];
         const b = pts[(i + 1) % n];
         result.push([0.75 * a[0] + 0.25 * b[0], 0.75 * a[1] + 0.25 * b[1]]);
         result.push([0.25 * a[0] + 0.75 * b[0], 0.25 * a[1] + 0.75 * b[1]]);
+        if (rots[i]) newRotations[2 * i] = rots[i];
       }
-      return { ...state, past: pushHistory(state), points: result };
+      return { ...state, past: pushHistory(state), points: result, pointRotations: newRotations };
     }
 
     case "SET_TOOL":
@@ -3466,14 +3469,17 @@ export function TrackEditor() {
     });
   };
 
-  const tools: { id: Tool; label: string; key: string }[] = [
+  const trackTools: { id: Tool; label: string; key: string }[] = [
     { id: "pen", label: "Pen", key: "P" },
     { id: "line", label: "Line", key: "L" },
     { id: "insert", label: "Insert", key: "I" },
     { id: "eraser", label: "Eraser", key: "E" },
-    { id: "select", label: "Select", key: "A" },
     { id: "move", label: "Move", key: "M" },
     { id: "startPoint", label: "Start Pt", key: "S" },
+    { id: "select", label: "Select", key: "A" },
+  ];
+
+  const decorationTools: { id: Tool; label: string; key: string }[] = [
     { id: "object", label: "Objects", key: "O" },
     { id: "tunnel", label: "Tunnel", key: "T" },
     { id: "hazard", label: "Hazards", key: "X" },
@@ -3537,17 +3543,33 @@ export function TrackEditor() {
         </div>
 
         <div className="editor-section">
-          <label className="editor-label">Tools</label>
-          {tools.map((t) => (
-            <button
-              key={t.id}
-              className={`tool-btn${state.activeTool === t.id ? " active" : ""}`}
-              onClick={() => dispatch({ type: "SET_TOOL", tool: t.id })}
-              title={`${t.label} (${t.key})`}
-            >
-              {t.label}
-            </button>
-          ))}
+          <div className="tool-group">
+            <div className="tool-group-label">Track</div>
+            {trackTools.map((t) => (
+              <button
+                key={t.id}
+                className={`tool-btn${state.activeTool === t.id ? " active" : ""}`}
+                onClick={() => dispatch({ type: "SET_TOOL", tool: t.id })}
+                title={t.key ? `${t.label} (${t.key})` : t.label}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <div className="tool-group-separator" />
+          <div className="tool-group">
+            <div className="tool-group-label">Decoration</div>
+            {decorationTools.map((t) => (
+              <button
+                key={t.id}
+                className={`tool-btn${state.activeTool === t.id ? " active" : ""}`}
+                onClick={() => dispatch({ type: "SET_TOOL", tool: t.id })}
+                title={t.key ? `${t.label} (${t.key})` : t.label}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {state.activeTool === "object" && (

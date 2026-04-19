@@ -1,4 +1,5 @@
 import { useRef, useMemo, useState, useEffect } from 'react';
+import { Button, Stack, Title } from '@mantine/core';
 import type { Difficulty } from '../../types/game.js';
 import { GameStateEmitter } from '../../state/GameStateEmitter.js';
 import { useGameEngine } from '../../hooks/useGameEngine.js';
@@ -25,11 +26,11 @@ interface RaceScreenProps {
   onBackToEditor?: () => void;
 }
 
-const pauseOverlayStyle: React.CSSProperties = {
-  position: 'absolute', inset: 0,
+const pauseOverlayStyle = {
+  position: 'absolute' as const, inset: 0,
   background: 'rgba(0,0,0,0.65)',
-  display: 'flex', flexDirection: 'column',
-  alignItems: 'center', justifyContent: 'center', gap: '12px',
+  display: 'flex', flexDirection: 'column' as const,
+  alignItems: 'center', justifyContent: 'center',
   zIndex: 100,
 };
 
@@ -80,28 +81,30 @@ export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, difficul
 
       {paused && (
         <div style={pauseOverlayStyle}>
-          <h2 style={{ color: '#fff', margin: 0 }}>Paused</h2>
-          <button className="btn btn-primary" onClick={() => { setPaused(false); engineRef.current?.resume(); }}>
-            Resume
-          </button>
-          {onBackToEditor && (
-            <button className="btn btn-secondary" onClick={() => {
-              const cfg = engineRef.current?.getTrackConfig();
-              if (cfg) sessionStorage.setItem('editor_track', JSON.stringify(cfg));
-              onBackToEditor();
-            }}>
-              Edit Current Track
-            </button>
-          )}
-          <button className="btn btn-secondary" onClick={onMainMenu}>
-            Main Menu
-          </button>
-          <VolumeControls
-            masterVolume={prefs.masterVolume}
-            musicVolume={prefs.musicVolume}
-            onMasterChange={handleMasterChange}
-            onMusicChange={handleMusicChange}
-          />
+          <Stack align="center" gap="sm">
+            <Title order={2} c="white">Paused</Title>
+            <Button color="yellow" onClick={() => { setPaused(false); engineRef.current?.resume(); }}>
+              Resume
+            </Button>
+            {onBackToEditor && (
+              <Button variant="default" onClick={() => {
+                const cfg = engineRef.current?.getTrackConfig();
+                if (cfg) sessionStorage.setItem('editor_track', JSON.stringify(cfg));
+                onBackToEditor();
+              }}>
+                Edit Current Track
+              </Button>
+            )}
+            <Button variant="default" onClick={onMainMenu}>
+              Main Menu
+            </Button>
+            <VolumeControls
+              masterVolume={prefs.masterVolume}
+              musicVolume={prefs.musicVolume}
+              onMasterChange={handleMasterChange}
+              onMusicChange={handleMusicChange}
+            />
+          </Stack>
         </div>
       )}
 

@@ -999,6 +999,21 @@
   cursor: default;
 }
 
+.tool-group-label {
+  font-size: 0.65rem;
+  font-variant: small-caps;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.35);
+  margin-bottom: 3px;
+  padding-left: 2px;
+}
+
+.tool-group-separator {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin: 6px 0;
+}
+
 .tool-btn-danger {
   border-color: rgba(232, 64, 64, 0.3);
   color: rgba(232, 64, 64, 0.8);

@@ -11,6 +11,8 @@
     "type-check": "tsc -b"
   },
   "dependencies": {
+    "@mantine/core": "^9.0.2",
+    "@mantine/hooks": "^9.0.2",
     "@types/yuka": "^0.7.4",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",

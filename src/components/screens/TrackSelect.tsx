@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState } from "react";
+import { Button, Checkbox, Group, Title } from "@mantine/core";
 import { TRACKS } from "../../constants/track.js";
 import type { TrackConfig } from "../../constants/track.js";
 
@@ -72,18 +73,16 @@ export function TrackSelect({ onSelect, onBack }: TrackSelectProps) {
 
   return (
     <div className="screen track-select">
-      <h2>Choose Your Track</h2>
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12, gap: 12, alignItems: 'center' }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', userSelect: 'none' }}>
-          <input
-            type="checkbox"
-            checked={reverse}
-            onChange={() => setReverse(r => !r)}
-            style={{ width: 18, height: 18 }}
-          />
-          <span style={{ fontSize: 14, fontWeight: 'bold' }}>Reverse Direction</span>
-        </label>
-      </div>
+      <Title order={2}>Choose Your Track</Title>
+      <Group justify="center" mb="sm" mt="xs">
+        <Checkbox
+          checked={reverse}
+          onChange={() => setReverse(r => !r)}
+          label="Reverse Direction"
+          color="yellow"
+          fw={700}
+        />
+      </Group>
       <div className="track-grid">
         {TRACKS.map((track) => (
           <button
@@ -99,9 +98,9 @@ export function TrackSelect({ onSelect, onBack }: TrackSelectProps) {
           </button>
         ))}
       </div>
-      <button className="btn btn-secondary" onClick={onBack}>
+      <Button variant="default" mt="md" onClick={onBack}>
         Back
-      </button>
+      </Button>
     </div>
   );
 }

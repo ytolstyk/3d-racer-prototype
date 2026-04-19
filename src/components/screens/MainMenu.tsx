@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Button, Stack, Title, Text } from '@mantine/core';
 import { MenuMusicPlayer } from '../../game/audio/MenuMusicPlayer.js';
 import { loadAudioPrefs, saveAudioPrefs } from '../../game/audio/AudioPrefs.js';
 import { VolumeControls } from '../hud/VolumeControls.js';
@@ -38,53 +39,37 @@ export function MainMenu({ onStart, onVersus, onPractice, onBackToEditor }: Main
   return (
     <div className="screen main-menu">
       <div className="menu-content">
-        <h1 className="game-title">Kitchen Grand Prix</h1>
-        <p className="game-subtitle">Tiny cars, big thrills, one kitchen table.</p>
-        <div>
-          <button className="btn btn-primary btn-large" onClick={onStart}>
+        <Title order={1} className="game-title">Kitchen Grand Prix</Title>
+        <Text className="game-subtitle">Tiny cars, big thrills, one kitchen table.</Text>
+        <Stack gap="sm" mt="md" align="center">
+          <Button size="lg" color="yellow" onClick={onStart}>
             Start Race
-          </button>
-        </div>
-        {onVersus && (
-          <div style={{ marginTop: '0.75rem' }}>
-            <button className="btn btn-primary" onClick={onVersus}>
+          </Button>
+          {onVersus && (
+            <Button color="yellow" onClick={onVersus}>
               Local Versus
-            </button>
-          </div>
-        )}
-        {onPractice && (
-          <div style={{ marginTop: '0.75rem' }}>
-            <button className="btn btn-secondary" onClick={onPractice}>
-              Practice Map
-            </button>
-          </div>
-        )}
-        <div style={{ marginTop: '0.75rem' }}>
-          {onBackToEditor ? (
-            <button className="btn btn-secondary" onClick={onBackToEditor}>
-              ← Back to Editor
-            </button>
-          ) : (
-            <button className="btn btn-secondary" onClick={() => navigate('/track-editor')}>
-              Track Editor
-            </button>
+            </Button>
           )}
-        </div>
-        <div style={{ marginTop: '0.75rem' }}>
-          <button className="btn btn-secondary" onClick={() => setOptionsOpen(o => !o)}>
+          {onPractice && (
+            <Button variant="default" onClick={onPractice}>
+              Practice Map
+            </Button>
+          )}
+          <Button variant="default" onClick={onBackToEditor ?? (() => navigate('/track-editor'))}>
+            {onBackToEditor ? '← Back to Editor' : 'Track Editor'}
+          </Button>
+          <Button variant="default" onClick={() => setOptionsOpen(o => !o)}>
             {optionsOpen ? 'Hide Options' : 'Options'}
-          </button>
-        </div>
-        {optionsOpen && (
-          <div style={{ marginTop: '0.75rem' }}>
+          </Button>
+          {optionsOpen && (
             <VolumeControls
               masterVolume={prefs.masterVolume}
               musicVolume={prefs.musicVolume}
               onMasterChange={handleMasterChange}
               onMusicChange={handleMusicChange}
             />
-          </div>
-        )}
+          )}
+        </Stack>
       </div>
       <div className="menu-cars">
         <div className="car-silhouette" />

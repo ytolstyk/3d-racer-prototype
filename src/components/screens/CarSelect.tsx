@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { Button, Progress, Text, Title } from '@mantine/core';
 import { CAR_DEFINITIONS } from '../../constants/cars.js';
 import type { CarDefinition } from '../../types/game.js';
 import { CarFactory } from '../../game/car/CarFactory.js';
@@ -14,10 +15,8 @@ function StatBar({ label, value }: { label: string; value: number }) {
   const pct = (value / maxVal) * 100;
   return (
     <div className="stat-bar">
-      <span className="stat-label">{label}</span>
-      <div className="stat-track">
-        <div className="stat-fill" style={{ width: `${pct}%` }} />
-      </div>
+      <Text size="xs" className="stat-label" tt="capitalize">{label}</Text>
+      <Progress value={pct} color="yellow" size="sm" style={{ flex: 1 }} />
     </div>
   );
 }
@@ -73,7 +72,7 @@ function CarPreview({ car }: { car: CarDefinition }) {
 export function CarSelect({ onSelect, onBack }: CarSelectProps) {
   return (
     <div className="screen car-select">
-      <h2>Choose Your Car</h2>
+      <Title order={2}>Choose Your Car</Title>
       <div className="car-grid">
         {CAR_DEFINITIONS.map((car) => (
           <button
@@ -94,9 +93,9 @@ export function CarSelect({ onSelect, onBack }: CarSelectProps) {
           </button>
         ))}
       </div>
-      <button className="btn btn-secondary" onClick={onBack}>
+      <Button variant="default" mt="md" onClick={onBack}>
         Back
-      </button>
+      </Button>
     </div>
   );
 }
