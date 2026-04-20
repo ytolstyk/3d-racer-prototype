@@ -211,7 +211,7 @@ export class VersusGameEngine {
     this.audioManager = new AudioManager(this.cameraController.camera);
     if (this.car1) this.audioManager.addCar(this.car1, true);
     if (this.car2) this.audioManager.addCar(this.car2, true);
-    const resumeOnce = () => { this.audioManager?.resumeAudio(); window.removeEventListener('click', resumeOnce); };
+    const resumeOnce = () => { if (!this.paused) this.audioManager?.resumeAudio(); window.removeEventListener('click', resumeOnce); };
     window.addEventListener('click', resumeOnce);
     this.audioManager.setMasterVolume(loadAudioPrefs().masterVolume);
 

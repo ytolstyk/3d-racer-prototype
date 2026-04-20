@@ -70,7 +70,7 @@ export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, difficul
 
       {paused && optionsOpen && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 101 }}>
-          <OptionsScreen noMusic onBack={() => setOptionsOpen(false)} />
+          <OptionsScreen noMusic inGame onBack={() => setOptionsOpen(false)} />
         </div>
       )}
 

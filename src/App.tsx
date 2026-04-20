@@ -33,7 +33,7 @@ function GameApp() {
   const [selectedCarId, setSelectedCarId] = useState(fromEditor ? 'racer-red' : '');
   const [totalLaps, setTotalLaps] = useState(3);
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
-  const [isEditorTest] = useState(fromEditor);
+  const [isEditorTest, setIsEditorTest] = useState(fromEditor);
   const [gameMode, setGameMode] = useState<'solo' | 'versus'>('solo');
   const [versusSelections, setVersusSelections] = useState<VersusSelections | null>(null);
   const [reverse, setReverse] = useState(false);
@@ -62,6 +62,8 @@ function GameApp() {
     setGameMode('solo');
     setDifficulty('medium');
     setVersusSelections(null);
+    setIsEditorTest(false);
+    navigate('/', { replace: true, state: {} });
   };
 
   const handleVersusStart = () => {

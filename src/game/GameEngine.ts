@@ -194,7 +194,7 @@ export class GameEngine {
     // Audio
     this.audioManager = new AudioManager(this.cameraController.camera);
     for (const car of this.cars) this.audioManager.addCar(car, car.isPlayer);
-    const resumeOnce = () => { this.audioManager?.resumeAudio(); window.removeEventListener('click', resumeOnce); };
+    const resumeOnce = () => { if (!this.paused) this.audioManager?.resumeAudio(); window.removeEventListener('click', resumeOnce); };
     window.addEventListener('click', resumeOnce);
     this.audioManager.setMasterVolume(loadAudioPrefs().masterVolume);
 

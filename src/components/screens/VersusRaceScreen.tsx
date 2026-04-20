@@ -69,7 +69,7 @@ export function VersusRaceScreen({ selections, reverse, onMainMenu, onPlayAgain 
 
       {paused && optionsOpen && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 101 }}>
-          <OptionsScreen noMusic onBack={() => setOptionsOpen(false)} />
+          <OptionsScreen noMusic inGame onBack={() => setOptionsOpen(false)} />
         </div>
       )}
 

@@ -15,6 +15,7 @@ interface OptionsScreenProps {
   onBack: () => void;
   musicPlayer?: MenuMusicPlayer | null;
   noMusic?: boolean;
+  inGame?: boolean;
 }
 
 type ActionKey = keyof ActionBindings;
@@ -34,7 +35,7 @@ interface RebindTarget {
   action: ActionKey;
 }
 
-export function OptionsScreen({ onBack, musicPlayer, noMusic }: OptionsScreenProps) {
+export function OptionsScreen({ onBack, musicPlayer, noMusic, inGame }: OptionsScreenProps) {
   const [prefs, setPrefs] = useState(() => loadAudioPrefs());
   const [controls, setControls] = useState<ControlsConfig>(() => loadControlsConfig());
   const [rebinding, setRebinding] = useState<RebindTarget | null>(null);
@@ -145,12 +146,77 @@ export function OptionsScreen({ onBack, musicPlayer, noMusic }: OptionsScreenPro
     </Box>
   );
 
+  if (inGame) {
+    return (
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: 'rgba(0,0,0,0.82)',
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+        overflowY: 'auto',
+        padding: '32px 16px',
+      }}>
+        <div style={{ width: '100%', maxWidth: 560 }}>
+          <Group justify="space-between" align="center" mb="md">
+            <Title order={2} style={{ color: '#fff' }}>Options</Title>
+            <Button
+              variant="outline"
+              color="gray.3"
+              onClick={onBack}
+              style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.4)' }}
+            >← Back</Button>
+          </Group>
+
+          <Stack gap="lg" align="stretch" style={{ maxWidth: 480, margin: '0 auto' }}>
+            <Box p="md" style={{ background: 'rgba(0,0,0,0.4)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }}>
+              <Text fw={600} mb="sm" c="yellow.4">Audio</Text>
+              <Stack gap="sm">
+                <Group gap="md" align="center" wrap="nowrap">
+                  <Text size="sm" c="dimmed" style={{ width: 110, flexShrink: 0 }}>Master Volume</Text>
+                  <Box style={{ flex: 1 }}>
+                    <Slider min={0} max={1} step={0.01} value={prefs.masterVolume} onChange={handleMasterChange} color="yellow" />
+                  </Box>
+                </Group>
+                <Group gap="md" align="center" wrap="nowrap">
+                  <Text size="sm" c="dimmed" style={{ width: 110, flexShrink: 0 }}>Music Volume</Text>
+                  <Box style={{ flex: 1 }}>
+                    <Slider min={0} max={1} step={0.01} value={prefs.musicVolume} onChange={handleMusicChange} color="yellow" />
+                  </Box>
+                </Group>
+              </Stack>
+            </Box>
+
+            <Divider />
+
+            <Box p="md" style={{ background: 'rgba(0,0,0,0.4)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }}>
+              <Group justify="space-between" align="center" mb="md">
+                <Text fw={600} c="yellow.4">Controls</Text>
+                <Button size="xs" variant="subtle" color="red" onClick={handleResetControls}>Reset Defaults</Button>
+              </Group>
+              <Stack gap="md">
+                {renderBindingTable('p1', 'Player 1 / Solo')}
+                {renderBindingTable('p2', 'Player 2')}
+              </Stack>
+              <Text size="xs" c="dimmed" mt="sm" ta="center">
+                Click a key to rebind · Esc to cancel
+              </Text>
+            </Box>
+          </Stack>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="screen main-menu">
-      <div className="menu-content" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
+      <div className="menu-content" style={{ maxHeight: '90vh', overflowY: 'auto', paddingTop: 24, paddingBottom: 32 }}>
         <Group justify="space-between" align="center" mb="md">
           <Title order={2} style={{ color: '#fff' }}>Options</Title>
-          <Button variant="subtle" color="gray" onClick={onBack}>← Back</Button>
+          <Button
+            variant="outline"
+            color="gray.3"
+            onClick={onBack}
+            style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.4)' }}
+          >← Back</Button>
         </Group>
 
         <Stack gap="lg" align="stretch" style={{ maxWidth: 480, margin: '0 auto' }}>

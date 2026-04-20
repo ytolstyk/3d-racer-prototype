@@ -185,7 +185,7 @@ export class PracticeEngine {
     // Audio
     this.audioManager = new AudioManager(this.cameraController.camera);
     if (this.playerCar) this.audioManager.addCar(this.playerCar, true);
-    const resumeOnce = () => { this.audioManager?.resumeAudio(); window.removeEventListener('click', resumeOnce); };
+    const resumeOnce = () => { if (!this.paused) this.audioManager?.resumeAudio(); window.removeEventListener('click', resumeOnce); };
     window.addEventListener('click', resumeOnce);
     this.audioManager.setMasterVolume(loadAudioPrefs().masterVolume);
 
