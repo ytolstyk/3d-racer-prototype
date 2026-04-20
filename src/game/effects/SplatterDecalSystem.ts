@@ -22,22 +22,16 @@ interface SplatterSlot {
 
 export class SplatterDecalSystem {
   private scene: THREE.Scene;
-  private renderer: THREE.WebGLRenderer;
   private mesh: THREE.InstancedMesh;
   private slots: SplatterSlot[];
   private nextSlot: number;
-  private envMapTexture: THREE.Texture | null;
-  private envMapReady: boolean;
   private normalMap: THREE.CanvasTexture;
   private _dummy: THREE.Object3D;
   private _col: THREE.Color;
 
-  constructor(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
+  constructor(scene: THREE.Scene, _renderer: THREE.WebGLRenderer) {
     this.scene = scene;
-    this.renderer = renderer;
     this.nextSlot = 0;
-    this.envMapTexture = null;
-    this.envMapReady = false;
     this._dummy = new THREE.Object3D();
     this._col = new THREE.Color();
 
@@ -110,22 +104,7 @@ export class SplatterDecalSystem {
     return tex;
   }
 
-  private initEnvMap(): void {
-    if (this.envMapReady) return;
-    const pmrem = new THREE.PMREMGenerator(this.renderer);
-    const bg = new THREE.Scene();
-    bg.background = new THREE.Color(0x87c1e8);
-    const rt = pmrem.fromScene(bg as THREE.Scene & { isRenderTargetTexture?: boolean });
-    const mat = this.mesh.material as THREE.MeshStandardMaterial;
-    mat.envMap = rt.texture;
-    mat.needsUpdate = true;
-    this.envMapTexture = rt.texture;
-    pmrem.dispose();
-    this.envMapReady = true;
-  }
-
   addSplatter(s: PlacedSplatter): void {
-    this.initEnvMap();
 
     // Find a free slot (circular scan)
     let slotIdx = -1;
@@ -201,6 +180,5 @@ export class SplatterDecalSystem {
     this.mesh.geometry.dispose();
     (this.mesh.material as THREE.MeshStandardMaterial).dispose();
     this.normalMap.dispose();
-    this.envMapTexture?.dispose();
   }
 }

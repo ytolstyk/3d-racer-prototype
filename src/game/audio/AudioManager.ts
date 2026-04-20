@@ -34,11 +34,11 @@ export class AudioManager {
   }
 
   resumeAudio(): void {
-    void this.ctx.resume();
+    if (this.ctx.state !== 'closed') void this.ctx.resume();
   }
 
   suspendAudio(): void {
-    void this.ctx.suspend();
+    if (this.ctx.state !== 'closed') void this.ctx.suspend();
   }
 
   setMasterVolume(v: number): void {
