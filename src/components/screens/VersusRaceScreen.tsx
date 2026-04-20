@@ -11,6 +11,7 @@ import { VersusRoundOverlay } from '../hud/VersusRoundOverlay.js';
 import { MinimapDisplay } from '../hud/MinimapDisplay.js';
 import { WrongWayIndicator } from '../hud/WrongWayIndicator.js';
 import { VersusEndScreen } from './VersusEndScreen.js';
+import { OptionsScreen } from './OptionsScreen.js';
 
 interface VersusRaceScreenProps {
   selections: VersusSelections;
@@ -31,6 +32,7 @@ export function VersusRaceScreen({ selections, reverse, onMainMenu, onPlayAgain 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const emitter = useMemo(() => new VersusStateEmitter(), []);
   const [paused, setPaused] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
 
   const engineRef = useVersusGameEngine(
     canvasRef,
@@ -49,6 +51,7 @@ export function VersusRaceScreen({ selections, reverse, onMainMenu, onPlayAgain 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code !== 'Escape') return;
       e.preventDefault();
+      if (optionsOpen) { setOptionsOpen(false); return; }
       setPaused(prev => {
         const next = !prev;
         if (next) engineRef.current?.pause();
@@ -58,18 +61,27 @@ export function VersusRaceScreen({ selections, reverse, onMainMenu, onPlayAgain 
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [engineRef]);
+  }, [engineRef, optionsOpen]);
 
   return (
     <div className="race-screen">
       <canvas ref={canvasRef} className="game-canvas" />
 
-      {paused && (
+      {paused && optionsOpen && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 101 }}>
+          <OptionsScreen noMusic onBack={() => setOptionsOpen(false)} />
+        </div>
+      )}
+
+      {paused && !optionsOpen && (
         <div style={pauseOverlayStyle}>
           <Stack align="center" gap="sm">
             <Title order={2} c="white">Paused</Title>
-            <Button color="yellow" onClick={() => { setPaused(false); engineRef.current?.resume(); }}>
+            <Button color="yellow" autoContrast onClick={() => { setPaused(false); engineRef.current?.resume(); }}>
               Resume
+            </Button>
+            <Button variant="default" onClick={() => setOptionsOpen(true)}>
+              Options
             </Button>
             <Button variant="default" onClick={onMainMenu}>
               Main Menu

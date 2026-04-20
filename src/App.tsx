@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import type { RacePhase, VersusSelections, Difficulty } from './types/game.js';
 import { MainMenu } from './components/screens/MainMenu.js';
+import { OptionsScreen } from './components/screens/OptionsScreen.js';
 import { TrackSelect } from './components/screens/TrackSelect.js';
 import { CarSelect } from './components/screens/CarSelect.js';
 import { LapSelect } from './components/screens/LapSelect.js';
@@ -95,8 +96,11 @@ function GameApp() {
           onVersus={handleVersusStart}
           onPractice={() => navigate('/practice')}
           onBackToEditor={isEditorTest ? handleBackToEditor : undefined}
+          onOptions={() => setPhase('options')}
         />
       );
+    case 'options':
+      return <OptionsScreen onBack={() => setPhase('menu')} />;
     case 'trackSelect':
       return <TrackSelect onSelect={handleTrackSelect} onBack={handleMainMenu} />;
     case 'carSelect':
@@ -134,7 +138,7 @@ function GameApp() {
         />
       ) : null;
     default:
-      return <MainMenu onStart={() => setPhase('trackSelect')} />;
+      return <MainMenu onStart={() => setPhase('trackSelect')} onOptions={() => setPhase('options')} />;
   }
 }
 

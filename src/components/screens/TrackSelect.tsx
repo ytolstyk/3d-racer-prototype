@@ -72,7 +72,7 @@ export function TrackSelect({ onSelect, onBack }: TrackSelectProps) {
   const [reverse, setReverse] = useState(false);
 
   return (
-    <div className="screen track-select">
+    <div className="screen main-menu">
       <Title order={2}>Choose Your Track</Title>
       <Group justify="center" mb="sm" mt="xs">
         <Checkbox

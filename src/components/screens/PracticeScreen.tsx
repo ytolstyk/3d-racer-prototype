@@ -1,10 +1,10 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
+import { Button, Stack, Title } from '@mantine/core';
 import type { KitchenItemType, PhysicsTelemetry, PhysicsGroup, HazardZone } from '../../types/game.js';
 import { PracticeEngine, PRACTICE_DEFAULT_OBJECTS } from '../../game/PracticeEngine.js';
 import { CAR_DEFINITIONS } from '../../constants/cars.js';
 import { HAZARD_COLORS, HAZARD_EFFECTS } from '../../constants/physics.js';
-import { VolumeControls } from '../hud/VolumeControls.js';
-import { loadAudioPrefs, saveAudioPrefs } from '../../game/audio/AudioPrefs.js';
+import { OptionsScreen } from './OptionsScreen.js';
 
 const KITCHEN_ITEM_TYPES: KitchenItemType[] = [
   'mug', 'spoon', 'plate', 'fork', 'napkin',
@@ -60,7 +60,7 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
   const engineRef = useRef<PracticeEngine | null>(null);
   const [selectedCarId, setSelectedCarId] = useState('racer-red');
   const [paused, setPaused] = useState(false);
-  const [prefs, setPrefs] = useState(() => loadAudioPrefs());
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const [speed, setSpeed] = useState(0);
   const [maxSpeed, setMaxSpeed] = useState(1);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -145,6 +145,7 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code !== 'Escape') return;
       e.preventDefault();
+      if (optionsOpen) { setOptionsOpen(false); return; }
       setPaused(prev => {
         const next = !prev;
         if (next) engineRef.current?.pause();
@@ -154,7 +155,7 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [optionsOpen]);
 
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const engine = engineRef.current;
@@ -922,28 +923,26 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
       )}
 
       {/* Pause overlay */}
-      {paused && (
+      {paused && optionsOpen && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 101 }}>
+          <OptionsScreen noMusic onBack={() => setOptionsOpen(false)} />
+        </div>
+      )}
+
+      {paused && !optionsOpen && (
         <div style={overlayStyle}>
-          <h2 style={{ color: '#fff', margin: 0 }}>Paused</h2>
-          <button style={primaryBtnStyle} onClick={() => { setPaused(false); engineRef.current?.resume(); }}>
-            Resume
-          </button>
-          <button style={btnStyle} onClick={onMainMenu}>
-            Main Menu
-          </button>
-          <VolumeControls
-            masterVolume={prefs.masterVolume}
-            musicVolume={prefs.musicVolume}
-            onMasterChange={(v) => {
-              setPrefs(p => ({ ...p, masterVolume: v }));
-              saveAudioPrefs({ masterVolume: v });
-              engineRef.current?.getAudioManager()?.setMasterVolume(v);
-            }}
-            onMusicChange={(v) => {
-              setPrefs(p => ({ ...p, musicVolume: v }));
-              saveAudioPrefs({ musicVolume: v });
-            }}
-          />
+          <Stack align="center" gap="sm">
+            <Title order={2} c="white">Paused</Title>
+            <Button color="yellow" autoContrast onClick={() => { setPaused(false); engineRef.current?.resume(); }}>
+              Resume
+            </Button>
+            <Button variant="default" onClick={() => setOptionsOpen(true)}>
+              Options
+            </Button>
+            <Button variant="default" onClick={onMainMenu}>
+              Main Menu
+            </Button>
+          </Stack>
         </div>
       )}
     </div>

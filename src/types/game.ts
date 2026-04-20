@@ -1,6 +1,6 @@
 import type * as THREE from 'three';
 
-export type RacePhase = 'menu' | 'trackSelect' | 'carSelect' | 'lapSelect' | 'racing' | 'finished' | 'versusCarSelect' | 'versusRacing';
+export type RacePhase = 'menu' | 'options' | 'trackSelect' | 'carSelect' | 'lapSelect' | 'racing' | 'finished' | 'versusCarSelect' | 'versusRacing';
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
 

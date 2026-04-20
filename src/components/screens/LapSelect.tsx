@@ -12,13 +12,12 @@ export function LapSelect({ onSelect, onBack }: LapSelectProps) {
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
 
   return (
-    <div className="screen lap-select">
-      <Title order={2}>Number of Laps</Title>
+    <div className="screen main-menu">
+      <Title order={2} c="white">Number of Laps</Title>
       <Stack gap="lg" align="center" mt="md">
         <Group gap="md" align="center">
           <Button
-            variant="outline"
-            color="gray"
+            variant="default"
             w={40}
             h={40}
             p={0}
@@ -27,10 +26,9 @@ export function LapSelect({ onSelect, onBack }: LapSelectProps) {
           >
             -
           </Button>
-          <Text className="lap-number" size="xl" fw={700}>{laps}</Text>
+          <Text className="lap-number" size="xl" fw={700} c="white">{laps}</Text>
           <Button
-            variant="outline"
-            color="gray"
+            variant="default"
             w={40}
             h={40}
             p={0}
@@ -42,13 +40,14 @@ export function LapSelect({ onSelect, onBack }: LapSelectProps) {
         </Group>
 
         <Stack gap="xs" align="center">
-          <Text className="difficulty-label" size="sm" c="dimmed">Difficulty</Text>
+          <Text className="difficulty-label" size="sm" c="white">Difficulty</Text>
           <Group gap="sm">
             {(['easy', 'medium', 'hard'] as Difficulty[]).map((d) => (
               <Button
                 key={d}
-                variant={difficulty === d ? 'filled' : 'outline'}
-                color={difficulty === d ? 'yellow' : 'gray'}
+                autoContrast
+                variant={difficulty === d ? 'filled' : 'default'}
+                color={difficulty === d ? 'yellow' : undefined}
                 onClick={() => setDifficulty(d)}
               >
                 {d.charAt(0).toUpperCase() + d.slice(1)}
@@ -58,7 +57,7 @@ export function LapSelect({ onSelect, onBack }: LapSelectProps) {
         </Stack>
 
         <Group gap="sm" mt="sm">
-          <Button size="lg" color="yellow" onClick={() => onSelect(laps, difficulty)}>
+          <Button autoContrast size="lg" color="yellow" onClick={() => onSelect(laps, difficulty)}>
             Race!
           </Button>
           <Button variant="default" onClick={onBack}>

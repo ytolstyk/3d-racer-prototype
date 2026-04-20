@@ -1,3 +1,5 @@
+import { loadControlsConfig } from './ControlsPrefs.js';
+
 export interface InputState {
   forward: boolean;
   backward: boolean;
@@ -23,32 +25,35 @@ export class InputManager {
   }
 
   getState(): InputState {
+    const { p1 } = loadControlsConfig();
     return {
-      forward: this.keys.has('ArrowUp') || this.keys.has('KeyW'),
-      backward: this.keys.has('ArrowDown') || this.keys.has('KeyS'),
-      left: this.keys.has('ArrowLeft') || this.keys.has('KeyA'),
-      right: this.keys.has('ArrowRight') || this.keys.has('KeyD'),
-      handbrake: this.keys.has('Space'),
+      forward: this.keys.has(p1.forward),
+      backward: this.keys.has(p1.backward),
+      left: this.keys.has(p1.left),
+      right: this.keys.has(p1.right),
+      handbrake: this.keys.has(p1.handbrake),
     };
   }
 
   getStateP1(): InputState {
+    const { p1 } = loadControlsConfig();
     return {
-      forward: this.keys.has('KeyW'),
-      backward: this.keys.has('KeyS'),
-      left: this.keys.has('KeyA'),
-      right: this.keys.has('KeyD'),
-      handbrake: this.keys.has('ShiftLeft'),
+      forward: this.keys.has(p1.forward),
+      backward: this.keys.has(p1.backward),
+      left: this.keys.has(p1.left),
+      right: this.keys.has(p1.right),
+      handbrake: this.keys.has(p1.handbrake),
     };
   }
 
   getStateP2(): InputState {
+    const { p2 } = loadControlsConfig();
     return {
-      forward: this.keys.has('ArrowUp'),
-      backward: this.keys.has('ArrowDown'),
-      left: this.keys.has('ArrowLeft'),
-      right: this.keys.has('ArrowRight'),
-      handbrake: this.keys.has('ShiftRight'),
+      forward: this.keys.has(p2.forward),
+      backward: this.keys.has(p2.backward),
+      left: this.keys.has(p2.left),
+      right: this.keys.has(p2.right),
+      handbrake: this.keys.has(p2.handbrake),
     };
   }
 

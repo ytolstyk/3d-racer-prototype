@@ -12,8 +12,7 @@ import { PositionIndicator } from '../hud/PositionIndicator.js';
 import { CheckpointTimer } from '../hud/CheckpointTimer.js';
 import { WrongWayIndicator } from '../hud/WrongWayIndicator.js';
 import { Scoreboard } from './Scoreboard.js';
-import { VolumeControls } from '../hud/VolumeControls.js';
-import { loadAudioPrefs, saveAudioPrefs } from '../../game/audio/AudioPrefs.js';
+import { OptionsScreen } from './OptionsScreen.js';
 
 interface RaceScreenProps {
   selectedTrackId: string;
@@ -38,7 +37,7 @@ export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, difficul
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const emitter = useMemo(() => new GameStateEmitter(), []);
   const [paused, setPaused] = useState(false);
-  const [prefs, setPrefs] = useState(() => loadAudioPrefs());
+  const [optionsOpen, setOptionsOpen] = useState(false);
 
   const engineRef = useGameEngine(canvasRef, selectedTrackId, selectedCarId, totalLaps, difficulty, emitter, reverse);
   const state = useGameState(emitter);
@@ -47,6 +46,7 @@ export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, difficul
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code !== 'Escape') return;
       e.preventDefault();
+      if (optionsOpen) { setOptionsOpen(false); return; }
       setPaused(prev => {
         const next = !prev;
         if (next) engineRef.current?.pause();
@@ -56,18 +56,7 @@ export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, difficul
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [engineRef]);
-
-  const handleMasterChange = (v: number) => {
-    setPrefs(p => ({ ...p, masterVolume: v }));
-    saveAudioPrefs({ masterVolume: v });
-    engineRef.current?.getAudioManager()?.setMasterVolume(v);
-  };
-
-  const handleMusicChange = (v: number) => {
-    setPrefs(p => ({ ...p, musicVolume: v }));
-    saveAudioPrefs({ musicVolume: v });
-  };
+  }, [engineRef, optionsOpen]);
 
   return (
     <div className="race-screen">
@@ -79,12 +68,21 @@ export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, difficul
         </button>
       )}
 
-      {paused && (
+      {paused && optionsOpen && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 101 }}>
+          <OptionsScreen noMusic onBack={() => setOptionsOpen(false)} />
+        </div>
+      )}
+
+      {paused && !optionsOpen && (
         <div style={pauseOverlayStyle}>
           <Stack align="center" gap="sm">
             <Title order={2} c="white">Paused</Title>
-            <Button color="yellow" onClick={() => { setPaused(false); engineRef.current?.resume(); }}>
+            <Button color="yellow" autoContrast onClick={() => { setPaused(false); engineRef.current?.resume(); }}>
               Resume
+            </Button>
+            <Button variant="default" onClick={() => setOptionsOpen(true)}>
+              Options
             </Button>
             {onBackToEditor && (
               <Button variant="default" onClick={() => {
@@ -98,12 +96,6 @@ export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, difficul
             <Button variant="default" onClick={onMainMenu}>
               Main Menu
             </Button>
-            <VolumeControls
-              masterVolume={prefs.masterVolume}
-              musicVolume={prefs.musicVolume}
-              onMasterChange={handleMasterChange}
-              onMusicChange={handleMusicChange}
-            />
           </Stack>
         </div>
       )}

@@ -71,7 +71,7 @@ function CarPreview({ car }: { car: CarDefinition }) {
 
 export function CarSelect({ onSelect, onBack }: CarSelectProps) {
   return (
-    <div className="screen car-select">
+    <div className="screen main-menu">
       <Title order={2}>Choose Your Car</Title>
       <div className="car-grid">
         {CAR_DEFINITIONS.map((car) => (

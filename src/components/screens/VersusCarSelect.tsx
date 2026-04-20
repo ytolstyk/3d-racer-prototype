@@ -175,7 +175,7 @@ export function VersusCarSelect({ trackId, onReady, onBack }: VersusCarSelectPro
   };
 
   return (
-    <div className="screen" style={{
+    <div className="screen main-menu" style={{
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'stretch',
@@ -203,7 +203,7 @@ export function VersusCarSelect({ trackId, onReady, onBack }: VersusCarSelectPro
 
       <Group justify="center" gap="sm">
         {canStart && (
-          <Button size="lg" color="yellow" onClick={handleStart}>
+          <Button autoContrast size="lg" color="yellow" onClick={handleStart}>
             Start Versus
           </Button>
         )}
