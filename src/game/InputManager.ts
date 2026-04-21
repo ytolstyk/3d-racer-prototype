@@ -1,4 +1,4 @@
-import { loadControlsConfig } from './ControlsPrefs.js';
+import { loadControlsConfig, loadSPControlsConfig } from './ControlsPrefs.js';
 
 export interface InputState {
   forward: boolean;
@@ -25,7 +25,7 @@ export class InputManager {
   }
 
   getState(): InputState {
-    const { p1 } = loadControlsConfig();
+    const { p1 } = loadSPControlsConfig();
     return {
       forward: this.keys.has(p1.forward),
       backward: this.keys.has(p1.backward),

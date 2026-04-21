@@ -11,12 +11,23 @@ export interface ControlsConfig {
   p2: ActionBindings;
 }
 
-const KEY = 'kgp_controls';
+const SP_KEY = 'kgp_controls_sp';
+const VS_KEY = 'kgp_controls';
 
-export const DEFAULT_CONTROLS: ControlsConfig = {
+/** Default bindings for single-player / solo mode */
+export const DEFAULT_SP_CONTROLS: ControlsConfig = {
+  p1: { forward: 'KeyW', backward: 'KeyS', left: 'KeyA', right: 'KeyD', handbrake: 'Space' },
+  p2: { forward: 'ArrowUp', backward: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', handbrake: 'ShiftRight' },
+};
+
+/** Default bindings for versus (local multiplayer) mode */
+export const DEFAULT_VS_CONTROLS: ControlsConfig = {
   p1: { forward: 'KeyW', backward: 'KeyS', left: 'KeyA', right: 'KeyD', handbrake: 'ShiftLeft' },
   p2: { forward: 'ArrowUp', backward: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', handbrake: 'ShiftRight' },
 };
+
+/** @deprecated Use DEFAULT_SP_CONTROLS or DEFAULT_VS_CONTROLS */
+export const DEFAULT_CONTROLS = DEFAULT_VS_CONTROLS;
 
 function isValidBindings(b: unknown): b is ActionBindings {
   if (!b || typeof b !== 'object') return false;
@@ -24,34 +35,42 @@ function isValidBindings(b: unknown): b is ActionBindings {
   return ['forward', 'backward', 'left', 'right', 'handbrake'].every(k => typeof o[k] === 'string');
 }
 
-export function loadControlsConfig(): ControlsConfig {
+function loadConfig(key: string, defaults: ControlsConfig): ControlsConfig {
   try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return structuredClone(DEFAULT_CONTROLS);
+    const raw = localStorage.getItem(key);
+    if (!raw) return structuredClone(defaults);
     const parsed = JSON.parse(raw) as Partial<ControlsConfig>;
     return {
-      p1: isValidBindings(parsed.p1) ? parsed.p1 : { ...DEFAULT_CONTROLS.p1 },
-      p2: isValidBindings(parsed.p2) ? parsed.p2 : { ...DEFAULT_CONTROLS.p2 },
+      p1: isValidBindings(parsed.p1) ? parsed.p1 : { ...defaults.p1 },
+      p2: isValidBindings(parsed.p2) ? parsed.p2 : { ...defaults.p2 },
     };
   } catch {
-    return structuredClone(DEFAULT_CONTROLS);
+    return structuredClone(defaults);
   }
+}
+
+export function loadSPControlsConfig(): ControlsConfig {
+  return loadConfig(SP_KEY, DEFAULT_SP_CONTROLS);
+}
+
+export function saveSPControlsConfig(config: ControlsConfig): void {
+  try { localStorage.setItem(SP_KEY, JSON.stringify(config)); } catch { /* ignore */ }
+}
+
+export function resetSPControlsConfig(): void {
+  try { localStorage.removeItem(SP_KEY); } catch { /* ignore */ }
+}
+
+export function loadControlsConfig(): ControlsConfig {
+  return loadConfig(VS_KEY, DEFAULT_VS_CONTROLS);
 }
 
 export function saveControlsConfig(config: ControlsConfig): void {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(config));
-  } catch {
-    // ignore
-  }
+  try { localStorage.setItem(VS_KEY, JSON.stringify(config)); } catch { /* ignore */ }
 }
 
 export function resetControlsConfig(): void {
-  try {
-    localStorage.removeItem(KEY);
-  } catch {
-    // ignore
-  }
+  try { localStorage.removeItem(VS_KEY); } catch { /* ignore */ }
 }
 
 /** Convert a KeyboardEvent.code to a human-readable label */

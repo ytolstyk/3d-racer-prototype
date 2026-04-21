@@ -7,7 +7,8 @@ import { MenuMusicPlayer } from '../../game/audio/MenuMusicPlayer.js';
 import { loadAudioPrefs, saveAudioPrefs } from '../../game/audio/AudioPrefs.js';
 import {
   loadControlsConfig, saveControlsConfig, resetControlsConfig,
-  DEFAULT_CONTROLS, keyCodeLabel,
+  loadSPControlsConfig, saveSPControlsConfig, resetSPControlsConfig,
+  DEFAULT_SP_CONTROLS, DEFAULT_VS_CONTROLS, keyCodeLabel,
 } from '../../game/ControlsPrefs.js';
 import type { ControlsConfig, ActionBindings } from '../../game/ControlsPrefs.js';
 
@@ -31,12 +32,14 @@ const ACTION_LABELS: Record<ActionKey, string> = {
 const ACTIONS: ActionKey[] = ['forward', 'backward', 'left', 'right', 'handbrake'];
 
 interface RebindTarget {
+  mode: 'sp' | 'vs';
   player: 'p1' | 'p2';
   action: ActionKey;
 }
 
 export function OptionsScreen({ onBack, musicPlayer, noMusic, inGame }: OptionsScreenProps) {
   const [prefs, setPrefs] = useState(() => loadAudioPrefs());
+  const [spControls, setSpControls] = useState<ControlsConfig>(() => loadSPControlsConfig());
   const [controls, setControls] = useState<ControlsConfig>(() => loadControlsConfig());
   const [rebinding, setRebinding] = useState<RebindTarget | null>(null);
   const playerRef = useRef<MenuMusicPlayer | null>(musicPlayer ?? null);
@@ -61,17 +64,25 @@ export function OptionsScreen({ onBack, musicPlayer, noMusic, inGame }: OptionsS
         setRebinding(null);
         return;
       }
-      setControls(prev => {
-        const updated: ControlsConfig = {
-          ...prev,
-          [rebinding.player]: {
-            ...prev[rebinding.player],
-            [rebinding.action]: e.code,
-          },
-        };
-        saveControlsConfig(updated);
-        return updated;
-      });
+      if (rebinding.mode === 'sp') {
+        setSpControls(prev => {
+          const updated: ControlsConfig = {
+            ...prev,
+            [rebinding.player]: { ...prev[rebinding.player], [rebinding.action]: e.code },
+          };
+          saveSPControlsConfig(updated);
+          return updated;
+        });
+      } else {
+        setControls(prev => {
+          const updated: ControlsConfig = {
+            ...prev,
+            [rebinding.player]: { ...prev[rebinding.player], [rebinding.action]: e.code },
+          };
+          saveControlsConfig(updated);
+          return updated;
+        });
+      }
       setRebinding(null);
     };
 
@@ -91,60 +102,66 @@ export function OptionsScreen({ onBack, musicPlayer, noMusic, inGame }: OptionsS
   };
 
   const handleResetControls = () => {
+    resetSPControlsConfig();
     resetControlsConfig();
+    setSpControls(loadSPControlsConfig());
     setControls(loadControlsConfig());
     setRebinding(null);
   };
 
-  const startRebind = (player: 'p1' | 'p2', action: ActionKey) => {
-    setRebinding({ player, action });
+  const startRebind = (mode: 'sp' | 'vs', player: 'p1' | 'p2', action: ActionKey) => {
+    setRebinding({ mode, player, action });
   };
 
-  const isRebinding = (player: 'p1' | 'p2', action: ActionKey) =>
-    rebinding?.player === player && rebinding?.action === action;
+  const isRebinding = (mode: 'sp' | 'vs', player: 'p1' | 'p2', action: ActionKey) =>
+    rebinding?.mode === mode && rebinding?.player === player && rebinding?.action === action;
 
-  const renderBindingTable = (player: 'p1' | 'p2', label: string) => (
-    <Box>
-      <Text fw={600} mb="xs" c="yellow.4">{label}</Text>
-      <Table
-        style={{
-          background: 'rgba(0,0,0,0.35)',
-          borderRadius: 6,
-          border: '1px solid rgba(255,255,255,0.08)',
-        }}
-      >
-        <Table.Tbody>
-          {ACTIONS.map(action => {
-            const current = controls[player][action];
-            const defaultKey = DEFAULT_CONTROLS[player][action];
-            const isDefault = current === defaultKey;
-            const active = isRebinding(player, action);
-            return (
-              <Table.Tr key={action}>
-                <Table.Td style={{ width: 120, color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>
-                  {ACTION_LABELS[action]}
-                </Table.Td>
-                <Table.Td>
-                  <Button
-                    size="xs"
-                    variant={active ? 'filled' : 'default'}
-                    color={active ? 'yellow' : undefined}
-                    onClick={() => startRebind(player, action)}
-                    style={{ minWidth: 90, fontFamily: 'monospace' }}
-                  >
-                    {active ? 'Press key…' : keyCodeLabel(current)}
-                  </Button>
-                </Table.Td>
-                <Table.Td style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11 }}>
-                  {!isDefault && `default: ${keyCodeLabel(defaultKey)}`}
-                </Table.Td>
-              </Table.Tr>
-            );
-          })}
-        </Table.Tbody>
-      </Table>
-    </Box>
-  );
+  const renderBindingTable = (mode: 'sp' | 'vs', player: 'p1' | 'p2', label: string) => {
+    const cfg = mode === 'sp' ? spControls : controls;
+    const defaults = mode === 'sp' ? DEFAULT_SP_CONTROLS : DEFAULT_VS_CONTROLS;
+    return (
+      <Box>
+        <Text fw={600} mb="xs" c="yellow.4">{label}</Text>
+        <Table
+          style={{
+            background: 'rgba(0,0,0,0.35)',
+            borderRadius: 6,
+            border: '1px solid rgba(255,255,255,0.08)',
+          }}
+        >
+          <Table.Tbody>
+            {ACTIONS.map(action => {
+              const current = cfg[player][action];
+              const defaultKey = defaults[player][action];
+              const isDefault = current === defaultKey;
+              const active = isRebinding(mode, player, action);
+              return (
+                <Table.Tr key={action}>
+                  <Table.Td style={{ width: 120, color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>
+                    {ACTION_LABELS[action]}
+                  </Table.Td>
+                  <Table.Td>
+                    <Button
+                      size="xs"
+                      variant={active ? 'filled' : 'default'}
+                      color={active ? 'yellow' : undefined}
+                      onClick={() => startRebind(mode, player, action)}
+                      style={{ minWidth: 90, fontFamily: 'monospace' }}
+                    >
+                      {active ? 'Press key…' : keyCodeLabel(current)}
+                    </Button>
+                  </Table.Td>
+                  <Table.Td style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11 }}>
+                    {!isDefault && `default: ${keyCodeLabel(defaultKey)}`}
+                  </Table.Td>
+                </Table.Tr>
+              );
+            })}
+          </Table.Tbody>
+        </Table>
+      </Box>
+    );
+  };
 
   if (inGame) {
     return (
@@ -193,8 +210,9 @@ export function OptionsScreen({ onBack, musicPlayer, noMusic, inGame }: OptionsS
                 <Button size="xs" variant="subtle" color="red" onClick={handleResetControls}>Reset Defaults</Button>
               </Group>
               <Stack gap="md">
-                {renderBindingTable('p1', 'Player 1 / Solo')}
-                {renderBindingTable('p2', 'Player 2')}
+                {renderBindingTable('sp', 'p1', 'Solo')}
+                {renderBindingTable('vs', 'p1', 'Player 1 (Versus)')}
+                {renderBindingTable('vs', 'p2', 'Player 2 (Versus)')}
               </Stack>
               <Text size="xs" c="dimmed" mt="sm" ta="center">
                 Click a key to rebind · Esc to cancel
