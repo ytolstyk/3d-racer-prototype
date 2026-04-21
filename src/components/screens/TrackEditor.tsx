@@ -1017,6 +1017,7 @@ export function TrackEditor() {
 
   const panRef = useRef({ x: 0, y: 0 });
   const zoomRef = useRef(1);
+  const originRef = useRef<{ x: number; y: number } | null>(null);
 
   const dragIndexRef = useRef<number>(-1);
   const dragHazardIndexRef = useRef<number>(-1);
@@ -1077,8 +1078,8 @@ export function TrackEditor() {
     const pan = panRef.current;
     const zoom = zoomRef.current;
     const invZoom = 1 / zoom;
-    const originX = W / 2;
-    const originY = H / 2;
+    const originX = originRef.current?.x ?? W / 2;
+    const originY = originRef.current?.y ?? H / 2;
     const {
       points,
       trackWidth,
@@ -1949,19 +1950,45 @@ export function TrackEditor() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ro = new ResizeObserver(() => {
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
+      const newW = canvas.offsetWidth;
+      const newH = canvas.offsetHeight;
+      canvas.width = newW;
+      canvas.height = newH;
       if (!viewInitializedRef.current) {
         viewInitializedRef.current = true;
-        const W = canvas.width;
-        const H = canvas.height;
+        // Try to restore origin from a saved draft so reload stays aligned
+        if (!originRef.current) {
+          try {
+            const stored = sessionStorage.getItem("editor_draft");
+            if (stored) {
+              const draft = JSON.parse(stored) as {
+                originX?: number;
+                originY?: number;
+              };
+              if (draft.originX !== undefined && draft.originY !== undefined) {
+                originRef.current = { x: draft.originX, y: draft.originY };
+              }
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+        if (!originRef.current) {
+          originRef.current = { x: newW / 2, y: newH / 2 };
+        }
+        const originX = originRef.current.x;
+        const originY = originRef.current.y;
         const padding = 80;
         const zoom = Math.min(
-          W / (1200 + padding * 2),
-          H / (900 + padding * 2),
+          newW / (1200 + padding * 2),
+          newH / (900 + padding * 2),
         );
         zoomRef.current = zoom;
-        panRef.current = { x: (W / 2) * (1 - zoom), y: (H / 2) * (1 - zoom) };
+        // Centre the fixed origin in the viewport
+        panRef.current = {
+          x: newW / 2 - zoom * originX,
+          y: newH / 2 - zoom * originY,
+        };
       }
       draw();
     });
@@ -2233,8 +2260,8 @@ export function TrackEditor() {
   const findNearestHazard = (pos: [number, number]): number => {
     const canvas = canvasRef.current;
     if (!canvas) return -1;
-    const originX = canvas.width / 2;
-    const originY = canvas.height / 2;
+    const originX = originRef.current?.x ?? canvas.width / 2;
+    const originY = originRef.current?.y ?? canvas.height / 2;
     const hazards = stateRef.current.hazards;
     for (let i = 0; i < hazards.length; i++) {
       const hz = hazards[i];
@@ -2264,8 +2291,8 @@ export function TrackEditor() {
       hz.radius === undefined
     )
       return null;
-    const originX = canvas.width / 2;
-    const originY = canvas.height / 2;
+    const originX = originRef.current?.x ?? canvas.width / 2;
+    const originY = originRef.current?.y ?? canvas.height / 2;
     const [cx, cy] = gameToCanvas(hz.centerX, hz.centerZ, originX, originY);
     const invZoom = 1 / zoomRef.current;
     const handleR = 8 * invZoom;
@@ -2290,8 +2317,8 @@ export function TrackEditor() {
   const findNearestObject = (pos: [number, number]): number => {
     const canvas = canvasRef.current;
     if (!canvas) return -1;
-    const originX = canvas.width / 2;
-    const originY = canvas.height / 2;
+    const originX = originRef.current?.x ?? canvas.width / 2;
+    const originY = originRef.current?.y ?? canvas.height / 2;
     const hitR = 15 / zoomRef.current;
     const objects = stateRef.current.objects;
     for (let i = 0; i < objects.length; i++) {
@@ -2305,8 +2332,8 @@ export function TrackEditor() {
   const findNearestLight = (pos: [number, number]): number => {
     const canvas = canvasRef.current;
     if (!canvas) return -1;
-    const originX = canvas.width / 2;
-    const originY = canvas.height / 2;
+    const originX = originRef.current?.x ?? canvas.width / 2;
+    const originY = originRef.current?.y ?? canvas.height / 2;
     const hitR = 10 / zoomRef.current;
     const lights = stateRef.current.lights;
     for (let i = 0; i < lights.length; i++) {
@@ -2324,8 +2351,8 @@ export function TrackEditor() {
     const canvas = canvasRef.current;
     if (!canvas) return null;
     const lt = stateRef.current.lights[idx];
-    const originX = canvas.width / 2;
-    const originY = canvas.height / 2;
+    const originX = originRef.current?.x ?? canvas.width / 2;
+    const originY = originRef.current?.y ?? canvas.height / 2;
     const [lx, ly] = gameToCanvas(lt.x, lt.z, originX, originY);
     const hitR = 8 / zoomRef.current;
 
@@ -3290,8 +3317,8 @@ export function TrackEditor() {
       );
       return;
     }
-    const originX = canvas.width / 2;
-    const originY = canvas.height / 2;
+    const originX = originRef.current?.x ?? canvas.width / 2;
+    const originY = originRef.current?.y ?? canvas.height / 2;
     const controlPoints = points.map(([cx, cy]) =>
       canvasToGame(cx, cy, originX, originY),
     );
@@ -3325,6 +3352,8 @@ export function TrackEditor() {
         boostTracks,
         rainZones,
         pointRotations,
+        originX: originRef.current?.x,
+        originY: originRef.current?.y,
       }),
     );
     navigate("/", { state: { fromEditor: true } });
@@ -3333,8 +3362,8 @@ export function TrackEditor() {
   const handleSave = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const originX = canvas.width / 2;
-    const originY = canvas.height / 2;
+    const originX = originRef.current?.x ?? canvas.width / 2;
+    const originY = originRef.current?.y ?? canvas.height / 2;
     const {
       points,
       trackName,
@@ -3385,8 +3414,8 @@ export function TrackEditor() {
     if (!file) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const originX = canvas.width / 2;
-    const originY = canvas.height / 2;
+    const originX = originRef.current?.x ?? canvas.width / 2;
+    const originY = originRef.current?.y ?? canvas.height / 2;
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
@@ -3443,8 +3472,8 @@ export function TrackEditor() {
     if (!canvas) return;
     const track = TRACKS.find((t) => t.id === id);
     if (!track) return;
-    const originX = canvas.width / 2;
-    const originY = canvas.height / 2;
+    const originX = originRef.current?.x ?? canvas.width / 2;
+    const originY = originRef.current?.y ?? canvas.height / 2;
     const points = track.controlPoints.map(([gx, , gz]) =>
       gameToCanvas(gx, gz, originX, originY),
     );
