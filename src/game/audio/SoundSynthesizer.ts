@@ -50,7 +50,7 @@ export function createEngineNodes(
   filterNode.connect(destination);
 
   const gainNode = ctx.createGain();
-  gainNode.gain.value = S.engineGainBase;
+  gainNode.gain.value = S.engineGainIdle;
   gainNode.connect(filterNode);
 
   const osc1 = ctx.createOscillator();
@@ -86,10 +86,10 @@ export function createEngineNodes(
 
   // Sputter LFO — AM tremolo that fades out at high speed
   const sputterLFO = ctx.createOscillator();
-  sputterLFO.type = 'sine';
+  sputterLFO.type = 'square';
   sputterLFO.frequency.value = S.sputterFreqIdle;
   const sputterDepthGain = ctx.createGain();
-  sputterDepthGain.gain.value = S.sputterDepthMax * S.engineGainBase;
+  sputterDepthGain.gain.value = S.sputterDepthMax * S.engineGainIdle;
   sputterLFO.connect(sputterDepthGain);
   sputterDepthGain.connect(gainNode.gain);
   sputterLFO.start();
@@ -111,14 +111,18 @@ export function updateEngineFreq(nodes: EngineNodes, speedRatio: number, ctx: Au
   const filterFreq = S.engineFilterFreqIdle + speedRatio * (S.engineFilterFreqMax - S.engineFilterFreqIdle);
   nodes.filterNode.frequency.setTargetAtTime(filterFreq, t, timeConst);
 
+  // Scale gain: quieter at idle, louder at speed
+  const targetGain = S.engineGainIdle + speedRatio * (S.engineGainBase - S.engineGainIdle);
+  nodes.gainNode.gain.setTargetAtTime(targetGain, t, timeConst);
+
   // Random osc2 detune jitter at high speed
   if (speedRatio > S.maxSpeedJitterThreshold) {
     const jitter = (Math.random() * 2 - 1) * S.maxSpeedJitterCents;
     nodes.osc2.detune.setTargetAtTime(jitter, t, 0.12);
   }
 
-  // Sputter depth inversely proportional to speed
-  const sputterDepth = S.sputterDepthMax * S.engineGainBase * Math.max(0, 1 - speedRatio * 2);
+  // Sputter depth inversely proportional to speed — prominent at idle, gone by half speed
+  const sputterDepth = S.sputterDepthMax * S.engineGainIdle * Math.max(0, 1 - speedRatio * 3);
   if (nodes.sputterDepthGain) {
     nodes.sputterDepthGain.gain.setTargetAtTime(sputterDepth, t, 0.15);
   }

@@ -1,6 +1,6 @@
 export const AUDIO_SYNTH = {
   engineBaseFreq: 55, engineMaxFreq: 220,
-  engineDetuneSpread: 8, engineGainBase: 0.18,
+  engineDetuneSpread: 8, engineGainBase: 0.18, engineGainIdle: 0.08,
   engineFilterFreqIdle: 400, engineFilterFreqMax: 2200,
   skidFilterFreq: 1800, skidFilterQ: 1.4,
   skidMaxGain: 0.55, skidFadeInRate: 0.10, skidFadeOutRate: 0.05,
@@ -18,8 +18,8 @@ export const AUDIO_SYNTH = {
   countdownBeepDuration: 0.12,
 
   // Engine sputter LFO
-  sputterFreqIdle: 4.0,
-  sputterDepthMax: 0.06,
+  sputterFreqIdle: 3.0,
+  sputterDepthMax: 0.40,
 
   // Max-speed random detune jitter
   maxSpeedJitterThreshold: 0.80,
