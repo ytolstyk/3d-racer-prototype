@@ -12,14 +12,17 @@ export function useVersusGameEngine(
   p2Name: string,
   emitter: VersusStateEmitter,
   reverse?: boolean,
+  onReady?: () => void,
 ): MutableRefObject<VersusGameEngine | null> {
   const engineRef = useRef<VersusGameEngine | null>(null);
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    engineRef.current = new VersusGameEngine(canvas, trackId, p1CarId, p2CarId, p1Name, p2Name, emitter, reverse);
+    engineRef.current = new VersusGameEngine(canvas, trackId, p1CarId, p2CarId, p1Name, p2Name, emitter, reverse, () => onReadyRef.current?.());
 
     return () => {
       engineRef.current?.dispose();

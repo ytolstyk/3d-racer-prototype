@@ -88,6 +88,8 @@ export class PracticeEngine {
   private lastTime = 0;
   private paused = false;
   private disposed = false;
+  private waitingForFirstFrame = true;
+  private onReady: (() => void) | undefined;
   private boundHandleResize: () => void;
   private readonly _overrideMirror = new Map<string, number>();
   private readonly _cameraOverrideMirror = new Map<string, number>();
@@ -99,7 +101,9 @@ export class PracticeEngine {
     canvas: HTMLCanvasElement,
     selectedCarId: string,
     initialObjects: PlacedObject[] = PRACTICE_DEFAULT_OBJECTS,
+    onReady?: () => void,
   ) {
+    this.onReady = onReady;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -551,6 +555,15 @@ export class PracticeEngine {
 
   private _loop = (): void => {
     if (this.disposed) return;
+
+    if (this.waitingForFirstFrame) {
+      this.waitingForFirstFrame = false;
+      this.renderer.render(this.scene, this.cameraController.camera);
+      this.onReady?.();
+      this.lastTime = performance.now();
+      this.animFrameId = requestAnimationFrame(this._loop);
+      return;
+    }
 
     const now = performance.now();
     const dt = Math.min((now - this.lastTime) / 1000, 0.05);

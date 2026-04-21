@@ -12,14 +12,17 @@ export function useGameEngine(
   difficulty: Difficulty,
   emitter: GameStateEmitter,
   reverse?: boolean,
+  onReady?: () => void,
 ): MutableRefObject<GameEngine | null> {
   const engineRef = useRef<GameEngine | null>(null);
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    engineRef.current = new GameEngine(canvas, selectedTrackId, selectedCarId, totalLaps, difficulty, emitter, reverse);
+    engineRef.current = new GameEngine(canvas, selectedTrackId, selectedCarId, totalLaps, difficulty, emitter, reverse, () => onReadyRef.current?.());
 
     return () => {
       engineRef.current?.dispose();

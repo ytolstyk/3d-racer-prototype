@@ -99,6 +99,8 @@ export class VersusGameEngine {
   private lastTime = 0;
   private disposed = false;
   private paused = false;
+  private waitingForFirstFrame = true;
+  private onReady: (() => void) | undefined;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -109,10 +111,12 @@ export class VersusGameEngine {
     p2Name: string,
     emitter: VersusStateEmitter,
     reverse = false,
+    onReady?: () => void,
   ) {
     this.emitter = emitter;
     this.p1Name = p1Name;
     this.p2Name = p2Name;
+    this.onReady = onReady;
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
@@ -215,8 +219,7 @@ export class VersusGameEngine {
     window.addEventListener('click', resumeOnce);
     this.audioManager.setMasterVolume(loadAudioPrefs().masterVolume);
 
-    this.startRound();
-
+    // Start render loop (startRound begins after first frame)
     this.lastTime = performance.now();
     this.loop();
   }
@@ -458,6 +461,17 @@ export class VersusGameEngine {
 
   private loop = (): void => {
     if (this.disposed) return;
+
+    if (this.waitingForFirstFrame) {
+      this.waitingForFirstFrame = false;
+      this.renderer.render(this.scene, this.cameraController.camera);
+      this.onReady?.();
+      this.startRound();
+      this.lastTime = performance.now();
+      this.animFrameId = requestAnimationFrame(this.loop);
+      return;
+    }
+
     this.animFrameId = requestAnimationFrame(this.loop);
     if (this.paused) return;
 

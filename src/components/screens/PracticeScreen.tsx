@@ -60,6 +60,7 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
   const engineRef = useRef<PracticeEngine | null>(null);
   const [selectedCarId, setSelectedCarId] = useState('racer-red');
   const [paused, setPaused] = useState(false);
+  const [isReady, setIsReady] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [speed, setSpeed] = useState(0);
   const [maxSpeed, setMaxSpeed] = useState(1);
@@ -116,7 +117,8 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    engineRef.current = new PracticeEngine(canvas, selectedCarId);
+    setIsReady(false);
+    engineRef.current = new PracticeEngine(canvas, selectedCarId, undefined, () => setIsReady(true));
     setMaxSpeed(engineRef.current.getMaxSpeed());
     setPhysicsDefaults(engineRef.current.getPhysicsDefaults());
     setOverrideMap({});
@@ -322,6 +324,17 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
         style={{ width: '100%', height: '100%', display: 'block' }}
         onClick={handleCanvasClick}
       />
+
+      {!isReady && (
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: '#000',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 200,
+        }}>
+          <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 18, letterSpacing: 2 }}>LOADING...</div>
+        </div>
+      )}
 
       {/* Palette toggle */}
       <button

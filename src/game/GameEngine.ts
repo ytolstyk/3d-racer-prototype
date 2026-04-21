@@ -77,6 +77,8 @@ export class GameEngine {
   private playerFinished = false;
   private disposed = false;
   private paused = false;
+  private waitingForFirstFrame = true;
+  private onReady: (() => void) | undefined;
 
   private readonly difficulty: Difficulty;
 
@@ -88,9 +90,11 @@ export class GameEngine {
     difficulty: Difficulty,
     emitter: GameStateEmitter,
     reverse = false,
+    onReady?: () => void,
   ) {
     this.difficulty = difficulty;
     this.emitter = emitter;
+    this.onReady = onReady;
 
     // Renderer
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -225,18 +229,7 @@ export class GameEngine {
     this.handleResize = this.handleResize.bind(this);
     window.addEventListener('resize', this.handleResize);
 
-    // Start countdown
-    this.startSequence.start(() => {
-      this.raceStarted = true;
-      this.raceManager.start();
-      const now = performance.now();
-      for (const car of this.cars) {
-        car.currentLapStart = now;
-        car.lastCheckpointTime = now;
-      }
-    }, (v) => this.audioManager?.onCountdownTick(v));
-
-    // Start render loop
+    // Start render loop (countdown begins after first frame via beginGameStart)
     this.lastTime = performance.now();
     this.loop();
   }
@@ -358,8 +351,30 @@ export class GameEngine {
     return this.audioManager;
   }
 
+  private beginGameStart(): void {
+    this.startSequence.start(() => {
+      this.raceStarted = true;
+      this.raceManager.start();
+      const now = performance.now();
+      for (const car of this.cars) {
+        car.currentLapStart = now;
+        car.lastCheckpointTime = now;
+      }
+    }, (v) => this.audioManager?.onCountdownTick(v));
+  }
+
   private loop = (): void => {
     if (this.disposed) return;
+
+    if (this.waitingForFirstFrame) {
+      this.waitingForFirstFrame = false;
+      this.renderer.render(this.scene, this.cameraController.camera);
+      this.onReady?.();
+      this.beginGameStart();
+      this.lastTime = performance.now();
+      this.animFrameId = requestAnimationFrame(this.loop);
+      return;
+    }
 
     const now = performance.now();
     const dt = Math.min((now - this.lastTime) / 1000, 0.05);

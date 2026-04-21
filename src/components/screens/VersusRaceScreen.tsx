@@ -33,6 +33,7 @@ export function VersusRaceScreen({ selections, reverse, onMainMenu, onPlayAgain 
   const emitter = useMemo(() => new VersusStateEmitter(), []);
   const [paused, setPaused] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [isReady, setIsReady] = useState(false);
 
   const engineRef = useVersusGameEngine(
     canvasRef,
@@ -43,6 +44,7 @@ export function VersusRaceScreen({ selections, reverse, onMainMenu, onPlayAgain 
     selections.p2Name,
     emitter,
     reverse,
+    () => setIsReady(true),
   );
 
   const state = useVersusGameState(emitter);
@@ -66,6 +68,17 @@ export function VersusRaceScreen({ selections, reverse, onMainMenu, onPlayAgain 
   return (
     <div className="race-screen">
       <canvas ref={canvasRef} className="game-canvas" />
+
+      {!isReady && (
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: '#000',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 200,
+        }}>
+          <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 18, letterSpacing: 2 }}>LOADING...</div>
+        </div>
+      )}
 
       {paused && optionsOpen && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 101 }}>
