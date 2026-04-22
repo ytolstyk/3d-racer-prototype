@@ -117,7 +117,6 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    setIsReady(false);
     engineRef.current = new PracticeEngine(canvas, selectedCarId, undefined, () => setIsReady(true));
     setMaxSpeed(engineRef.current.getMaxSpeed());
     setPhysicsDefaults(engineRef.current.getPhysicsDefaults());

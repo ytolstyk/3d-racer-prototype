@@ -16,7 +16,7 @@ export function useVersusGameEngine(
 ): MutableRefObject<VersusGameEngine | null> {
   const engineRef = useRef<VersusGameEngine | null>(null);
   const onReadyRef = useRef(onReady);
-  onReadyRef.current = onReady;
+  useEffect(() => { onReadyRef.current = onReady; });
 
   useEffect(() => {
     const canvas = canvasRef.current;

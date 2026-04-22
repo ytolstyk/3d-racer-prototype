@@ -16,7 +16,7 @@ export function useGameEngine(
 ): MutableRefObject<GameEngine | null> {
   const engineRef = useRef<GameEngine | null>(null);
   const onReadyRef = useRef(onReady);
-  onReadyRef.current = onReady;
+  useEffect(() => { onReadyRef.current = onReady; });
 
   useEffect(() => {
     const canvas = canvasRef.current;

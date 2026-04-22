@@ -282,8 +282,8 @@ export function OptionsScreen({ onBack, musicPlayer, noMusic, inGame }: OptionsS
               </Button>
             </Group>
             <Stack gap="md">
-              {renderBindingTable('p1', 'Player 1 / Solo')}
-              {renderBindingTable('p2', 'Player 2')}
+              {renderBindingTable('sp', 'p1', 'Player 1 / Solo')}
+              {renderBindingTable('vs', 'p2', 'Player 2')}
             </Stack>
             <Text size="xs" c="dimmed" mt="sm" ta="center">
               Click a key to rebind · Esc to cancel
