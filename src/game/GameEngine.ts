@@ -464,8 +464,11 @@ export class GameEngine {
 
   private updateBoosts(dt: number): void {
     for (const car of this.cars) {
-      // Speed strip crossing detection
-      for (const strip of this.speedStrips) {
+      // Speed strip crossing detection (forward direction only)
+      const tDeltaStrip = car.currentT - car.previousT;
+      // Forward: small positive OR forward wrap (large negative). Backward wrap = large positive (> 0.5) → excluded.
+      const goingForward = (tDeltaStrip > 0.001 && tDeltaStrip < 0.5) || tDeltaStrip < -0.5;
+      if (goingForward) for (const strip of this.speedStrips) {
         const crossed = (car.previousT < strip.t && car.currentT >= strip.t) ||
           (car.previousT > 0.9 && car.currentT < 0.1 && strip.t < car.currentT) ||
           (car.previousT > strip.t - 0.01 && car.currentT > strip.t && car.previousT < strip.t);
