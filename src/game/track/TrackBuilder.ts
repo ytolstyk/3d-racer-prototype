@@ -92,10 +92,12 @@ export class TrackBuilder {
     const pos: number[] = [];
     const idx: number[] = [];
 
+    const up = new THREE.Vector3(0, 1, 0);
     for (let si = 0; si <= N_SECTIONS; si++) {
       const t = tStart + ((tEnd - tStart) * si) / N_SECTIONS;
-      const c = track.getPointAt(t);
-      const n = track.getNormalAt(t);
+      const c = track.curve.getPoint(t);
+      const tangent = track.curve.getTangent(t).normalize();
+      const n = new THREE.Vector3().crossVectors(tangent, up).normalize();
       for (let j = 0; j < N_ARCH; j++) {
         const angle = Math.PI * (1 - j / (N_ARCH - 1));
         pos.push(

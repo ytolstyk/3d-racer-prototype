@@ -161,9 +161,8 @@ export class RainHazardSystem {
         z: zone.z + Math.sin(angle) * r,
       };
     }
-    // Spline zone: random t within range, random lateral offset
-    // Use raw-parameter getPoint/getTangent (not arc-length getPointAt) to match
-    // tStart/tEnd values which are raw parameter indices from the editor.
+    // Spline zone: random t within range, random lateral offset.
+    // Use raw-parameter getPoint/getTangent so rain drops appear where the editor placed them.
     const t = zone.tStart + Math.random() * (zone.tEnd - zone.tStart);
     const center = zone.track.curve.getPoint(t);
     const tangent = zone.track.curve.getTangent(t).normalize();
