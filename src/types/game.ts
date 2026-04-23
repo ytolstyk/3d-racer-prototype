@@ -75,9 +75,7 @@ export interface CarState {
   steeringAngle: number;
   currentT: number; // spline parameter 0-1
   previousT: number;
-  hasPassedHalfway: boolean; // guard to prevent false lap on race start
-  hasPassedQuarter: boolean; // additional guard for reverse cheating prevention
-  hasPassedThreeQuarter: boolean; // third waypoint guard
+  checkpointProgress: boolean[]; // guard flags for each checkpoint zone
   completedLaps: number;
   bestLapTime: number;
   currentLapStart: number;

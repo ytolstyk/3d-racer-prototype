@@ -24,16 +24,16 @@ export class VersusRaceManager {
   }
 
   isWrongWay(carId: string): boolean {
-    return (this.wrongWayTimers.get(carId) ?? 0) > 2.0;
+    return (this.wrongWayTimers.get(carId) ?? 0) > 0.5;
   }
 
   updateWrongWay(car: CarState, dt: number): void {
-    const tDelta = car.currentT - car.previousT;
-    const isForwardWrap = tDelta < -0.5;
-    const isBackwardWrap = tDelta > 0.5;
-    const isGoingBack = (tDelta < -0.001 && !isForwardWrap) || isBackwardWrap;
+    const trackTangent = this.track.getTangentAt(car.currentT).normalize();
+    const carForward = new THREE.Vector3(Math.sin(car.rotation), 0, Math.cos(car.rotation));
+    const alignment = carForward.dot(trackTangent);
+    const isWrongWay = alignment < 0;
     const prev = this.wrongWayTimers.get(car.id) ?? 0;
-    this.wrongWayTimers.set(car.id, isGoingBack ? prev + dt : 0);
+    this.wrongWayTimers.set(car.id, isWrongWay ? prev + dt : Math.max(0, prev - dt * 2));
   }
 
   // Returns 1 if car1 is the back car, 2 if car2 is the back car

@@ -270,9 +270,7 @@ export class VersusGameEngine {
         steeringAngle: 0,
         currentT: t,
         previousT: t,
-        hasPassedHalfway: false,
-        hasPassedQuarter: false,
-        hasPassedThreeQuarter: false,
+        checkpointProgress: [],
         completedLaps: 0,
         bestLapTime: 0,
         currentLapStart: 0,
@@ -338,9 +336,7 @@ export class VersusGameEngine {
       car.mesh.rotation.y = spawn.rot;
       car.currentT = this.track.getClosestT(spawn.pos);
       car.previousT = car.currentT;
-      car.hasPassedHalfway = false;
-      car.hasPassedQuarter = false;
-      car.hasPassedThreeQuarter = false;
+      car.checkpointProgress = [];
     };
 
     resetCar(this.car1, spawn1);

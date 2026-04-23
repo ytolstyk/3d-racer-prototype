@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import type { CarState, RaceResult } from '../../types/game.js';
 import type { TrackDefinition } from '../track/TrackDefinition.js';
 
@@ -29,7 +30,7 @@ export class RaceManager {
   }
 
   isWrongWay(carId: string): boolean {
-    return (this.wrongWayTimers.get(carId) ?? 0) > 2.0;
+    return (this.wrongWayTimers.get(carId) ?? 0) > 0.5;
   }
 
   update(cars: CarState[], dt: number): void {
@@ -50,12 +51,14 @@ export class RaceManager {
       const isForwardWrap = tDelta < -0.5;
       const isBackwardWrap = tDelta > 0.5;
 
-      // Wrong way detection for player
+      // Wrong way detection for player — dot product of car heading vs track tangent
       if (car.isPlayer) {
-        // Going backward: small negative tDelta, OR backward wrap across T=0
-        const isGoingBack = (tDelta < -0.001 && !isForwardWrap) || isBackwardWrap;
+        const trackTangent = this.track.getTangentAt(car.currentT).normalize();
+        const carForward = new THREE.Vector3(Math.sin(car.rotation), 0, Math.cos(car.rotation));
+        const alignment = carForward.dot(trackTangent);
+        const isWrongWay = alignment < 0;
         const prev = this.wrongWayTimers.get(car.id) ?? 0;
-        this.wrongWayTimers.set(car.id, isGoingBack ? prev + dt : 0);
+        this.wrongWayTimers.set(car.id, isWrongWay ? prev + dt : Math.max(0, prev - dt * 2));
       }
 
       // Only set waypoint flags when going forward (small positive tDelta or genuine forward wrap)
@@ -63,25 +66,14 @@ export class RaceManager {
 
       // Crossing start/finish backward invalidates all lap progress
       if (isBackwardWrap) {
-        car.hasPassedQuarter = false;
-        car.hasPassedHalfway = false;
-        car.hasPassedThreeQuarter = false;
+        car.checkpointProgress.fill(false);
       }
 
-      // Must have driven forward through the early section (T 5–25%) — the only way to satisfy
-      // this is to start near the finish line and drive forward, not to return from mid-track.
-      if (goingForward && car.currentT > 0.05 && car.currentT < 0.25) {
-        car.hasPassedQuarter = true;
-      }
-
-      // Track halfway point so race-start crossing doesn't count as a lap — forward only
-      if (goingForward && car.currentT > 0.5) {
-        car.hasPassedHalfway = true;
-      }
-
-      // Track three-quarter point — additional guard
-      if (goingForward && car.currentT > 0.75) {
-        car.hasPassedThreeQuarter = true;
+      // Set checkpoint guard flags when passing each zone in forward direction
+      if (goingForward) {
+        for (let i = 0; i < checkpoints.length; i++) {
+          if (car.currentT > checkpoints[i]) car.checkpointProgress[i] = true;
+        }
       }
 
       // Checkpoint detection — forward crossing only
@@ -101,18 +93,14 @@ export class RaceManager {
       }
 
       // Lap detection: crossed start/finish from high T to low T (forward direction only)
-      const isForwardLap = isForwardWrap;
+      const allCheckpointsPassed = car.checkpointProgress.every(Boolean);
       if (
+        isForwardWrap &&
         car.previousT > 0.95 &&
         car.currentT < 0.05 &&
-        car.hasPassedHalfway &&
-        car.hasPassedQuarter &&
-        car.hasPassedThreeQuarter &&
-        isForwardLap
+        allCheckpointsPassed
       ) {
-        car.hasPassedHalfway = false;
-        car.hasPassedQuarter = false;
-        car.hasPassedThreeQuarter = false;
+        car.checkpointProgress.fill(false);
         car.completedLaps++;
 
         // Reset checkpoint tracking for new lap
