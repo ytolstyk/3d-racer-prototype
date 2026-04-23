@@ -18,22 +18,41 @@ export class VersusRaceManager {
     this.track = track;
   }
 
-  updateT(car: CarState): void {
+  update(car: CarState, dt: number): void {
     car.previousT = car.currentT;
     car.currentT = this.track.getClosestT(car.position, car.currentT);
-  }
 
-  isWrongWay(carId: string): boolean {
-    return (this.wrongWayTimers.get(carId) ?? 0) > 0.5;
-  }
+    const tDelta = car.currentT - car.previousT;
+    const isForwardWrap = tDelta < -0.5;
+    const isBackwardWrap = tDelta > 0.5;
+    const goingForward = (tDelta > 0.001 && !isBackwardWrap) || isForwardWrap;
 
-  updateWrongWay(car: CarState, dt: number): void {
+    // Crossing start/finish backward invalidates all checkpoint progress
+    if (isBackwardWrap) {
+      car.checkpointProgress.fill(false);
+    }
+
+    // Set checkpoint flags only when actively crossing each zone (prev < cp <= current)
+    if (goingForward) {
+      const checkpoints = this.track.checkpoints;
+      for (let i = 0; i < checkpoints.length; i++) {
+        if (!car.checkpointProgress[i] && car.previousT < checkpoints[i] && car.currentT >= checkpoints[i]) {
+          car.checkpointProgress[i] = true;
+        }
+      }
+    }
+
+    // Wrong-way detection — car heading vs track tangent
     const trackTangent = this.track.getTangentAt(car.currentT).normalize();
     const carForward = new THREE.Vector3(Math.sin(car.rotation), 0, Math.cos(car.rotation));
     const alignment = carForward.dot(trackTangent);
     const isWrongWay = alignment < 0;
     const prev = this.wrongWayTimers.get(car.id) ?? 0;
     this.wrongWayTimers.set(car.id, isWrongWay ? prev + dt : Math.max(0, prev - dt * 2));
+  }
+
+  isWrongWay(carId: string): boolean {
+    return (this.wrongWayTimers.get(carId) ?? 0) > 1.5;
   }
 
   // Returns 1 if car1 is the back car, 2 if car2 is the back car

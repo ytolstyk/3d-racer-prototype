@@ -30,7 +30,7 @@ export class RaceManager {
   }
 
   isWrongWay(carId: string): boolean {
-    return (this.wrongWayTimers.get(carId) ?? 0) > 0.5;
+    return (this.wrongWayTimers.get(carId) ?? 0) > 1.5;
   }
 
   update(cars: CarState[], dt: number): void {
@@ -69,10 +69,12 @@ export class RaceManager {
         car.checkpointProgress.fill(false);
       }
 
-      // Set checkpoint guard flags when passing each zone in forward direction
+      // Set checkpoint guard flags only when actively crossing each zone (prev < cp <= current)
       if (goingForward) {
         for (let i = 0; i < checkpoints.length; i++) {
-          if (car.currentT > checkpoints[i]) car.checkpointProgress[i] = true;
+          if (!car.checkpointProgress[i] && car.previousT < checkpoints[i] && car.currentT >= checkpoints[i]) {
+            car.checkpointProgress[i] = true;
+          }
         }
       }
 
@@ -94,11 +96,15 @@ export class RaceManager {
 
       // Lap detection: crossed start/finish from high T to low T (forward direction only)
       const allCheckpointsPassed = car.checkpointProgress.every(Boolean);
+      const finishTangent = this.track.getTangentAt(car.currentT).normalize();
+      const carHeading = new THREE.Vector3(Math.sin(car.rotation), 0, Math.cos(car.rotation));
+      const isCorrectDirection = carHeading.dot(finishTangent) > 0;
       if (
         isForwardWrap &&
         car.previousT > 0.95 &&
         car.currentT < 0.05 &&
-        allCheckpointsPassed
+        allCheckpointsPassed &&
+        isCorrectDirection
       ) {
         car.checkpointProgress.fill(false);
         car.completedLaps++;

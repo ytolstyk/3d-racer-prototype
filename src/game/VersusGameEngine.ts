@@ -270,7 +270,7 @@ export class VersusGameEngine {
         steeringAngle: 0,
         currentT: t,
         previousT: t,
-        checkpointProgress: [],
+        checkpointProgress: new Array(numCheckpoints).fill(false),
         completedLaps: 0,
         bestLapTime: 0,
         currentLapStart: 0,
@@ -486,10 +486,8 @@ export class VersusGameEngine {
 
       case 'racing': {
         if (this.car1 && this.car2) {
-          this.versusRaceManager.updateT(this.car1);
-          this.versusRaceManager.updateT(this.car2);
-          this.versusRaceManager.updateWrongWay(this.car1, dt);
-          this.versusRaceManager.updateWrongWay(this.car2, dt);
+          this.versusRaceManager.update(this.car1, dt);
+          this.versusRaceManager.update(this.car2, dt);
 
           this.p1Controller.update(this.car1, this.inputManager.getStateP1(), dt);
           this.p2Controller.update(this.car2, this.inputManager.getStateP2(), dt);
