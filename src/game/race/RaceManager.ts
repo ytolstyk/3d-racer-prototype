@@ -45,21 +45,32 @@ export class RaceManager {
 
       if (car.finished) continue;
 
+      const tDelta = car.currentT - car.previousT;
+      // A backward wrap occurs when T jumps from near 0 to near 1 (e.g. 0.02 → 0.98)
+      const isForwardWrap = tDelta < -0.5;
+      const isBackwardWrap = tDelta > 0.5;
+
       // Wrong way detection for player
       if (car.isPlayer) {
-        const tDelta = car.currentT - car.previousT;
-        // Going backward: tDelta is negative and not a lap wrap
-        const isGoingBack = tDelta < -0.001 && Math.abs(tDelta) < 0.4;
+        // Going backward: small negative tDelta, OR backward wrap across T=0
+        const isGoingBack = (tDelta < -0.001 && !isForwardWrap) || isBackwardWrap;
         const prev = this.wrongWayTimers.get(car.id) ?? 0;
         this.wrongWayTimers.set(car.id, isGoingBack ? prev + dt : 0);
       }
 
-      // Only set waypoint flags when going forward (tDelta > 0 or forward wrap)
-      const tDelta = car.currentT - car.previousT;
-      const goingForward = tDelta > 0.001 || tDelta < -0.5;
+      // Only set waypoint flags when going forward (small positive tDelta or genuine forward wrap)
+      const goingForward = (tDelta > 0.001 && !isBackwardWrap) || isForwardWrap;
 
-      // Track quarter point (anti-reverse guard) — forward only
-      if (goingForward && car.currentT > 0.25 && car.currentT < 0.75) {
+      // Crossing start/finish backward invalidates all lap progress
+      if (isBackwardWrap) {
+        car.hasPassedQuarter = false;
+        car.hasPassedHalfway = false;
+        car.hasPassedThreeQuarter = false;
+      }
+
+      // Must have driven forward through the early section (T 5–25%) — the only way to satisfy
+      // this is to start near the finish line and drive forward, not to return from mid-track.
+      if (goingForward && car.currentT > 0.05 && car.currentT < 0.25) {
         car.hasPassedQuarter = true;
       }
 
@@ -90,7 +101,7 @@ export class RaceManager {
       }
 
       // Lap detection: crossed start/finish from high T to low T (forward direction only)
-      const isForwardLap = tDelta < -0.5; // true only for genuine forward wrap
+      const isForwardLap = isForwardWrap;
       if (
         car.previousT > 0.95 &&
         car.currentT < 0.05 &&

@@ -29,7 +29,9 @@ export class VersusRaceManager {
 
   updateWrongWay(car: CarState, dt: number): void {
     const tDelta = car.currentT - car.previousT;
-    const isGoingBack = tDelta < -0.001 && Math.abs(tDelta) < 0.4;
+    const isForwardWrap = tDelta < -0.5;
+    const isBackwardWrap = tDelta > 0.5;
+    const isGoingBack = (tDelta < -0.001 && !isForwardWrap) || isBackwardWrap;
     const prev = this.wrongWayTimers.get(car.id) ?? 0;
     this.wrongWayTimers.set(car.id, isGoingBack ? prev + dt : 0);
   }
