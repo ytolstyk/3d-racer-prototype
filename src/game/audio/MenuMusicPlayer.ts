@@ -1,16 +1,15 @@
 import { loadAudioPrefs } from './AudioPrefs.js';
 
 // Once the user has interacted with the page, AudioContext can be created freely.
-// Track this at module level so subsequent play() calls after stop() start immediately.
 let pageHasUserGesture = false;
 
-// A minor, 90 BPM — chill retrowave/synthwave
-const BPM = 90;
-const BEAT = 60 / BPM;
-const BAR = BEAT * 4;
+// 120 BPM outrun/synthwave — Am-F-C-G progression
+const BPM = 120;
+const BEAT = 60 / BPM; // 0.5 s per beat
+const BAR = BEAT * 4;   // 2.0 s per bar
 
 const NOTE: Record<string, number> = {
-  A2: 110.00,
+  F2: 87.31,  G2: 98.00,  A2: 110.00, B2: 123.47,
   C3: 130.81, D3: 146.83, E3: 164.81, F3: 174.61, G3: 196.00,
   A3: 220.00, B3: 246.94, C4: 261.63, D4: 293.66, E4: 329.63,
   F4: 349.23, G4: 392.00, A4: 440.00, B4: 493.88, C5: 523.25,
@@ -20,76 +19,67 @@ const NOTE: Record<string, number> = {
 
 type Beat = [string, number];
 
-// Slow expressive lead — 16 bars, chord prog: Am(1-4) F(5-8) C(9-12) G(13-16)
+// Repeat a beat pattern N times
+function rep(pattern: Beat[], times: number): Beat[] {
+  const result: Beat[] = [];
+  for (let i = 0; i < times; i++) result.push(...pattern);
+  return result;
+}
+
+// --- Sequences (16 bars total = 32 s at 120 BPM) ---
+
+// Lead melody: uplifting 8th-note hook, Am-F-C-G
+// Each bar = 4 beats; 16 bars × 4 beats = 64 beats total
 const LEAD: Beat[] = [
-  // Phrase 1 (bars 1-4): Am → F
-  ['E5', 3], ['rest', 1],
-  ['D5', 2], ['C5', 2],
-  ['C5', 3], ['rest', 1],
-  ['A4', 2], ['rest', 2],
-  // Phrase 2 (bars 5-8): C → G
-  ['G4', 2], ['E5', 2],
-  ['C5', 3], ['rest', 1],
-  ['B4', 2], ['D5', 2],
-  ['G4', 4],
-  // Phrase 3 (bars 9-12): Am → F, higher energy
-  ['E5', 2], ['A5', 2],
-  ['G5', 1], ['E5', 1], ['D5', 2],
-  ['F5', 3], ['rest', 1],
-  ['C5', 2], ['A4', 2],
-  // Phrase 4 (bars 13-16): C → G → resolve
-  ['E5', 2], ['G5', 2],
-  ['A5', 3], ['G5', 1],
-  ['F5', 1], ['E5', 1], ['D5', 1], ['C5', 1],
-  ['A4', 4],
+  // Bars 1-4: Am
+  ['E5', 0.5], ['D5', 0.5], ['C5', 1],   ['A4', 2],
+  ['C5', 0.5], ['D5', 0.5], ['E5', 1],   ['rest', 2],
+  ['E5', 0.5], ['G5', 0.5], ['A5', 2],   ['G5', 1],
+  ['E5', 2],   ['D5', 1],   ['C5', 1],
+  // Bars 5-8: F
+  ['F5', 2],   ['E5', 1],   ['D5', 1],
+  ['C5', 0.5], ['D5', 0.5], ['E5', 1],   ['rest', 2],
+  ['F5', 0.5], ['G5', 0.5], ['A5', 2],   ['G5', 1],
+  ['F5', 2],   ['E5', 2],
+  // Bars 9-12: C — building energy
+  ['E5', 0.5], ['D5', 0.5], ['C5', 0.5], ['D5', 0.5], ['E5', 2],
+  ['G5', 0.5], ['E5', 0.5], ['D5', 1],   ['C5', 2],
+  ['E5', 0.5], ['F5', 0.5], ['G5', 1],   ['A5', 2],
+  ['G5', 1],   ['E5', 1],   ['D5', 1],   ['C5', 1],
+  // Bars 13-16: G — climax and resolve
+  ['G4', 0.5], ['A4', 0.5], ['B4', 1],   ['D5', 2],
+  ['E5', 0.5], ['D5', 0.5], ['B4', 1],   ['G4', 2],
+  ['A4', 0.5], ['B4', 0.5], ['D5', 0.5], ['E5', 0.5], ['G5', 2],
+  ['A5', 2],   ['rest', 1], ['E5', 1],   // pickup E5 flows back into bar 1
 ];
 
-// 8th-note arpeggios following chord tones
+// ARP: driving 16th-note riff (0.25 beats = 16th note at 120 BPM)
+// 4-note chord-tone riff × 16 reps per chord section = 4 bars each
 const ARP: Beat[] = [
-  // Am × 4 bars  (A-E-A-C)
-  ['A3',0.5],['E4',0.5],['A3',0.5],['C4',0.5], ['A3',0.5],['E4',0.5],['A3',0.5],['C4',0.5],
-  ['A3',0.5],['E4',0.5],['A3',0.5],['C4',0.5], ['A3',0.5],['E4',0.5],['A3',0.5],['C4',0.5],
-  ['A3',0.5],['E4',0.5],['A3',0.5],['C4',0.5], ['A3',0.5],['E4',0.5],['A3',0.5],['C4',0.5],
-  ['A3',0.5],['E4',0.5],['A3',0.5],['C4',0.5], ['A3',0.5],['E4',0.5],['A3',0.5],['C4',0.5],
-  // F × 4 bars  (F-A-C-A)
-  ['F3',0.5],['A3',0.5],['C4',0.5],['A3',0.5], ['F3',0.5],['A3',0.5],['C4',0.5],['A3',0.5],
-  ['F3',0.5],['A3',0.5],['C4',0.5],['A3',0.5], ['F3',0.5],['A3',0.5],['C4',0.5],['A3',0.5],
-  ['F3',0.5],['A3',0.5],['C4',0.5],['A3',0.5], ['F3',0.5],['A3',0.5],['C4',0.5],['A3',0.5],
-  ['F3',0.5],['A3',0.5],['C4',0.5],['A3',0.5], ['F3',0.5],['A3',0.5],['C4',0.5],['A3',0.5],
-  // C × 4 bars  (C-G-C-E)
-  ['C3',0.5],['G3',0.5],['C4',0.5],['E4',0.5], ['C3',0.5],['G3',0.5],['C4',0.5],['E4',0.5],
-  ['C3',0.5],['G3',0.5],['C4',0.5],['E4',0.5], ['C3',0.5],['G3',0.5],['C4',0.5],['E4',0.5],
-  ['C3',0.5],['G3',0.5],['C4',0.5],['E4',0.5], ['C3',0.5],['G3',0.5],['C4',0.5],['E4',0.5],
-  ['C3',0.5],['G3',0.5],['C4',0.5],['E4',0.5], ['C3',0.5],['G3',0.5],['C4',0.5],['E4',0.5],
-  // G × 4 bars  (G-D-G-B)
-  ['G3',0.5],['D4',0.5],['G3',0.5],['B3',0.5], ['G3',0.5],['D4',0.5],['G3',0.5],['B3',0.5],
-  ['G3',0.5],['D4',0.5],['G3',0.5],['B3',0.5], ['G3',0.5],['D4',0.5],['G3',0.5],['B3',0.5],
-  ['G3',0.5],['D4',0.5],['G3',0.5],['B3',0.5], ['G3',0.5],['D4',0.5],['G3',0.5],['B3',0.5],
-  ['G3',0.5],['D4',0.5],['G3',0.5],['B3',0.5], ['G3',0.5],['D4',0.5],['G3',0.5],['B3',0.5],
+  ...rep([['A3', 0.25], ['C4', 0.25], ['E4', 0.25], ['C4', 0.25]], 16), // Am ×4 bars
+  ...rep([['F3', 0.25], ['A3', 0.25], ['C4', 0.25], ['A3', 0.25]], 16), // F  ×4 bars
+  ...rep([['C4', 0.25], ['E4', 0.25], ['G4', 0.25], ['E4', 0.25]], 16), // C  ×4 bars
+  ...rep([['G3', 0.25], ['B3', 0.25], ['D4', 0.25], ['B3', 0.25]], 16), // G  ×4 bars
 ];
 
-// Slow root bass — half-note pulses on each root
+// BASS: pumping 8th-note root+fifth pattern (4-note cell × 8 reps = 4 bars)
 const BASS: Beat[] = [
-  // Am × 4 bars
-  ['A2', 2], ['A2', 2], ['A2', 2], ['A2', 2],
-  ['A2', 2], ['A2', 2], ['A2', 2], ['A2', 2],
-  // F × 4 bars
-  ['F3', 2], ['F3', 2], ['F3', 2], ['F3', 2],
-  ['F3', 2], ['F3', 2], ['F3', 2], ['F3', 2],
-  // C × 4 bars
-  ['C3', 2], ['C3', 2], ['C3', 2], ['C3', 2],
-  ['C3', 2], ['C3', 2], ['C3', 2], ['C3', 2],
-  // G × 4 bars
-  ['G3', 2], ['G3', 2], ['G3', 2], ['G3', 2],
-  ['G3', 2], ['G3', 2], ['G3', 2], ['G3', 2],
+  ...rep([['A2', 0.5], ['A2', 0.5], ['E3', 0.5], ['A2', 0.5]], 8), // Am ×4 bars
+  ...rep([['F2', 0.5], ['F2', 0.5], ['C3', 0.5], ['F2', 0.5]], 8), // F  ×4 bars
+  ...rep([['C3', 0.5], ['C3', 0.5], ['G3', 0.5], ['C3', 0.5]], 8), // C  ×4 bars
+  ...rep([['G2', 0.5], ['G2', 0.5], ['D3', 0.5], ['G2', 0.5]], 8), // G  ×4 bars
 ];
 
-const LOOP_DURATION = BAR * 16;
+const LOOP_DURATION = BAR * 16; // 32 s
 
-// Detuned sawtooth lead — two oscillators slightly apart for a lush synth pad sound
+// --- Sound synthesis ---
+
+// Detuned sawtooth lead (two oscillators for classic synth width).
+// Also sends to echoDest for delay effect if provided.
 function scheduleLeadNotes(
   ctx: AudioContext,
   destination: AudioNode,
+  echoDest: AudioNode | null,
   score: Beat[],
   gainValue: number,
   startTime: number,
@@ -99,33 +89,29 @@ function scheduleLeadNotes(
     const dur = beats * BEAT;
     const freq = NOTE[name];
     if (freq && freq > 0) {
-      const noteLen = dur * 0.92;
+      const noteLen = dur * 0.88;
       const g = ctx.createGain();
       g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(gainValue, t + 0.12);
-      g.gain.setValueAtTime(gainValue, t + noteLen - 0.18);
+      g.gain.linearRampToValueAtTime(gainValue, t + 0.08);
+      g.gain.setValueAtTime(gainValue, t + noteLen - 0.10);
       g.gain.linearRampToValueAtTime(0, t + noteLen);
       g.connect(destination);
+      if (echoDest) g.connect(echoDest);
 
-      const osc1 = ctx.createOscillator();
-      osc1.type = 'sawtooth';
-      osc1.frequency.value = freq;
-      osc1.connect(g);
-      osc1.start(t);
-      osc1.stop(t + noteLen);
-
-      // Second oscillator detuned +8 cents for that classic synth chorus width
-      const osc2 = ctx.createOscillator();
-      osc2.type = 'sawtooth';
-      osc2.frequency.value = freq * 1.0046;
-      osc2.connect(g);
-      osc2.start(t);
-      osc2.stop(t + noteLen);
+      for (const mult of [1.0, 1.0046]) { // second osc +8 cents for chorus width
+        const osc = ctx.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.value = freq * mult;
+        osc.connect(g);
+        osc.start(t);
+        osc.stop(t + noteLen);
+      }
     }
     t += dur;
   }
 }
 
+// Generic note scheduler used for arp and bass
 function scheduleNotes(
   ctx: AudioContext,
   destination: AudioNode,
@@ -145,7 +131,7 @@ function scheduleNotes(
       const g = ctx.createGain();
       g.gain.setValueAtTime(0, t);
       g.gain.linearRampToValueAtTime(gainValue, t + attackTime);
-      g.gain.setValueAtTime(gainValue * 0.75, t + noteLen - 0.04);
+      g.gain.setValueAtTime(gainValue * 0.75, t + noteLen - 0.02);
       g.gain.linearRampToValueAtTime(0, t + noteLen);
       g.connect(destination);
 
@@ -160,9 +146,138 @@ function scheduleNotes(
   }
 }
 
+// Kick drum: sine wave with fast pitch drop (150 Hz → 45 Hz)
+function scheduleKick(ctx: AudioContext, destination: AudioNode, time: number): void {
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.9, time);
+  g.gain.exponentialRampToValueAtTime(0.001, time + 0.12);
+  g.connect(destination);
+
+  const osc = ctx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(155, time);
+  osc.frequency.exponentialRampToValueAtTime(45, time + 0.10);
+  osc.connect(g);
+  osc.start(time);
+  osc.stop(time + 0.15);
+}
+
+// Snare: bandpass noise body + pitched tone transient
+function scheduleSnare(
+  ctx: AudioContext,
+  destination: AudioNode,
+  noiseBuffer: AudioBuffer,
+  time: number,
+): void {
+  // Noise body
+  const noise = ctx.createBufferSource();
+  noise.buffer = noiseBuffer;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = 2600;
+  filter.Q.value = 0.7;
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.42, time);
+  ng.gain.exponentialRampToValueAtTime(0.001, time + 0.18);
+  noise.connect(filter);
+  filter.connect(ng);
+  ng.connect(destination);
+  noise.start(time);
+  noise.stop(time + 0.20);
+
+  // Pitched crack transient
+  const tone = ctx.createOscillator();
+  tone.type = 'sine';
+  tone.frequency.value = 185;
+  const tg = ctx.createGain();
+  tg.gain.setValueAtTime(0.32, time);
+  tg.gain.exponentialRampToValueAtTime(0.001, time + 0.06);
+  tone.connect(tg);
+  tg.connect(destination);
+  tone.start(time);
+  tone.stop(time + 0.08);
+}
+
+// Closed hi-hat: high-pass filtered noise, very short decay
+function scheduleHihat(
+  ctx: AudioContext,
+  destination: AudioNode,
+  noiseBuffer: AudioBuffer,
+  time: number,
+  gain: number,
+): void {
+  const noise = ctx.createBufferSource();
+  noise.buffer = noiseBuffer;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'highpass';
+  filter.frequency.value = 8000;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(gain, time);
+  g.gain.exponentialRampToValueAtTime(0.001, time + 0.04);
+  noise.connect(filter);
+  filter.connect(g);
+  g.connect(destination);
+  noise.start(time);
+  noise.stop(time + 0.05);
+}
+
+// Full 16-bar drum pattern: kick on 1&3, snare on 2&4, 8th-note hi-hats
+function scheduleDrums(
+  ctx: AudioContext,
+  destination: AudioNode,
+  noiseBuffer: AudioBuffer,
+  startTime: number,
+): void {
+  for (let bar = 0; bar < 16; bar++) {
+    const barStart = startTime + bar * BAR;
+    for (let beat = 0; beat < 4; beat++) {
+      const t = barStart + beat * BEAT;
+      if (beat === 0 || beat === 2) scheduleKick(ctx, destination, t);
+      if (beat === 1 || beat === 3) scheduleSnare(ctx, destination, noiseBuffer, t);
+      scheduleHihat(ctx, destination, noiseBuffer, t, 0.11);
+      scheduleHihat(ctx, destination, noiseBuffer, t + BEAT * 0.5, 0.08);
+    }
+  }
+}
+
+// Pad: slow-attack sustained chord tones for harmonic warmth
+function schedulePad(ctx: AudioContext, destination: AudioNode, startTime: number): void {
+  const sections: Array<[string[], number]> = [
+    [['A3', 'C4', 'E4'], 4], // Am
+    [['F3', 'A3', 'C4'], 4], // F
+    [['C3', 'E4', 'G4'], 4], // C
+    [['G3', 'B3', 'D4'], 4], // G
+  ];
+  let t = startTime;
+  for (const [notes, bars] of sections) {
+    const dur = bars * BAR;
+    for (const name of notes) {
+      const freq = NOTE[name];
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.050, t + 1.2); // slow pad attack
+      g.gain.setValueAtTime(0.050, t + dur - 1.0);
+      g.gain.linearRampToValueAtTime(0, t + dur);
+      g.connect(destination);
+
+      for (const mult of [1.0, 1.007]) { // detuned pair for lush pad width
+        const osc = ctx.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.value = freq * mult;
+        osc.connect(g);
+        osc.start(t);
+        osc.stop(t + dur);
+      }
+    }
+    t += dur;
+  }
+}
+
 export class MenuMusicPlayer {
   private ctx: AudioContext | null = null;
   private gainNode: GainNode | null = null;
+  private noiseBuffer: AudioBuffer | null = null;
+  private echoDelay: DelayNode | null = null;
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private loopStart = 0;
   private clickListener: (() => void) | null = null;
@@ -170,7 +285,6 @@ export class MenuMusicPlayer {
   play(): void {
     if (this.ctx || this.clickListener) return;
     if (pageHasUserGesture) {
-      // User has already interacted with the page — start immediately.
       this.ctx = new AudioContext();
       void this.ctx.resume().then(() => this.startScheduling());
       return;
@@ -192,9 +306,30 @@ export class MenuMusicPlayer {
       clearInterval(this.intervalId);
       this.intervalId = null;
     }
+
+    // Shared noise buffer reused by all drum hits (avoids per-hit allocation)
+    const bufSize = Math.floor(this.ctx.sampleRate * 0.5);
+    this.noiseBuffer = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate);
+    const data = this.noiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+
     this.gainNode = this.ctx.createGain();
     this.gainNode.gain.value = loadAudioPrefs().musicVolume;
     this.gainNode.connect(this.ctx.destination);
+
+    // Dotted-quarter-note delay on lead for that synthwave echo character
+    // At 120 BPM: dotted quarter = BEAT * 1.5 = 0.75 s
+    this.echoDelay = this.ctx.createDelay(1.0);
+    this.echoDelay.delayTime.value = BEAT * 1.5;
+    const echoFeedback = this.ctx.createGain();
+    echoFeedback.gain.value = 0.26;
+    const echoWet = this.ctx.createGain();
+    echoWet.gain.value = 0.18;
+    this.echoDelay.connect(echoFeedback);
+    echoFeedback.connect(this.echoDelay); // feedback loop (gain < 1, safe)
+    this.echoDelay.connect(echoWet);
+    echoWet.connect(this.gainNode);
+
     this.loopStart = this.ctx.currentTime;
     this.scheduleLoop(this.loopStart);
 
@@ -207,11 +342,13 @@ export class MenuMusicPlayer {
   }
 
   private scheduleLoop(startTime: number): void {
-    if (!this.ctx || !this.gainNode) return;
+    if (!this.ctx || !this.gainNode || !this.noiseBuffer) return;
     const dest = this.gainNode;
-    scheduleLeadNotes(this.ctx, dest, LEAD, 0.14, startTime);
-    scheduleNotes(this.ctx, dest, ARP, 'triangle', 0.08, startTime, 0.55, 0.015);
-    scheduleNotes(this.ctx, dest, BASS, 'square', 0.12, startTime, 0.80, 0.015);
+    schedulePad(this.ctx, dest, startTime);
+    scheduleLeadNotes(this.ctx, dest, this.echoDelay, LEAD, 0.15, startTime);
+    scheduleNotes(this.ctx, dest, ARP, 'triangle', 0.055, startTime, 0.55, 0.01);
+    scheduleNotes(this.ctx, dest, BASS, 'square', 0.14, startTime, 0.72, 0.01);
+    scheduleDrums(this.ctx, dest, this.noiseBuffer, startTime);
   }
 
   setMusicVolume(v: number): void {
@@ -233,7 +370,6 @@ export class MenuMusicPlayer {
       const g = this.ctx.createGain();
       g.gain.setValueAtTime(1, this.ctx.currentTime);
       g.gain.linearRampToValueAtTime(0, this.ctx.currentTime + fadeMs / 1000);
-      // Close context after fade
       const closeCtx = this.ctx;
       setTimeout(() => { void closeCtx.close(); }, fadeMs + 50);
       this.ctx = null;
