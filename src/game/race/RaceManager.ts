@@ -99,15 +99,15 @@ export class RaceManager {
       }
 
       // Lap detection: crossed start/finish from high T to low T (forward direction only)
-      // Reuse _trackTangent and _carForward computed above
+      // isForwardWrap already confirms the positional crossing is in the correct direction;
+      // allCheckpointsPassed ensures the car actually went around the full track forward.
+      // We intentionally do NOT check car heading — a car can finish while facing backward.
       const allCheckpointsPassed = car.checkpointProgress.every(Boolean);
-      const isCorrectDirection = this._carForward.dot(this._trackTangent) > 0;
       if (
         isForwardWrap &&
         car.previousT > 0.95 &&
         car.currentT < 0.05 &&
-        allCheckpointsPassed &&
-        isCorrectDirection
+        allCheckpointsPassed
       ) {
         car.checkpointProgress.fill(false);
         car.completedLaps++;
