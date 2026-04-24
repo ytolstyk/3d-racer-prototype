@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import type { RacePhase, VersusSelections, Difficulty } from './types/game.js';
 import { MainMenu } from './components/screens/MainMenu.js';
@@ -11,6 +11,7 @@ import { VersusCarSelect } from './components/screens/VersusCarSelect.js';
 import { VersusRaceScreen } from './components/screens/VersusRaceScreen.js';
 import { TrackEditor } from './components/screens/TrackEditor.js';
 import { PracticeScreen } from './components/screens/PracticeScreen.js';
+import { MenuMusicPlayer } from './game/audio/MenuMusicPlayer.js';
 import './App.css';
 
 function PracticeRoute() {
@@ -28,7 +29,34 @@ function GameApp() {
   const navigate = useNavigate();
   const fromEditor = !!(location.state as { fromEditor?: boolean } | null)?.fromEditor;
 
+  const musicRef = useRef<MenuMusicPlayer | null>(null);
+  // Tracks whether music was stopped for a game phase, so we only resume on game→menu transitions.
+  const musicStoppedForGameRef = useRef(fromEditor);
+
+  useEffect(() => {
+    const player = new MenuMusicPlayer();
+    musicRef.current = player;
+    // Don't start music if we opened directly into a game phase (fromEditor).
+    if (!musicStoppedForGameRef.current) player.play();
+    return () => { player.dispose(); musicRef.current = null; };
+  }, []);
+
   const [phase, setPhase] = useState<RacePhase>(fromEditor ? 'racing' : 'menu');
+  useEffect(() => {
+    const player = musicRef.current;
+    if (!player) return;
+    const isGame = phase === 'racing' || phase === 'versusRacing';
+    if (isGame) {
+      player.stop();
+      musicStoppedForGameRef.current = true;
+    } else if (musicStoppedForGameRef.current) {
+      // Only resume when transitioning back from a game phase.
+      player.play();
+      musicStoppedForGameRef.current = false;
+    }
+    // Menu-to-menu transitions (menu→options→trackSelect etc.) do nothing.
+  }, [phase]);
+
   const [selectedTrackId, setSelectedTrackId] = useState(fromEditor ? '__editor__' : '');
   const [selectedCarId, setSelectedCarId] = useState(fromEditor ? 'racer-red' : '');
   const [totalLaps, setTotalLaps] = useState(3);
@@ -102,7 +130,7 @@ function GameApp() {
         />
       );
     case 'options':
-      return <OptionsScreen onBack={() => setPhase('menu')} />;
+      return <OptionsScreen onBack={() => setPhase('menu')} musicPlayer={musicRef.current} />;
     case 'trackSelect':
       return <TrackSelect onSelect={handleTrackSelect} onBack={handleMainMenu} />;
     case 'carSelect':

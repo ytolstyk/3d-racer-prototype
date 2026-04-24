@@ -1,7 +1,5 @@
-import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Stack, Title, Text } from '@mantine/core';
-import { MenuMusicPlayer } from '../../game/audio/MenuMusicPlayer.js';
 
 interface MainMenuProps {
   onStart: () => void;
@@ -13,14 +11,6 @@ interface MainMenuProps {
 
 export function MainMenu({ onStart, onVersus, onPractice, onBackToEditor, onOptions }: MainMenuProps) {
   const navigate = useNavigate();
-  const playerRef = useRef<MenuMusicPlayer | null>(null);
-
-  useEffect(() => {
-    const player = new MenuMusicPlayer();
-    playerRef.current = player;
-    player.play();
-    return () => { player.dispose(); playerRef.current = null; };
-  }, []);
 
   return (
     <div className="screen main-menu">
