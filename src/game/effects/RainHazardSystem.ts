@@ -19,6 +19,9 @@ interface SplashParticle {
   vx: number;
   vy: number;
   vz: number;
+  x: number;
+  y: number;
+  z: number;
 }
 
 interface SplineZone {
@@ -118,6 +121,9 @@ export class RainHazardSystem {
       vx: 0,
       vy: 0,
       vz: 0,
+      x: 0,
+      y: 0,
+      z: 0,
     }));
 
     // Hide all initially
@@ -201,6 +207,7 @@ export class RainHazardSystem {
       p.vx = Math.cos(angle) * speed;
       p.vy = RAIN_HAZARD.splashUpSpeed * (0.5 + Math.random() * 0.5);
       p.vz = Math.sin(angle) * speed;
+      p.x = x; p.y = 0.15; p.z = z;
       this.dummy.position.set(x, 0.15, z);
       this.dummy.scale.setScalar(0.8 + Math.random() * 0.4);
       this.dummy.updateMatrix();
@@ -337,30 +344,25 @@ export class RainHazardSystem {
       }
     }
 
-    // Update splash particles
+    // Update splash particles — position stored in particle; no decompose needed
     let splashDirty = false;
     const poolSize = this.splashParticles.length;
     for (let i = 0; i < poolSize; i++) {
       const p = this.splashParticles[i];
       if (p.life <= 0) continue;
       p.life -= dt;
-      this.splashMesh.getMatrixAt(i, this.dummy.matrix);
-      this.dummy.matrix.decompose(
-        this.dummy.position,
-        this.dummy.quaternion,
-        this.dummy.scale,
-      );
       p.vy -= 30 * dt; // gravity
-      this.dummy.position.x += p.vx * dt;
-      this.dummy.position.y += p.vy * dt;
-      this.dummy.position.z += p.vz * dt;
-      if (p.life <= 0 || this.dummy.position.y < 0) {
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.z += p.vz * dt;
+      if (p.life <= 0 || p.y < 0) {
         this.dummy.scale.set(0, 0, 0);
         p.life = 0;
       } else {
         const fade = p.life / p.maxLife;
         this.dummy.scale.setScalar(0.6 * fade);
       }
+      this.dummy.position.set(p.x, p.y, p.z);
       this.dummy.updateMatrix();
       this.splashMesh.setMatrixAt(i, this.dummy.matrix);
       splashDirty = true;

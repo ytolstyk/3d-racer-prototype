@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import * as YUKA from "yuka";
 import type { CarState, HazardZone } from "../../types/game.js";
 import type { TrackDefinition } from "../track/TrackDefinition.js";
@@ -32,6 +33,12 @@ interface AiVehicleState {
   separation: YUKA.SeparationBehavior;
   onPath: YUKA.OnPathBehavior;
   followPath: YUKA.FollowPathBehavior;
+  // Tangent cache — only recomputed when currentT moves by > 0.001
+  lastT: number;
+  cachedTangentNow: THREE.Vector3;
+  cachedTangentAhead: THREE.Vector3;
+  cachedTangentMid: THREE.Vector3;
+  cachedTangentFar: THREE.Vector3;
 }
 
 export class AIManager {
@@ -150,6 +157,11 @@ export class AIManager {
       separation,
       onPath,
       followPath,
+      lastT: -1,
+      cachedTangentNow: new THREE.Vector3(),
+      cachedTangentAhead: new THREE.Vector3(),
+      cachedTangentMid: new THREE.Vector3(),
+      cachedTangentFar: new THREE.Vector3(),
     });
   }
 
@@ -209,10 +221,23 @@ export class AIManager {
           ? 0
           : AI_BEHAVIOR_WEIGHTS.separation;
 
+      // Update tangent cache when car moves significantly
+      const tAhead = (car.currentT + 0.05) % 1;
+      const tMidLook = (car.currentT + AI_CONFIG.lookAhead * 2) % 1;
+      const tFarLook = (car.currentT + AI_CONFIG.lookAhead * 4) % 1;
+      if (Math.abs(car.currentT - state.lastT) > 0.001) {
+        state.lastT = car.currentT;
+        state.cachedTangentNow.copy(this.track.getTangentAt(car.currentT));
+        state.cachedTangentAhead.copy(this.track.getTangentAt(tAhead));
+        state.cachedTangentMid.copy(this.track.getTangentAt(tMidLook));
+        state.cachedTangentFar.copy(this.track.getTangentAt(tFarLook));
+      }
+      const tangentNow = state.cachedTangentNow;
+      const tangentAhead = state.cachedTangentAhead;
+
       // Wrong-way detection
       const fwdX = Math.sin(car.rotation);
       const fwdZ = Math.cos(car.rotation);
-      const tangentNow = this.track.getTangentAt(car.currentT);
       const dotProduct = fwdX * tangentNow.x + fwdZ * tangentNow.z;
       if (dotProduct < -0.5) {
         state.wrongWayTimer += dt;
@@ -224,8 +249,6 @@ export class AIManager {
       }
 
       // Dynamic look-ahead & corner containment
-      const tAhead = (car.currentT + 0.05) % 1;
-      const tangentAhead = this.track.getTangentAt(tAhead);
       const cornerSharpness = 1 - tangentNow.dot(tangentAhead);
 
       // 1. Dynamic look-ahead: 30 on straights → 8 in hairpins
@@ -256,8 +279,7 @@ export class AIManager {
       if (forceMag > 0.01) {
         const forceAngle = Math.atan2(this.yukaForce.x, this.yukaForce.z);
         let angleDiff = forceAngle - car.rotation;
-        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+        angleDiff = ((angleDiff + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
         // Dead-zone: suppress micro-corrections on straightaways
         if (Math.abs(angleDiff) < 0.05) {
           rawSteer = 0;
@@ -273,11 +295,9 @@ export class AIManager {
       rawSteer += (Math.random() - 0.5) * 2 * state.params.steeringNoise;
       rawSteer = Math.max(-1, Math.min(1, rawSteer));
 
-      // G. Throttle with look-ahead braking
-      const tMid = (car.currentT + AI_CONFIG.lookAhead * 2) % 1;
-      const tFar = (car.currentT + AI_CONFIG.lookAhead * 4) % 1;
-      const sharpMid = 1 - tangentNow.dot(this.track.getTangentAt(tMid));
-      const sharpFar = 1 - tangentNow.dot(this.track.getTangentAt(tFar));
+      // G. Throttle with look-ahead braking (use cached tangents)
+      const sharpMid = 1 - tangentNow.dot(state.cachedTangentMid);
+      const sharpFar = 1 - tangentNow.dot(state.cachedTangentFar);
       const turnSharpness = Math.max(sharpMid, sharpFar * 0.75);
 
       let rawThrottle: number;

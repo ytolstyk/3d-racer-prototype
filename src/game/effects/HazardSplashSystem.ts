@@ -9,6 +9,11 @@ interface SplashParticle {
   vy: number;
   vz: number;
   size: number;
+  x: number;
+  y: number;
+  z: number;
+  rx: number;
+  ry: number;
 }
 
 export class HazardSplashSystem {
@@ -45,6 +50,11 @@ export class HazardSplashSystem {
       vy: 0,
       vz: 0,
       size: 1,
+      x: 0,
+      y: 0,
+      z: 0,
+      rx: 0,
+      ry: 0,
     }));
 
     this.dummy.scale.set(0, 0, 0);
@@ -106,14 +116,11 @@ export class HazardSplashSystem {
       p.vx = Math.cos(angle) * hspeed;
       p.vy = upBase * (0.5 + Math.random() * 0.5);
       p.vz = Math.sin(angle) * hspeed;
-      this.dummy.position.copy(position);
-      this.dummy.position.y += 1;
+      p.x = position.x; p.y = position.y + 1; p.z = position.z;
+      p.rx = Math.random() * Math.PI; p.ry = Math.random() * Math.PI;
+      this.dummy.position.set(p.x, p.y, p.z);
       this.dummy.scale.setScalar(p.size);
-      this.dummy.rotation.set(
-        Math.random() * Math.PI,
-        Math.random() * Math.PI,
-        0,
-      );
+      this.dummy.rotation.set(p.rx, p.ry, 0);
       this.dummy.updateMatrix();
       this.mesh.setMatrixAt(idx, this.dummy.matrix);
 
@@ -139,23 +146,19 @@ export class HazardSplashSystem {
       const p = this.particles[i];
       if (p.life <= 0) continue;
       p.life -= dt;
-      this.mesh.getMatrixAt(i, this.dummy.matrix);
-      this.dummy.matrix.decompose(
-        this.dummy.position,
-        this.dummy.quaternion,
-        this.dummy.scale,
-      );
       p.vy += gravity * dt;
-      this.dummy.position.x += p.vx * dt;
-      this.dummy.position.y += p.vy * dt;
-      this.dummy.position.z += p.vz * dt;
-      if (p.life <= 0 || this.dummy.position.y < 0) {
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.z += p.vz * dt;
+      if (p.life <= 0 || p.y < 0) {
         this.dummy.scale.set(0, 0, 0);
         p.life = 0;
       } else {
         const fade = p.life / p.maxLife;
         this.dummy.scale.setScalar(p.size * fade);
       }
+      this.dummy.position.set(p.x, p.y, p.z);
+      this.dummy.rotation.set(p.rx, p.ry, 0);
       this.dummy.updateMatrix();
       this.mesh.setMatrixAt(i, this.dummy.matrix);
       dirty = true;

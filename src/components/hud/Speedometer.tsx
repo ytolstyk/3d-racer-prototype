@@ -1,10 +1,12 @@
+import { memo } from 'react';
+
 interface SpeedometerProps {
   speed: number;
   maxSpeed: number;
   name?: string;
 }
 
-export function Speedometer({ speed, maxSpeed, name }: SpeedometerProps) {
+function SpeedometerInner({ speed, maxSpeed, name }: SpeedometerProps) {
   const pct = Math.min((speed / maxSpeed) * 100, 100);
 
   return (
@@ -21,3 +23,5 @@ export function Speedometer({ speed, maxSpeed, name }: SpeedometerProps) {
     </div>
   );
 }
+
+export const Speedometer = memo(SpeedometerInner);

@@ -5,6 +5,11 @@ interface Particle {
   life: number;
   maxLife: number;
   velocity: THREE.Vector3;
+  x: number;
+  y: number;
+  z: number;
+  rx: number;
+  ry: number;
 }
 
 const SPARK_COUNT = 300;
@@ -83,13 +88,13 @@ export class CollisionParticleSystem {
 
     // Init particle arrays
     for (let i = 0; i < SPARK_COUNT; i++) {
-      this.sparkParticles.push({ life: 0, maxLife: 0.6, velocity: new THREE.Vector3() });
+      this.sparkParticles.push({ life: 0, maxLife: 0.6, velocity: new THREE.Vector3(), x: 0, y: 0, z: 0, rx: 0, ry: 0 });
     }
     for (let i = 0; i < PAINT_COUNT; i++) {
-      this.paintParticles.push({ life: 0, maxLife: 1.2, velocity: new THREE.Vector3() });
+      this.paintParticles.push({ life: 0, maxLife: 1.2, velocity: new THREE.Vector3(), x: 0, y: 0, z: 0, rx: 0, ry: 0 });
     }
     for (let i = 0; i < SHARD_COUNT; i++) {
-      this.shardParticles.push({ life: 0, maxLife: 1.8, velocity: new THREE.Vector3() });
+      this.shardParticles.push({ life: 0, maxLife: 1.8, velocity: new THREE.Vector3(), x: 0, y: 0, z: 0, rx: 0, ry: 0 });
     }
 
     // Hide all instances initially
@@ -120,14 +125,16 @@ export class CollisionParticleSystem {
       const slot = this.findFreeSlot(this.sparkParticles, this.sparkNext);
       const p = this.sparkParticles[slot];
       p.life = p.maxLife;
+      p.x = position.x; p.y = position.y; p.z = position.z;
+      p.rx = Math.random() * Math.PI; p.ry = Math.random() * Math.PI;
       p.velocity.set(
         (Math.random() - 0.5) * 52 + impactDir.x * 30 + velDir.x * 0.4 * speed,
         Math.random() * 25 + 8,
         (Math.random() - 0.5) * 52 + impactDir.z * 30 + velDir.z * 0.4 * speed,
       );
-      this.dummy.position.copy(position);
+      this.dummy.position.set(p.x, p.y, p.z);
       this.dummy.scale.set(1, 1, 1);
-      this.dummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+      this.dummy.rotation.set(p.rx, p.ry, 0);
       this.dummy.updateMatrix();
       this.sparks.setMatrixAt(slot, this.dummy.matrix);
       this.sparkNext = (slot + 1) % SPARK_COUNT;
@@ -141,14 +148,16 @@ export class CollisionParticleSystem {
       const slot = this.findFreeSlot(this.paintParticles, this.paintNext);
       const p = this.paintParticles[slot];
       p.life = p.maxLife;
+      p.x = position.x; p.y = position.y; p.z = position.z;
+      p.rx = Math.random() * Math.PI; p.ry = Math.random() * Math.PI;
       p.velocity.set(
         (Math.random() - 0.5) * 18 + impactDir.x * 15 + velDir.x * 0.4 * speed,
         Math.random() * 8 + 2,
         (Math.random() - 0.5) * 18 + impactDir.z * 15 + velDir.z * 0.4 * speed,
       );
-      this.dummy.position.copy(position);
+      this.dummy.position.set(p.x, p.y, p.z);
       this.dummy.scale.set(1, 1, 1);
-      this.dummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+      this.dummy.rotation.set(p.rx, p.ry, 0);
       this.dummy.updateMatrix();
       this.paintChips.setMatrixAt(slot, this.dummy.matrix);
       this.paintChips.setColorAt(slot, color);
@@ -164,14 +173,16 @@ export class CollisionParticleSystem {
       const slot = this.findFreeSlot(this.shardParticles, this.shardNext);
       const p = this.shardParticles[slot];
       p.life = p.maxLife;
+      p.x = position.x; p.y = position.y; p.z = position.z;
+      p.rx = Math.random() * Math.PI; p.ry = Math.random() * Math.PI;
       p.velocity.set(
         (Math.random() - 0.5) * 12 + impactDir.x * 12 + velDir.x * 0.2 * speed,
         Math.random() * 6 + 1,
         (Math.random() - 0.5) * 12 + impactDir.z * 12 + velDir.z * 0.2 * speed,
       );
-      this.dummy.position.copy(position);
+      this.dummy.position.set(p.x, p.y, p.z);
       this.dummy.scale.set(1, 1, 1);
-      this.dummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+      this.dummy.rotation.set(p.rx, p.ry, 0);
       this.dummy.updateMatrix();
       this.shards.setMatrixAt(slot, this.dummy.matrix);
       this.shardNext = (slot + 1) % SHARD_COUNT;
@@ -190,25 +201,24 @@ export class CollisionParticleSystem {
     let paintDirty = false;
     let shardDirty = false;
 
-    // Update sparks
+    // Update sparks — position stored in particle; no decompose needed
     for (let i = 0; i < SPARK_COUNT; i++) {
       const p = this.sparkParticles[i];
       if (p.life <= 0) continue;
       p.life -= dt;
-
-      this.sparks.getMatrixAt(i, this.dummy.matrix);
-      this.dummy.matrix.decompose(this.dummy.position, this.dummy.quaternion, this.dummy.scale);
-
       p.velocity.y += gravity * dt;
-      this.dummy.position.add(p.velocity.clone().multiplyScalar(dt));
-
-      if (p.life <= 0 || this.dummy.position.y < 0) {
+      p.x += p.velocity.x * dt;
+      p.y += p.velocity.y * dt;
+      p.z += p.velocity.z * dt;
+      if (p.life <= 0 || p.y < 0) {
         this.dummy.scale.set(0, 0, 0);
         p.life = 0;
       } else {
         const fade = p.life / p.maxLife;
         this.dummy.scale.set(fade, fade, fade);
       }
+      this.dummy.position.set(p.x, p.y, p.z);
+      this.dummy.rotation.set(p.rx, p.ry, 0);
       this.dummy.updateMatrix();
       this.sparks.setMatrixAt(i, this.dummy.matrix);
       sparkDirty = true;
@@ -219,20 +229,19 @@ export class CollisionParticleSystem {
       const p = this.paintParticles[i];
       if (p.life <= 0) continue;
       p.life -= dt;
-
-      this.paintChips.getMatrixAt(i, this.dummy.matrix);
-      this.dummy.matrix.decompose(this.dummy.position, this.dummy.quaternion, this.dummy.scale);
-
       p.velocity.y += gravity * 0.6 * dt;
-      this.dummy.position.add(p.velocity.clone().multiplyScalar(dt));
-
-      if (p.life <= 0 || this.dummy.position.y < 0) {
+      p.x += p.velocity.x * dt;
+      p.y += p.velocity.y * dt;
+      p.z += p.velocity.z * dt;
+      if (p.life <= 0 || p.y < 0) {
         this.dummy.scale.set(0, 0, 0);
         p.life = 0;
       } else {
         const fade = p.life / p.maxLife;
         this.dummy.scale.set(fade, fade, fade);
       }
+      this.dummy.position.set(p.x, p.y, p.z);
+      this.dummy.rotation.set(p.rx, p.ry, 0);
       this.dummy.updateMatrix();
       this.paintChips.setMatrixAt(i, this.dummy.matrix);
       paintDirty = true;
@@ -243,20 +252,19 @@ export class CollisionParticleSystem {
       const p = this.shardParticles[i];
       if (p.life <= 0) continue;
       p.life -= dt;
-
-      this.shards.getMatrixAt(i, this.dummy.matrix);
-      this.dummy.matrix.decompose(this.dummy.position, this.dummy.quaternion, this.dummy.scale);
-
       p.velocity.y += gravity * 0.4 * dt;
-      this.dummy.position.add(p.velocity.clone().multiplyScalar(dt));
-
-      if (p.life <= 0 || this.dummy.position.y < 0) {
+      p.x += p.velocity.x * dt;
+      p.y += p.velocity.y * dt;
+      p.z += p.velocity.z * dt;
+      if (p.life <= 0 || p.y < 0) {
         this.dummy.scale.set(0, 0, 0);
         p.life = 0;
       } else {
         const fade = p.life / p.maxLife;
         this.dummy.scale.set(fade, fade, fade);
       }
+      this.dummy.position.set(p.x, p.y, p.z);
+      this.dummy.rotation.set(p.rx, p.ry, 0);
       this.dummy.updateMatrix();
       this.shards.setMatrixAt(i, this.dummy.matrix);
       shardDirty = true;

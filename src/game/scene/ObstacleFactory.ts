@@ -6,6 +6,18 @@ export interface ObstacleInfo {
   radius: number;
 }
 
+// Shared materials — created once, reused across all obstacle instances
+const tireMat = new THREE.MeshStandardMaterial({ color: 0xfafafa, roughness: 0.85 });
+const innerMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.95 });
+const hayMat = new THREE.MeshStandardMaterial({ color: 0xe8c84a, roughness: 0.9 });
+const bandMat = new THREE.MeshStandardMaterial({ color: 0xcc9900, roughness: 0.8 });
+const barrelBodyMat = new THREE.MeshStandardMaterial({ color: 0xff6600, roughness: 0.5 });
+const stripeMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 });
+const poleMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.4 });
+const baseMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.7 });
+const flagMat = new THREE.MeshStandardMaterial({ color: 0xffdd00, roughness: 0.8, side: THREE.DoubleSide });
+const sandMat = new THREE.MeshStandardMaterial({ color: 0xc8a850, roughness: 0.95 });
+
 export class ObstacleFactory {
   build(): ObstacleInfo[] {
     const obstacles: ObstacleInfo[] = [];
@@ -33,8 +45,6 @@ export class ObstacleFactory {
 
   private createTireWall(position: THREE.Vector3): ObstacleInfo {
     const group = new THREE.Group();
-    const tireMat = new THREE.MeshStandardMaterial({ color: 0xfafafa, roughness: 0.85 });
-    const innerMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.95 });
     const tireGeo = new THREE.CylinderGeometry(1.1, 1.1, 0.85, 14);
     const innerGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.87, 12);
 
@@ -57,8 +67,6 @@ export class ObstacleFactory {
 
   private createHayBale(position: THREE.Vector3): ObstacleInfo {
     const group = new THREE.Group();
-    const hayMat = new THREE.MeshStandardMaterial({ color: 0xe8c84a, roughness: 0.9 });
-    const bandMat = new THREE.MeshStandardMaterial({ color: 0xcc9900, roughness: 0.8 });
 
     const bale = new THREE.Mesh(new THREE.BoxGeometry(3.5, 2.0, 2.0), hayMat);
     bale.position.y = 1.0;
@@ -77,10 +85,9 @@ export class ObstacleFactory {
     return { mesh: group, position: position.clone(), radius: 2.5 };
   }
 
-  private createSafetyBarrel(position: THREE.Vector3, color: number): ObstacleInfo {
+  private createSafetyBarrel(position: THREE.Vector3, _color: number): ObstacleInfo {
     const group = new THREE.Group();
-    const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.5 });
-    const stripeMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 });
+    const bodyMat = barrelBodyMat;
 
     const body = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.0, 2.5, 14), bodyMat);
     body.position.y = 1.25;
@@ -105,9 +112,6 @@ export class ObstacleFactory {
 
   private createMarshalingPost(position: THREE.Vector3): ObstacleInfo {
     const group = new THREE.Group();
-    const poleMat  = new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.4 });
-    const baseMat  = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.7 });
-    const flagMat  = new THREE.MeshStandardMaterial({ color: 0xffdd00, roughness: 0.8, side: THREE.DoubleSide });
 
     // Base
     const base = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.4, 0.4, 10), baseMat);
@@ -125,7 +129,6 @@ export class ObstacleFactory {
     const flagGeo = new THREE.PlaneGeometry(2.0, 1.2);
     const flag = new THREE.Mesh(flagGeo, flagMat);
     flag.position.set(1.0, 5.0, 0);
-    flag.castShadow = true;
     group.add(flag);
 
     group.position.copy(position);
@@ -134,13 +137,10 @@ export class ObstacleFactory {
 
   private createSandbag(position: THREE.Vector3): ObstacleInfo {
     const group = new THREE.Group();
-    const sandMat = new THREE.MeshStandardMaterial({ color: 0xc8a850, roughness: 0.95 });
 
     for (let i = 0; i < 3; i++) {
       const bag = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.0, 1.1), sandMat);
       bag.position.set(i * 2.3 - 2.3, 0.5, 0);
-      bag.castShadow = true;
-      bag.receiveShadow = true;
       group.add(bag);
     }
 
@@ -148,7 +148,6 @@ export class ObstacleFactory {
     for (let i = 0; i < 2; i++) {
       const bag = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.0, 1.1), sandMat);
       bag.position.set(i * 2.3 - 1.15, 1.5, 0);
-      bag.castShadow = true;
       group.add(bag);
     }
 

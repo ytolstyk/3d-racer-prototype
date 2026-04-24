@@ -1,3 +1,5 @@
+import { memo } from 'react';
+
 interface PositionIndicatorProps {
   position: number;
   total: number;
@@ -9,7 +11,7 @@ function ordinal(n: number): string {
   return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]);
 }
 
-export function PositionIndicator({ position, total }: PositionIndicatorProps) {
+function PositionIndicatorInner({ position, total }: PositionIndicatorProps) {
   return (
     <div className="hud-position">
       <span className="position-number">{ordinal(position)}</span>
@@ -17,3 +19,5 @@ export function PositionIndicator({ position, total }: PositionIndicatorProps) {
     </div>
   );
 }
+
+export const PositionIndicator = memo(PositionIndicatorInner);

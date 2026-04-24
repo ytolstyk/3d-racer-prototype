@@ -25,6 +25,8 @@ export class SplatterDecalSystem {
   private mesh: THREE.InstancedMesh;
   private slots: SplatterSlot[];
   private nextSlot: number;
+  private freeSlots: number[];
+  private activeCount: number;
   private normalMap: THREE.CanvasTexture;
   private _dummy: THREE.Object3D;
   private _col: THREE.Color;
@@ -32,6 +34,8 @@ export class SplatterDecalSystem {
   constructor(scene: THREE.Scene, _renderer: THREE.WebGLRenderer) {
     this.scene = scene;
     this.nextSlot = 0;
+    this.activeCount = 0;
+    this.freeSlots = Array.from({ length: POOL_SIZE }, (_, i) => POOL_SIZE - 1 - i); // stack: pop gives 0,1,2,...
     this._dummy = new THREE.Object3D();
     this._col = new THREE.Color();
 
@@ -105,21 +109,16 @@ export class SplatterDecalSystem {
   }
 
   addSplatter(s: PlacedSplatter): void {
-
-    // Find a free slot (circular scan)
-    let slotIdx = -1;
-    for (let i = 0; i < POOL_SIZE; i++) {
-      const idx = (this.nextSlot + i) % POOL_SIZE;
-      if (!this.slots[idx].active) {
-        slotIdx = idx;
-        break;
-      }
-    }
-    // If none free, evict nextSlot
-    if (slotIdx === -1) {
+    // O(1) free-slot allocation
+    let slotIdx: number;
+    if (this.freeSlots.length > 0) {
+      slotIdx = this.freeSlots.pop()!;
+    } else {
+      // Pool full — evict oldest (circular fallback)
       slotIdx = this.nextSlot;
+      this.nextSlot = (this.nextSlot + 1) % POOL_SIZE;
+      this.activeCount--;
     }
-    this.nextSlot = (this.nextSlot + 1) % POOL_SIZE;
 
     this._dummy.position.set(s.x, FLOOR_Y, s.z);
     this._dummy.rotation.set(-Math.PI / 2, 0, s.rotation);
@@ -131,7 +130,8 @@ export class SplatterDecalSystem {
     this.mesh.setColorAt(slotIdx, this._col);
 
     this.slots[slotIdx] = { data: s, active: true };
-    this.mesh.count = this.slots.filter(sl => sl.active).length;
+    this.activeCount++;
+    this.mesh.count = this.activeCount;
     this.mesh.instanceMatrix.needsUpdate = true;
     if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
   }
@@ -148,7 +148,9 @@ export class SplatterDecalSystem {
           this._dummy.updateMatrix();
           this.mesh.setMatrixAt(i, this._dummy.matrix);
           this.slots[i] = { data: null, active: false };
-          this.mesh.count = this.slots.filter(sl => sl.active).length;
+          this.freeSlots.push(i);
+          this.activeCount--;
+          this.mesh.count = this.activeCount;
           this.mesh.instanceMatrix.needsUpdate = true;
           return;
         }
@@ -163,6 +165,9 @@ export class SplatterDecalSystem {
       this.mesh.setMatrixAt(i, zero);
       this.slots[i] = { data: null, active: false };
     }
+    this.freeSlots.length = 0;
+    for (let i = POOL_SIZE - 1; i >= 0; i--) this.freeSlots.push(i);
+    this.activeCount = 0;
     this.mesh.count = 0;
     this.mesh.instanceMatrix.needsUpdate = true;
   }

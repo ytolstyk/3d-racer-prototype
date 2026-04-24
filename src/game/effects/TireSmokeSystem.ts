@@ -7,6 +7,10 @@ interface SmokeParticle {
   maxLife: number;
   velocity: THREE.Vector3;
   isDark: boolean;
+  x: number;
+  y: number;
+  z: number;
+  rz: number; // rotation.z — rotation is always (-π/2, 0, rz)
 }
 
 const PARTICLE_COUNT = TIRE_SMOKE.poolSize;
@@ -96,7 +100,7 @@ export class TireSmokeSystem {
     scene.add(this.mesh);
 
     for (let i = 0; i < PARTICLE_COUNT; i++) {
-      this.particles.push({ life: 0, maxLife: 1.5, velocity: new THREE.Vector3(), isDark: false });
+      this.particles.push({ life: 0, maxLife: 1.5, velocity: new THREE.Vector3(), isDark: false, x: 0, y: 0, z: 0, rz: 0 });
     }
 
     // Hide all initially
@@ -122,14 +126,18 @@ export class TireSmokeSystem {
     const p = this.particles[idx];
     p.life = p.maxLife;
     p.isDark = false;
+    p.x = x + (Math.random() - 0.5) * 2;
+    p.y = 0.3;
+    p.z = z + (Math.random() - 0.5) * 2;
+    p.rz = Math.random() * Math.PI * 2;
     p.velocity.set(
       (Math.random() - 0.5) * 2,
       1.5 + Math.random() * 1.5,
       (Math.random() - 0.5) * 2,
     );
-    this.dummy.position.set(x + (Math.random() - 0.5) * 2, 0.3, z + (Math.random() - 0.5) * 2);
+    this.dummy.position.set(p.x, p.y, p.z);
     this.dummy.scale.set(0.3, 0.3, 0.3);
-    this.dummy.rotation.set(-Math.PI / 2, 0, Math.random() * Math.PI * 2);
+    this.dummy.rotation.set(-Math.PI / 2, 0, p.rz);
     this.dummy.updateMatrix();
     this.mesh.setMatrixAt(idx, this.dummy.matrix);
     this.opacityAttr.setX(idx, 0.45);
@@ -179,13 +187,13 @@ export class TireSmokeSystem {
         Math.random() * 3 + 1,
         (Math.random() - 0.5) * 6,
       );
-      this.dummy.position.set(
-        position.x + (Math.random() - 0.5) * 4.5,
-        0.3,
-        position.z + (Math.random() - 0.5) * 4.5,
-      );
+      p.x = position.x + (Math.random() - 0.5) * 4.5;
+      p.y = 0.3;
+      p.z = position.z + (Math.random() - 0.5) * 4.5;
+      p.rz = Math.random() * Math.PI * 2;
+      this.dummy.position.set(p.x, p.y, p.z);
       this.dummy.scale.set(0.39, 0.39, 0.39);
-      this.dummy.rotation.set(-Math.PI / 2, 0, Math.random() * Math.PI * 2);
+      this.dummy.rotation.set(-Math.PI / 2, 0, p.rz);
       this.dummy.updateMatrix();
       this.mesh.setMatrixAt(idx, this.dummy.matrix);
       this.opacityAttr.setX(idx, 0.45);
@@ -205,10 +213,10 @@ export class TireSmokeSystem {
       if (p.life <= 0) continue;
       p.life -= dt;
 
-      this.mesh.getMatrixAt(i, this.dummy.matrix);
-      this.dummy.matrix.decompose(this.dummy.position, this.dummy.quaternion, this.dummy.scale);
-
-      this.dummy.position.add(p.velocity.clone().multiplyScalar(dt));
+      // Update stored position — no decompose needed
+      p.x += p.velocity.x * dt;
+      p.y += p.velocity.y * dt;
+      p.z += p.velocity.z * dt;
 
       if (p.life <= 0) {
         this.dummy.scale.set(0, 0, 0);
@@ -231,6 +239,8 @@ export class TireSmokeSystem {
         this.opacityAttr.setX(i, opacity);
       }
 
+      this.dummy.position.set(p.x, p.y, p.z);
+      this.dummy.rotation.set(-Math.PI / 2, 0, p.rz);
       this.dummy.updateMatrix();
       this.mesh.setMatrixAt(i, this.dummy.matrix);
       dirty = true;

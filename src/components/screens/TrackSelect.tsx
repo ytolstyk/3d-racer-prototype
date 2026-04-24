@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { memo, useRef, useEffect, useState } from "react";
 import { Button, Checkbox, Group, Title } from "@mantine/core";
 import { TRACKS } from "../../constants/track.js";
 import type { TrackConfig } from "../../constants/track.js";
@@ -8,7 +8,7 @@ interface TrackSelectProps {
   onBack: () => void;
 }
 
-function TrackMinimap({ config }: { config: TrackConfig }) {
+const TrackMinimap = memo(function TrackMinimap({ config }: { config: TrackConfig }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -66,7 +66,7 @@ function TrackMinimap({ config }: { config: TrackConfig }) {
       className="track-minimap-canvas"
     />
   );
-}
+});
 
 export function TrackSelect({ onSelect, onBack }: TrackSelectProps) {
   const [reverse, setReverse] = useState(false);

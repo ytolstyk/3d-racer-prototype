@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import type { RacePhase, VersusSelections, Difficulty } from './types/game.js';
 import { MainMenu } from './components/screens/MainMenu.js';
@@ -38,24 +38,24 @@ function GameApp() {
   const [versusSelections, setVersusSelections] = useState<VersusSelections | null>(null);
   const [reverse, setReverse] = useState(false);
 
-  const handleTrackSelect = (trackId: string, rev = false) => {
+  const handleTrackSelect = useCallback((trackId: string, rev = false) => {
     setSelectedTrackId(trackId);
     setReverse(rev);
     setPhase(gameMode === 'versus' ? 'versusCarSelect' : 'carSelect');
-  };
+  }, [gameMode]);
 
-  const handleCarSelect = (carId: string) => {
+  const handleCarSelect = useCallback((carId: string) => {
     setSelectedCarId(carId);
     setPhase('lapSelect');
-  };
+  }, []);
 
-  const handleLapSelect = (laps: number, diff: Difficulty) => {
+  const handleLapSelect = useCallback((laps: number, diff: Difficulty) => {
     setTotalLaps(laps);
     setDifficulty(diff);
     setPhase('racing');
-  };
+  }, []);
 
-  const handleMainMenu = () => {
+  const handleMainMenu = useCallback(() => {
     setPhase('menu');
     setSelectedCarId('');
     setSelectedTrackId('');
@@ -64,31 +64,31 @@ function GameApp() {
     setVersusSelections(null);
     setIsEditorTest(false);
     navigate('/', { replace: true, state: {} });
-  };
+  }, [navigate]);
 
-  const handleVersusStart = () => {
+  const handleVersusStart = useCallback(() => {
     setGameMode('versus');
     setPhase('trackSelect');
-  };
+  }, []);
 
-  const handleVersusCarSelectReady = (sel: VersusSelections) => {
+  const handleVersusCarSelectReady = useCallback((sel: VersusSelections) => {
     setVersusSelections(sel);
     setPhase('versusRacing');
-  };
+  }, []);
 
-  const handleVersusPlayAgain = () => {
+  const handleVersusPlayAgain = useCallback(() => {
     setPhase('versusCarSelect');
     setTimeout(() => setPhase('versusRacing'), 0);
-  };
+  }, []);
 
-  const handleRaceAgain = () => {
+  const handleRaceAgain = useCallback(() => {
     // Re-mount RaceScreen by going through lapSelect briefly
     setPhase('lapSelect');
     // Use setTimeout to ensure RaceScreen unmounts first
     setTimeout(() => setPhase('racing'), 0);
-  };
+  }, []);
 
-  const handleBackToEditor = () => navigate('/track-editor');
+  const handleBackToEditor = useCallback(() => navigate('/track-editor'), [navigate]);
 
   switch (phase) {
     case 'menu':

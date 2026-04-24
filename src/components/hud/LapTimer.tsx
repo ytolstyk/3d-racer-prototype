@@ -1,3 +1,5 @@
+import { memo } from 'react';
+
 interface LapTimerProps {
   currentLap: number;
   totalLaps: number;
@@ -13,7 +15,7 @@ function formatTime(ms: number): string {
   return `${minutes}:${seconds.toFixed(3).padStart(6, '0')}`;
 }
 
-export function LapTimer({ currentLap, totalLaps, currentLapTime, bestLapTime }: LapTimerProps) {
+function LapTimerInner({ currentLap, totalLaps, currentLapTime, bestLapTime }: LapTimerProps) {
   return (
     <div className="hud-lap-timer">
       <div className="lap-count">
@@ -26,3 +28,5 @@ export function LapTimer({ currentLap, totalLaps, currentLapTime, bestLapTime }:
     </div>
   );
 }
+
+export const LapTimer = memo(LapTimerInner);

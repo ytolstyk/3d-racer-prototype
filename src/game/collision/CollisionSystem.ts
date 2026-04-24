@@ -14,6 +14,14 @@ export class CollisionSystem {
   private now = 0;
   onCollision: ((position: THREE.Vector3, direction: THREE.Vector3, color: number, carVelocity?: THREE.Vector3) => void) | null = null;
 
+  // Pre-allocated scratch vectors — never reassigned, mutated in place
+  private readonly _pushDir = new THREE.Vector3();
+  private readonly _headingA = new THREE.Vector3();
+  private readonly _headingB = new THREE.Vector3();
+  private readonly _midpoint = new THREE.Vector3();
+  private readonly _carVel = new THREE.Vector3();
+  private readonly _dir = new THREE.Vector3();
+
   constructor(track: TrackDefinition, obstacles: ObstacleInfo[], physics: CarPhysics) {
     this.track = track;
     this.obstacles = obstacles;
@@ -65,19 +73,18 @@ export class CollisionSystem {
     const minDist = PHYSICS.carBoundingRadius * 2;
 
     if (dist < minDist && dist > 0.01) {
-      // Push apart
-      const pushDir = new THREE.Vector3().subVectors(a.position, b.position).normalize();
+      // Push apart — reuse pooled vectors
+      this._pushDir.subVectors(a.position, b.position).normalize();
       const overlap = minDist - dist;
-
-      a.position.add(pushDir.clone().multiplyScalar(overlap * 0.5));
-      b.position.sub(pushDir.clone().multiplyScalar(overlap * 0.5));
+      a.position.addScaledVector(this._pushDir, overlap * 0.5);
+      b.position.addScaledVector(this._pushDir, -overlap * 0.5);
 
       // Directional speed loss
-      const headingA = new THREE.Vector3(Math.sin(a.rotation), 0, Math.cos(a.rotation));
-      const headingB = new THREE.Vector3(Math.sin(b.rotation), 0, Math.cos(b.rotation));
+      this._headingA.set(Math.sin(a.rotation), 0, Math.cos(a.rotation));
+      this._headingB.set(Math.sin(b.rotation), 0, Math.cos(b.rotation));
 
-      const bDot = headingB.dot(pushDir);
-      const aDot = headingA.dot(pushDir.clone().negate());
+      const bDot = this._headingB.dot(this._pushDir);
+      const aDot = -this._headingA.dot(this._pushDir); // negated instead of clone().negate()
 
       if (bDot > 0.4) {
         b.speed *= 0.8;
@@ -92,9 +99,9 @@ export class CollisionSystem {
 
       // Emit collision particles — only if car speed is above 50% max
       if (a.speed >= a.definition.maxSpeed * 0.5) {
-        const midpoint = a.position.clone().add(b.position).multiplyScalar(0.5);
-        const velA = new THREE.Vector3(Math.sin(a.rotation) * a.speed, 0, Math.cos(a.rotation) * a.speed);
-        this.emitCollision(midpoint, pushDir, a.id, a.definition.color, velA);
+        this._midpoint.addVectors(a.position, b.position).multiplyScalar(0.5);
+        this._carVel.set(Math.sin(a.rotation) * a.speed, 0, Math.cos(a.rotation) * a.speed);
+        this.emitCollision(this._midpoint, this._pushDir, a.id, a.definition.color, this._carVel);
       }
 
       // Update meshes
@@ -108,15 +115,14 @@ export class CollisionSystem {
     const minDist = PHYSICS.carBoundingRadius + obstacle.radius;
 
     if (dist < minDist && dist > 0.01) {
-      const pushDir = new THREE.Vector3().subVectors(car.position, obstacle.position).normalize();
-      const overlap = minDist - dist;
-      car.position.add(pushDir.clone().multiplyScalar(overlap));
+      this._dir.subVectors(car.position, obstacle.position).normalize();
+      car.position.addScaledVector(this._dir, minDist - dist);
       car.speed *= 0.5;
       car.mesh.position.copy(car.position);
 
       if (car.speed >= car.definition.maxSpeed * 0.5) {
-        const obsVel = new THREE.Vector3(Math.sin(car.rotation) * car.speed, 0, Math.cos(car.rotation) * car.speed);
-        this.emitCollision(car.position.clone(), pushDir, car.id, car.definition.color, obsVel);
+        this._carVel.set(Math.sin(car.rotation) * car.speed, 0, Math.cos(car.rotation) * car.speed);
+        this.emitCollision(car.position, this._dir, car.id, car.definition.color, this._carVel);
       }
     }
   }
@@ -134,9 +140,9 @@ export class CollisionSystem {
         const now = performance.now();
         if ((now - (this.boundaryCooldowns.get(car.id) ?? 0)) > 200) {
           this.boundaryCooldowns.set(car.id, now);
-          const dir = new THREE.Vector3().subVectors(car.position, center).normalize();
-          const carVel = new THREE.Vector3(Math.sin(car.rotation) * car.speed, 0, Math.cos(car.rotation) * car.speed);
-          this.emitCollision(car.position.clone(), dir, car.id, car.definition.color, carVel);
+          this._dir.subVectors(car.position, center).normalize();
+          this._carVel.set(Math.sin(car.rotation) * car.speed, 0, Math.cos(car.rotation) * car.speed);
+          this.emitCollision(car.position, this._dir, car.id, car.definition.color, this._carVel);
         }
       }
     }

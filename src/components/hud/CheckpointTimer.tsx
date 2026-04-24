@@ -1,3 +1,5 @@
+import { memo } from 'react';
+
 interface CheckpointTimerProps {
   segmentTime: number;
   bestTime: number;
@@ -10,7 +12,7 @@ function fmt(ms: number): string {
   return `${s}.${frac.toString().padStart(2, '0')}`;
 }
 
-export function CheckpointTimer({ segmentTime, bestTime, flashAge }: CheckpointTimerProps) {
+function CheckpointTimerInner({ segmentTime, bestTime, flashAge }: CheckpointTimerProps) {
   if (flashAge > 3000 || segmentTime === 0) return null;
 
   const opacity = flashAge > 2000 ? 1 - (flashAge - 2000) / 1000 : 1;
@@ -34,3 +36,5 @@ export function CheckpointTimer({ segmentTime, bestTime, flashAge }: CheckpointT
     </div>
   );
 }
+
+export const CheckpointTimer = memo(CheckpointTimerInner);

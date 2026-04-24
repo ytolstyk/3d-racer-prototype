@@ -73,8 +73,6 @@ export class TrackBoundaryObjects {
     // Main body
     const body = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.5, 4.2, 8), orangeMat);
     body.position.y = 2.1;
-    body.castShadow = true;
-    body.receiveShadow = true;
     g.add(body);
 
     // Reflective white band
@@ -85,7 +83,6 @@ export class TrackBoundaryObjects {
     // Cone top
     const top = new THREE.Mesh(new THREE.CylinderGeometry(0.0, 0.38, 0.9, 8), orangeMat);
     top.position.y = 4.65;
-    top.castShadow = true;
     g.add(top);
 
     return g;
@@ -101,19 +98,16 @@ export class TrackBoundaryObjects {
     // Legs
     const legs = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.9, 0.3), bodyMat);
     legs.position.y = 0.45;
-    legs.castShadow = true;
     g.add(legs);
 
     // Torso
     const torso = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.75, 0.35), bodyMat);
     torso.position.y = 1.27;
-    torso.castShadow = true;
     g.add(torso);
 
     // Head
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 7, 6), skinMat);
     head.position.y = 1.92;
-    head.castShadow = true;
     g.add(head);
 
     // Helmet/hat

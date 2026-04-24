@@ -9,6 +9,8 @@ export class RaceManager {
   private raceActive = false;
   private finishOrder: string[] = [];
   private wrongWayTimers = new Map<string, number>();
+  private readonly _carForward = new THREE.Vector3();
+  private readonly _trackTangent = new THREE.Vector3();
 
   constructor(track: TrackDefinition, totalLaps: number) {
     this.track = track;
@@ -51,11 +53,13 @@ export class RaceManager {
       const isForwardWrap = tDelta < -0.5;
       const isBackwardWrap = tDelta > 0.5;
 
+      // Compute tangent once per car — reused for both wrong-way and lap direction checks
+      this._trackTangent.copy(this.track.getTangentAt(car.currentT)).normalize();
+      this._carForward.set(Math.sin(car.rotation), 0, Math.cos(car.rotation));
+
       // Wrong way detection for player — dot product of car heading vs track tangent
       if (car.isPlayer) {
-        const trackTangent = this.track.getTangentAt(car.currentT).normalize();
-        const carForward = new THREE.Vector3(Math.sin(car.rotation), 0, Math.cos(car.rotation));
-        const alignment = carForward.dot(trackTangent);
+        const alignment = this._carForward.dot(this._trackTangent);
         const isWrongWay = alignment < 0;
         const prev = this.wrongWayTimers.get(car.id) ?? 0;
         this.wrongWayTimers.set(car.id, isWrongWay ? prev + dt : Math.max(0, prev - dt * 2));
@@ -95,10 +99,9 @@ export class RaceManager {
       }
 
       // Lap detection: crossed start/finish from high T to low T (forward direction only)
+      // Reuse _trackTangent and _carForward computed above
       const allCheckpointsPassed = car.checkpointProgress.every(Boolean);
-      const finishTangent = this.track.getTangentAt(car.currentT).normalize();
-      const carHeading = new THREE.Vector3(Math.sin(car.rotation), 0, Math.cos(car.rotation));
-      const isCorrectDirection = carHeading.dot(finishTangent) > 0;
+      const isCorrectDirection = this._carForward.dot(this._trackTangent) > 0;
       if (
         isForwardWrap &&
         car.previousT > 0.95 &&

@@ -1,8 +1,10 @@
+import { memo } from 'react';
+
 interface CountdownProps {
   value: number;
 }
 
-export function Countdown({ value }: CountdownProps) {
+function CountdownInner({ value }: CountdownProps) {
   const text = value > 0 ? String(value) : value === 0 ? 'GO!' : '';
   if (!text) return null;
 
@@ -14,3 +16,5 @@ export function Countdown({ value }: CountdownProps) {
     </div>
   );
 }
+
+export const Countdown = memo(CountdownInner);

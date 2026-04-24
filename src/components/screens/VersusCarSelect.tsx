@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
-import * as THREE from 'three';
+import { useState } from 'react';
 import { Button, Group, TextInput, Title } from '@mantine/core';
 import { CAR_DEFINITIONS } from '../../constants/cars.js';
-import type { CarDefinition, VersusSelections } from '../../types/game.js';
-import { CarFactory } from '../../game/car/CarFactory.js';
+import type { VersusSelections } from '../../types/game.js';
+import { CarPreview } from '../shared/CarPreview.js';
 
 interface VersusCarSelectProps {
   trackId: string;
@@ -24,53 +23,6 @@ function StatBar({ label, value }: { label: string; value: number }) {
   );
 }
 
-function CarPreview({ car }: { car: CarDefinition }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const W = 160, H = 110;
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(W, H);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-    container.appendChild(renderer.domElement);
-
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(40, W / H, 0.1, 200);
-    camera.position.set(0, 18, 28);
-    camera.lookAt(0, 2, 0);
-
-    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-    const dir = new THREE.DirectionalLight(0xffffff, 1.2);
-    dir.position.set(10, 20, 10);
-    scene.add(dir);
-
-    const factory = new CarFactory();
-    const carMesh = factory.createCar(car);
-    scene.add(carMesh);
-
-    let raf: number;
-    const animate = () => {
-      raf = requestAnimationFrame(animate);
-      carMesh.rotation.y += 0.012;
-      renderer.render(scene, camera);
-    };
-    animate();
-
-    return () => {
-      cancelAnimationFrame(raf);
-      renderer.dispose();
-      if (container.contains(renderer.domElement)) {
-        container.removeChild(renderer.domElement);
-      }
-    };
-  }, [car]);
-
-  return <div ref={containerRef} style={{ width: 160, height: 110 }} />;
-}
 
 interface PlayerPanelProps {
   player: 1 | 2;
@@ -115,7 +67,7 @@ function PlayerPanel({ player, selectedCarId, name, onNameChange, onCarSelect }:
 
       {selectedDef && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-          <CarPreview car={selectedDef} />
+          <CarPreview car={selectedDef} width={160} height={110} />
           <div style={{ color: '#fff', fontWeight: 600, fontSize: '0.9rem' }}>{selectedDef.name}</div>
           <div style={{ width: 160 }}>
             <StatBar label="speed" value={selectedDef.maxSpeed} />
