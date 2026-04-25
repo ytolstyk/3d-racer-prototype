@@ -283,21 +283,59 @@ export class MenuMusicPlayer {
   private clickListener: (() => void) | null = null;
 
   play(): void {
-    if (this.ctx || this.clickListener) return;
-    if (pageHasUserGesture) {
-      this.ctx = new AudioContext();
-      void this.ctx.resume().then(() => this.startScheduling());
+    if (this.ctx) return;
+
+    // Always create the context immediately — it may start suspended if the
+    // browser's autoplay policy hasn't seen a user gesture yet.
+    this.ctx = new AudioContext();
+
+    // Called once the context is confirmed running.
+    const onRunning = () => {
+      pageHasUserGesture = true;
+      this.removeInteractionListeners();
+      if (this.intervalId === null) this.startScheduling();
+    };
+
+    if (this.ctx.state === 'running') {
+      onRunning();
       return;
     }
-    // AudioContext requires a user gesture on first use; defer until first click.
+
+    // Listen for the context to become running (happens after resume() succeeds).
+    const onStateChange = () => {
+      if (this.ctx?.state === 'running') {
+        this.ctx.removeEventListener('statechange', onStateChange);
+        onRunning();
+      }
+    };
+    this.ctx.addEventListener('statechange', onStateChange);
+
+    if (pageHasUserGesture) {
+      // Prior gesture exists — resume() should resolve immediately.
+      void this.ctx.resume();
+      return;
+    }
+
+    // No prior gesture: try resume() optimistically (works in some browsers),
+    // and also listen for any user interaction as a reliable fallback.
+    void this.ctx.resume();
     this.clickListener = () => {
       pageHasUserGesture = true;
-      this.clickListener = null;
-      if (this.ctx) return;
-      this.ctx = new AudioContext();
-      void this.ctx.resume().then(() => this.startScheduling());
+      this.removeInteractionListeners();
+      void this.ctx?.resume();
     };
-    document.addEventListener('click', this.clickListener, { once: true });
+    document.addEventListener('click', this.clickListener);
+    document.addEventListener('keydown', this.clickListener);
+    document.addEventListener('touchstart', this.clickListener);
+  }
+
+  private removeInteractionListeners(): void {
+    if (this.clickListener) {
+      document.removeEventListener('click', this.clickListener);
+      document.removeEventListener('keydown', this.clickListener);
+      document.removeEventListener('touchstart', this.clickListener);
+      this.clickListener = null;
+    }
   }
 
   private startScheduling(): void {
@@ -358,10 +396,7 @@ export class MenuMusicPlayer {
   }
 
   stop(fadeMs = 500): void {
-    if (this.clickListener) {
-      document.removeEventListener('click', this.clickListener);
-      this.clickListener = null;
-    }
+    this.removeInteractionListeners();
     if (this.intervalId !== null) {
       clearInterval(this.intervalId);
       this.intervalId = null;
@@ -377,10 +412,7 @@ export class MenuMusicPlayer {
   }
 
   dispose(): void {
-    if (this.clickListener) {
-      document.removeEventListener('click', this.clickListener);
-      this.clickListener = null;
-    }
+    this.removeInteractionListeners();
     if (this.intervalId !== null) {
       clearInterval(this.intervalId);
       this.intervalId = null;
