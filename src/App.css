@@ -1017,6 +1017,8 @@
 .tool-btn-danger {
   border-color: rgba(232, 64, 64, 0.3);
   color: rgba(232, 64, 64, 0.8);
+  flex: 0 0 auto;
+  width: auto;
 }
 
 .tool-btn-danger:hover:not(:disabled) {

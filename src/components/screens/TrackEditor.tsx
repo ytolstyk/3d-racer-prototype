@@ -13,6 +13,24 @@ import type {
   RainZone,
 } from "../../types/game.js";
 import { OBJECT_HEIGHTS } from "../../game/scene/KitchenItems.js";
+import {
+  EDITOR_VIEWPORT,
+  EDITOR_ZOOM,
+  EDITOR_GRID,
+  EDITOR_CURVE,
+  EDITOR_ARROWS,
+  EDITOR_DRAW,
+  EDITOR_HIT,
+  EDITOR_LINE_SNAP,
+  EDITOR_ROTATION,
+  EDITOR_OBJECT,
+  EDITOR_HISTORY,
+  EDITOR_TRACK_WIDTH,
+  EDITOR_HAZARD,
+  EDITOR_LIGHT_SLIDER,
+  EDITOR_LIGHT_DEFAULTS,
+  EDITOR_RENDER,
+} from "../../constants/trackEditor.js";
 
 type Tool =
   | "pen"
@@ -301,7 +319,7 @@ const initialState: EditorState = {
   tunnels: [],
   selectedHazardIndex: -1,
   activeHazardType: "oil",
-  activeHazardRadius: 15,
+  activeHazardRadius: EDITOR_HAZARD.defaultRadius,
   lights: [],
   selectedLightIndex: -1,
   activeLightType: "point",
@@ -383,7 +401,7 @@ function makeSnapshot(state: EditorState): UndoSnapshot {
 
 function pushHistory(state: EditorState): UndoSnapshot[] {
   const past = [...state.past, makeSnapshot(state)];
-  if (past.length > 20) past.shift();
+  if (past.length > EDITOR_HISTORY.maxSteps) past.shift();
   return past;
 }
 
@@ -399,11 +417,11 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case "ADD_LINE_SEGMENT": {
       const pts = [...state.points];
       const startClose = pts.findIndex(
-        (p) => Math.hypot(p[0] - action.start[0], p[1] - action.start[1]) < 10,
+        (p) => Math.hypot(p[0] - action.start[0], p[1] - action.start[1]) < EDITOR_LINE_SNAP.dist,
       );
       if (startClose === -1) pts.push(action.start);
       const endClose = pts.findIndex(
-        (p) => Math.hypot(p[0] - action.end[0], p[1] - action.end[1]) < 10,
+        (p) => Math.hypot(p[0] - action.end[0], p[1] - action.end[1]) < EDITOR_LINE_SNAP.dist,
       );
       if (endClose === -1) pts.push(action.end);
       return { ...state, past: pushHistory(state), points: pts };
@@ -602,8 +620,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case "SCALE_OBJECT": {
       const objects = [...state.objects];
       const newScale = Math.max(
-        0.5,
-        Math.min(3.0, objects[action.index].scale + action.delta),
+        EDITOR_OBJECT.scaleMin,
+        Math.min(EDITOR_OBJECT.scaleMax, objects[action.index].scale + action.delta),
       );
       objects[action.index] = {
         ...objects[action.index],
@@ -637,7 +655,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const objs = [...state.objects];
       objs[action.index] = {
         ...objs[action.index],
-        scale: Math.max(0.5, Math.min(3.0, action.scale)),
+        scale: Math.max(EDITOR_OBJECT.scaleMin, Math.min(EDITOR_OBJECT.scaleMax, action.scale)),
       };
       return { ...state, objects: objs };
     }
@@ -673,7 +691,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const hazards = [...state.hazards];
       hazards[action.index] = {
         ...hazards[action.index],
-        radius: Math.max(5, action.radius),
+        radius: Math.max(EDITOR_HAZARD.radiusMin, action.radius),
       };
       return { ...state, hazards };
     }
@@ -733,7 +751,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const lights = [...state.lights];
       lights[action.index] = {
         ...lights[action.index],
-        distance: Math.max(20, action.distance),
+        distance: Math.max(EDITOR_LIGHT_SLIDER.distanceMin, action.distance),
       };
       return { ...state, lights };
     }
@@ -1119,7 +1137,7 @@ export function TrackEditor() {
     const worldBottom = (H - pan.y) * invZoom;
 
     // Grid
-    const gridStep = 50;
+    const gridStep = EDITOR_GRID.step;
     ctx.strokeStyle = "rgba(255,255,255,0.05)";
     ctx.lineWidth = invZoom;
     const gx0 = Math.floor(worldLeft / gridStep) * gridStep;
@@ -1148,8 +1166,8 @@ export function TrackEditor() {
     ctx.stroke();
 
     // Table boundary
-    const tableW = 1200;
-    const tableH = 900;
+    const tableW = EDITOR_VIEWPORT.tableW;
+    const tableH = EDITOR_VIEWPORT.tableH;
     const tableX = originX - tableW / 2;
     const tableY = originY - tableH / 2;
     ctx.fillStyle = "rgba(139, 90, 43, 0.06)";
@@ -1165,9 +1183,9 @@ export function TrackEditor() {
     ctx.fillText("table edge", tableX + 6 * invZoom, tableY + 14 * invZoom);
 
     // Car silhouettes as scale reference
-    const carW = 5;
-    const carL = 9;
-    const carGridStep = 100;
+    const carW = EDITOR_GRID.carW;
+    const carL = EDITOR_GRID.carL;
+    const carGridStep = EDITOR_GRID.carStep;
     const cg0x = Math.floor(worldLeft / carGridStep) * carGridStep;
     const cg0y = Math.floor(worldTop / carGridStep) * carGridStep;
     ctx.fillStyle = "rgba(255,255,255,0.06)";
@@ -1184,7 +1202,7 @@ export function TrackEditor() {
 
     // Track corridor and spline
     if (points.length >= 2) {
-      const curve = trackCurvePoints(points, pointRotations, loopClosed, 20);
+      const curve = trackCurvePoints(points, pointRotations, loopClosed, EDITOR_CURVE.segments);
       splineSamplesRef.current = curve;
 
       if (curve.length > 1) {
@@ -1246,8 +1264,8 @@ export function TrackEditor() {
 
           if (isHazSel) {
             const rot = hz.rotation ?? 0;
-            const handleR = 5 * invZoom;
-            const handleOutset = 16 * invZoom;
+            const handleR = EDITOR_DRAW.handleRadius * invZoom;
+            const handleOutset = EDITOR_DRAW.handleOutset * invZoom;
 
             // Edge handle (east side) — drag to resize
             const ehx = cx2 + hz.radius;
@@ -1351,7 +1369,7 @@ export function TrackEditor() {
           const targetCy =
             lt.targetZ !== undefined
               ? gameToCanvas(lt.targetX!, lt.targetZ!, originX, originY)[1]
-              : ly + 50;
+              : ly + EDITOR_LIGHT_DEFAULTS.spotTargetOffset;
           const halfAngle = lt.angle ?? 0.4;
           const aimAngle = Math.atan2(targetCy - ly, targetCx - lx);
           const coneLen = lt.distance;
@@ -1376,7 +1394,7 @@ export function TrackEditor() {
           // Target handle for selected spot
           if (isLightSel) {
             ctx.beginPath();
-            ctx.arc(targetCx, targetCy, 5 * invZoom, 0, Math.PI * 2);
+            ctx.arc(targetCx, targetCy, EDITOR_DRAW.handleRadius * invZoom, 0, Math.PI * 2);
             ctx.fillStyle = "#ffdd00";
             ctx.fill();
             ctx.strokeStyle = "#fff";
@@ -1393,16 +1411,16 @@ export function TrackEditor() {
           ctx.lineWidth = invZoom;
           ctx.stroke();
           // Radiating lines
-          for (let ri = 0; ri < 8; ri++) {
-            const a = (ri / 8) * Math.PI * 2;
+          for (let ri = 0; ri < EDITOR_DRAW.lightRayCount; ri++) {
+            const a = (ri / EDITOR_DRAW.lightRayCount) * Math.PI * 2;
             ctx.beginPath();
             ctx.moveTo(
-              lx + Math.cos(a) * 6 * invZoom,
-              ly + Math.sin(a) * 6 * invZoom,
+              lx + Math.cos(a) * EDITOR_DRAW.lightInnerRay * invZoom,
+              ly + Math.sin(a) * EDITOR_DRAW.lightInnerRay * invZoom,
             );
             ctx.lineTo(
-              lx + Math.cos(a) * 12 * invZoom,
-              ly + Math.sin(a) * 12 * invZoom,
+              lx + Math.cos(a) * EDITOR_DRAW.lightOuterRay * invZoom,
+              ly + Math.sin(a) * EDITOR_DRAW.lightOuterRay * invZoom,
             );
             ctx.strokeStyle = `rgba(${r},${g},${b},0.6)`;
             ctx.lineWidth = invZoom;
@@ -1412,7 +1430,7 @@ export function TrackEditor() {
 
         // Center dot
         ctx.beginPath();
-        ctx.arc(lx, ly, 5 * invZoom, 0, Math.PI * 2);
+        ctx.arc(lx, ly, EDITOR_DRAW.handleRadius * invZoom, 0, Math.PI * 2);
         ctx.fillStyle = cssColor;
         ctx.fill();
         ctx.strokeStyle = isLightSel ? "#fff" : "rgba(0,0,0,0.5)";
@@ -1429,7 +1447,7 @@ export function TrackEditor() {
         if (isLightSel) {
           const dhx = lx + lt.distance;
           ctx.beginPath();
-          ctx.arc(dhx, ly, 5 * invZoom, 0, Math.PI * 2);
+          ctx.arc(dhx, ly, EDITOR_DRAW.handleRadius * invZoom, 0, Math.PI * 2);
           ctx.fillStyle = "#fff";
           ctx.fill();
           ctx.strokeStyle = "#64c8ff";
@@ -1498,7 +1516,7 @@ export function TrackEditor() {
         if (fp.shape === "oval") {
           ctx.ellipse(0, 0, hw, hd, 0, 0, Math.PI * 2);
         } else {
-          const r = Math.min(hw, hd) * 0.3;
+          const r = Math.min(hw, hd) * EDITOR_OBJECT.rectCornerR;
           ctx.roundRect(-hw, -hd, hw * 2, hd * 2, r);
         }
         ctx.fillStyle = isSelected
@@ -1522,7 +1540,7 @@ export function TrackEditor() {
             [-hw, hd],
           ] as [number, number][]) {
             ctx.beginPath();
-            ctx.arc(hcx, hcy, 5 * invZoom, 0, Math.PI * 2);
+            ctx.arc(hcx, hcy, EDITOR_DRAW.handleRadius * invZoom, 0, Math.PI * 2);
             ctx.fillStyle = "#64c8ff";
             ctx.fill();
             ctx.strokeStyle = "#fff";
@@ -1567,7 +1585,7 @@ export function TrackEditor() {
         for (let ii = s + 1; ii <= e; ii++)
           ctx.lineTo(samples[ii][0], samples[ii][1]);
         ctx.strokeStyle = "rgba(100,200,255,0.35)";
-        ctx.lineWidth = trackWidth * 0.8 * invZoom;
+        ctx.lineWidth = trackWidth * EDITOR_RENDER.tunnelWidthFactor * invZoom;
         ctx.lineCap = "round";
         ctx.stroke();
         ctx.lineCap = "butt";
@@ -1624,7 +1642,7 @@ export function TrackEditor() {
         const e2 = Math.max(startI, endI);
         if (e2 <= s + 1) continue;
         const hw = trackWidth / 2;
-        const laneW = trackWidth * 0.25;
+        const laneW = trackWidth * EDITOR_RENDER.boostLaneFactor;
         const sideSign = bt.side === "left" ? 1 : -1;
         const laneCenter = sideSign * (hw - laneW / 2);
         const band: [number, number][] = [];
@@ -1686,7 +1704,7 @@ export function TrackEditor() {
         for (let ii = s + 1; ii <= e2; ii++)
           ctx.lineTo(samples[ii][0], samples[ii][1]);
         ctx.strokeStyle = "rgba(68, 136, 204, 0.4)";
-        ctx.lineWidth = trackWidth * 0.7 * invZoom;
+        ctx.lineWidth = trackWidth * EDITOR_RENDER.rainWidthFactor * invZoom;
         ctx.lineCap = "round";
         ctx.stroke();
         ctx.lineCap = "butt";
@@ -1706,7 +1724,7 @@ export function TrackEditor() {
           const si3 = Math.round(boostTrackStartT * (samples.length - 1));
           const sp = samples[Math.min(si3, samples.length - 1)];
           ctx.beginPath();
-          ctx.arc(sp[0], sp[1], 8 * invZoom, 0, Math.PI * 2);
+          ctx.arc(sp[0], sp[1], EDITOR_DRAW.startMarkerRadius * invZoom, 0, Math.PI * 2);
           ctx.strokeStyle = "rgba(255, 136, 0, 0.9)";
           ctx.lineWidth = 2 * invZoom;
           ctx.stroke();
@@ -1720,7 +1738,7 @@ export function TrackEditor() {
           const si3 = Math.round(rainZoneStartT * (samples.length - 1));
           const sp = samples[Math.min(si3, samples.length - 1)];
           ctx.beginPath();
-          ctx.arc(sp[0], sp[1], 8 * invZoom, 0, Math.PI * 2);
+          ctx.arc(sp[0], sp[1], EDITOR_DRAW.startMarkerRadius * invZoom, 0, Math.PI * 2);
           ctx.strokeStyle = "rgba(68, 136, 204, 0.9)";
           ctx.lineWidth = 2 * invZoom;
           ctx.stroke();
@@ -1734,7 +1752,7 @@ export function TrackEditor() {
           const si = Math.round(tunnelStartRef.current * (samples.length - 1));
           const sp = samples[Math.min(si, samples.length - 1)];
           ctx.beginPath();
-          ctx.arc(sp[0], sp[1], 8 * invZoom, 0, Math.PI * 2);
+          ctx.arc(sp[0], sp[1], EDITOR_DRAW.startMarkerRadius * invZoom, 0, Math.PI * 2);
           ctx.strokeStyle = "rgba(100,200,255,0.9)";
           ctx.lineWidth = 2 * invZoom;
           ctx.stroke();
@@ -1752,7 +1770,7 @@ export function TrackEditor() {
     }
 
     // Control points
-    const ptR = 6 * invZoom;
+    const ptR = EDITOR_DRAW.pointRadius * invZoom;
     for (let i = 0; i < points.length; i++) {
       const [x, y] = points[i];
       ctx.beginPath();
@@ -1764,7 +1782,7 @@ export function TrackEditor() {
       ctx.stroke();
 
       // Point index label
-      const fontSize = Math.max(9, 11 * invZoom);
+      const fontSize = Math.max(EDITOR_DRAW.pointLabelFontMin, EDITOR_DRAW.pointLabelFontBase * invZoom);
       ctx.font = `bold ${fontSize}px sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -1774,7 +1792,7 @@ export function TrackEditor() {
       // Point rotation indicator
       const rot = pointRotations[i];
       if (rot && rot !== 0) {
-        const arrowLen = 16 * invZoom;
+        const arrowLen = EDITOR_DRAW.rotArrowLen * invZoom;
         const ax = x + Math.cos(rot) * arrowLen;
         const ay = y + Math.sin(rot) * arrowLen;
         ctx.beginPath();
@@ -1784,7 +1802,7 @@ export function TrackEditor() {
         ctx.lineWidth = 2 * invZoom;
         ctx.stroke();
         ctx.beginPath();
-        ctx.arc(ax, ay, 3 * invZoom, 0, Math.PI * 2);
+        ctx.arc(ax, ay, EDITOR_DRAW.rotArrowDotR * invZoom, 0, Math.PI * 2);
         ctx.fillStyle = "#ff66ff";
         ctx.fill();
       }
@@ -1794,7 +1812,7 @@ export function TrackEditor() {
     if (activeTool === "pen" && !loopClosed && points.length >= 3) {
       const [fx, fy] = points[0];
       ctx.beginPath();
-      ctx.arc(fx, fy, ptR * 2.2, 0, Math.PI * 2);
+      ctx.arc(fx, fy, ptR * EDITOR_DRAW.selectRingFactor, 0, Math.PI * 2);
       ctx.strokeStyle = "rgba(80, 255, 80, 0.85)";
       ctx.lineWidth = 2.5 * invZoom;
       ctx.stroke();
@@ -1806,11 +1824,11 @@ export function TrackEditor() {
         points,
         pointRotations,
         loopClosed,
-        20,
+        EDITOR_CURVE.segments,
       );
-      const arrowSpacing = 80;
-      const headLen = Math.max(6, trackWidth * 0.35) * invZoom;
-      const headAngle = Math.PI / 5;
+      const arrowSpacing = EDITOR_ARROWS.spacing;
+      const headLen = Math.max(EDITOR_ARROWS.headLenMin, trackWidth * EDITOR_ARROWS.headLenFactor) * invZoom;
+      const headAngle = EDITOR_ARROWS.headAngle;
       let accumulated = arrowSpacing / 2;
 
       ctx.strokeStyle = "rgba(100,220,255,0.75)";
@@ -1866,7 +1884,7 @@ export function TrackEditor() {
 
     // Object ghost preview when hovering in object tool
     if (activeTool === "object" && hover) {
-      const objR2 = 12 * invZoom;
+      const objR2 = EDITOR_DRAW.objectGhostRadius * invZoom;
       ctx.beginPath();
       ctx.arc(hover[0], hover[1], objR2, 0, Math.PI * 2);
       ctx.strokeStyle = "rgba(100,200,255,0.5)";
@@ -1882,7 +1900,7 @@ export function TrackEditor() {
           if (si >= 0 && si < points.length) {
             const [sx, sy] = points[si];
             ctx.beginPath();
-            ctx.arc(sx, sy, ptR * 2.2, 0, Math.PI * 2);
+            ctx.arc(sx, sy, ptR * EDITOR_DRAW.selectRingFactor, 0, Math.PI * 2);
             ctx.strokeStyle = "rgba(0, 255, 255, 0.85)";
             ctx.lineWidth = 2.5 * invZoom;
             ctx.stroke();
@@ -1922,7 +1940,7 @@ export function TrackEditor() {
     }
 
     // Origin crosshair
-    const ch = 8 * invZoom;
+    const ch = EDITOR_DRAW.crosshairArm * invZoom;
     ctx.strokeStyle = "rgba(255,255,255,0.25)";
     ctx.lineWidth = invZoom;
     ctx.beginPath();
@@ -1978,15 +1996,17 @@ export function TrackEditor() {
         }
         const originX = originRef.current.x;
         const originY = originRef.current.y;
-        const padding = 80;
+        const padding = EDITOR_VIEWPORT.fitPadding;
         const zoom = Math.min(
-          newW / (1200 + padding * 2),
-          newH / (900 + padding * 2),
+          newW / (EDITOR_VIEWPORT.tableW + padding * 2),
+          newH / (EDITOR_VIEWPORT.tableH + padding * 2),
         );
         zoomRef.current = zoom;
-        // Centre the fixed origin in the viewport
+        // Centre game (0,0) in the full browser window.
+        // The toolbar is toolbarW px on the left, so subtract half that
+        // from the canvas-relative target to hit true browser centre.
         panRef.current = {
-          x: newW / 2 - zoom * originX,
+          x: newW / 2 - EDITOR_VIEWPORT.toolbarW / 2 - zoom * originX,
           y: newH / 2 - zoom * originY,
         };
       }
@@ -2012,7 +2032,7 @@ export function TrackEditor() {
         if (selectedPoints.length === 1) {
           // Single point: adjust pointRotation (tangent direction hint)
           const idx = selectedPoints[0];
-          const delta = ((e.deltaY > 0 ? 1 : -1) * Math.PI) / 36; // 5 degrees per tick
+          const delta = (e.deltaY > 0 ? 1 : -1) * EDITOR_ROTATION.scrollStep;
           const rots = [...pointRotations];
           while (rots.length < points.length) rots.push(0);
           dispatch({
@@ -2033,8 +2053,8 @@ export function TrackEditor() {
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
       const oldZoom = zoomRef.current;
-      const factor = Math.pow(1.1, -e.deltaY / 120);
-      const newZoom = Math.max(0.1, Math.min(10, oldZoom * factor));
+      const factor = Math.pow(EDITOR_ZOOM.factor, -e.deltaY / EDITOR_ZOOM.wheelNorm);
+      const newZoom = Math.max(EDITOR_ZOOM.min, Math.min(EDITOR_ZOOM.max, oldZoom * factor));
       const wx = (sx - panRef.current.x) / oldZoom;
       const wy = (sy - panRef.current.y) / oldZoom;
       panRef.current = { x: sx - wx * newZoom, y: sy - wy * newZoom };
@@ -2059,7 +2079,7 @@ export function TrackEditor() {
           activeTool,
           lights,
         } = stateRef.current;
-        const delta = e.key === "[" ? -Math.PI / 12 : Math.PI / 12;
+        const delta = e.key === "[" ? -EDITOR_ROTATION.bracketStep : EDITOR_ROTATION.bracketStep;
         if (activeTool === "light" && selectedLightIndex !== -1) {
           const lt = lights[selectedLightIndex];
           if (
@@ -2152,14 +2172,14 @@ export function TrackEditor() {
         if (canvas) {
           const W = canvas.width;
           const H2 = canvas.height;
-          const padding = 80;
+          const padding = EDITOR_VIEWPORT.fitPadding;
           const zoom = Math.min(
-            W / (1200 + padding * 2),
-            H2 / (900 + padding * 2),
+            W / (EDITOR_VIEWPORT.tableW + padding * 2),
+            H2 / (EDITOR_VIEWPORT.tableH + padding * 2),
           );
           zoomRef.current = zoom;
           panRef.current = {
-            x: (W / 2) * (1 - zoom),
+            x: (W / 2) * (1 - zoom) - EDITOR_VIEWPORT.toolbarW / 2,
             y: (H2 / 2) * (1 - zoom),
           };
           drawRef.current();
@@ -2295,8 +2315,8 @@ export function TrackEditor() {
     const originY = originRef.current?.y ?? canvas.height / 2;
     const [cx, cy] = gameToCanvas(hz.centerX, hz.centerZ, originX, originY);
     const invZoom = 1 / zoomRef.current;
-    const handleR = 8 * invZoom;
-    const handleOutset = 16 * invZoom;
+    const handleR = EDITOR_HIT.hazardHandle * invZoom;
+    const handleOutset = EDITOR_DRAW.handleOutset * invZoom;
 
     // Edge handle (east side)
     if (Math.hypot(pos[0] - (cx + hz.radius), pos[1] - cy) <= handleR)
@@ -2319,7 +2339,7 @@ export function TrackEditor() {
     if (!canvas) return -1;
     const originX = originRef.current?.x ?? canvas.width / 2;
     const originY = originRef.current?.y ?? canvas.height / 2;
-    const hitR = 15 / zoomRef.current;
+    const hitR = EDITOR_HIT.object / zoomRef.current;
     const objects = stateRef.current.objects;
     for (let i = 0; i < objects.length; i++) {
       const obj = objects[i];
@@ -2334,7 +2354,7 @@ export function TrackEditor() {
     if (!canvas) return -1;
     const originX = originRef.current?.x ?? canvas.width / 2;
     const originY = originRef.current?.y ?? canvas.height / 2;
-    const hitR = 10 / zoomRef.current;
+    const hitR = EDITOR_HIT.light / zoomRef.current;
     const lights = stateRef.current.lights;
     for (let i = 0; i < lights.length; i++) {
       const lt = lights[i];
@@ -2354,7 +2374,7 @@ export function TrackEditor() {
     const originX = originRef.current?.x ?? canvas.width / 2;
     const originY = originRef.current?.y ?? canvas.height / 2;
     const [lx, ly] = gameToCanvas(lt.x, lt.z, originX, originY);
-    const hitR = 8 / zoomRef.current;
+    const hitR = EDITOR_HIT.lightHandle / zoomRef.current;
 
     // Distance handle (east side)
     if (Math.hypot(pos[0] - (lx + lt.distance), pos[1] - ly) <= hitR)
@@ -2371,7 +2391,7 @@ export function TrackEditor() {
     }
 
     // Body
-    if (Math.hypot(pos[0] - lx, pos[1] - ly) <= 10 / zoomRef.current)
+    if (Math.hypot(pos[0] - lx, pos[1] - ly) <= EDITOR_HIT.light / zoomRef.current)
       return "body";
 
     return null;
@@ -2394,7 +2414,7 @@ export function TrackEditor() {
         const firstPt = points[0];
         const worldDist = Math.hypot(pos[0] - firstPt[0], pos[1] - firstPt[1]);
         const screenDist = worldDist * zoomRef.current;
-        if (screenDist < 15) {
+        if (screenDist < EDITOR_HIT.closeLoop) {
           dispatch({ type: "CLOSE_LOOP" });
           dispatch({ type: "SET_TOOL", tool: "move" });
           return;
@@ -2406,10 +2426,10 @@ export function TrackEditor() {
     } else if (activeTool === "line") {
       lineStartRef.current = pos;
     } else if (activeTool === "eraser") {
-      const idx = findNearestPoint(pos, 12);
+      const idx = findNearestPoint(pos, EDITOR_HIT.point);
       if (idx !== -1) dispatch({ type: "DELETE_POINT", index: idx });
     } else if (activeTool === "move") {
-      const idx = findNearestPoint(pos, 12);
+      const idx = findNearestPoint(pos, EDITOR_HIT.point);
       if (idx !== -1) {
         dispatch({ type: "PUSH_HISTORY" });
         dragIndexRef.current = idx;
@@ -2431,7 +2451,7 @@ export function TrackEditor() {
         }
       }
     } else if (activeTool === "startPoint") {
-      const idx = findNearestPoint(pos, 12);
+      const idx = findNearestPoint(pos, EDITOR_HIT.point);
       if (idx !== -1) dispatch({ type: "SET_START", index: idx });
     } else if (activeTool === "insert") {
       const seg = findNearestSegment(pos);
@@ -2501,7 +2521,7 @@ export function TrackEditor() {
           const wx = scx + lx * cosR - ly * sinR;
           const wy = scy + lx * sinR + ly * cosR;
           const screenDist = Math.hypot(pos[0] - wx, pos[1] - wy) * zoom;
-          if (screenDist <= 8) {
+          if (screenDist <= EDITOR_HIT.cornerInner) {
             dispatch({ type: "PUSH_HISTORY" });
             const distFromCenter = Math.hypot(pos[0] - scx, pos[1] - scy);
             cornerDragRef.current = {
@@ -2518,7 +2538,7 @@ export function TrackEditor() {
             const wx = scx + lx * cosR - ly * sinR;
             const wy = scy + lx * sinR + ly * cosR;
             const screenDist = Math.hypot(pos[0] - wx, pos[1] - wy) * zoom;
-            if (screenDist <= 20) {
+            if (screenDist <= EDITOR_HIT.cornerOuter) {
               dispatch({ type: "PUSH_HISTORY" });
               const angle = Math.atan2(pos[1] - scy, pos[0] - scx);
               rotateDragRef.current = {
@@ -2701,7 +2721,7 @@ export function TrackEditor() {
           newLight.angle = activeLightAngle;
           newLight.penumbra = activeLightPenumbra;
           newLight.targetX = Math.round(gx * 100) / 100;
-          newLight.targetZ = Math.round((gz + 50) * 100) / 100;
+          newLight.targetZ = Math.round((gz + EDITOR_LIGHT_DEFAULTS.spotTargetOffset) * 100) / 100;
         }
         dispatch({ type: "ADD_LIGHT", light: newLight });
       }
@@ -3246,10 +3266,10 @@ export function TrackEditor() {
       draw();
       return;
     }
-    // Delete nearest tunnel (within 8px of centerline)
+    // Delete nearest tunnel (within lightHandle px of centerline)
     const pos = getPos(e);
     const samples = splineSamplesRef.current;
-    const hitR = 8 / zoomRef.current;
+    const hitR = EDITOR_HIT.lightHandle / zoomRef.current;
     for (let ti = 0; ti < tunnels.length; ti++) {
       const tunnel = tunnels[ti];
       const n = samples.length;
@@ -3562,8 +3582,8 @@ export function TrackEditor() {
           <input
             className="editor-slider"
             type="range"
-            min="10"
-            max="60"
+            min={EDITOR_TRACK_WIDTH.min}
+            max={EDITOR_TRACK_WIDTH.max}
             value={state.trackWidth}
             onChange={(e) =>
               dispatch({ type: "SET_WIDTH", width: Number(e.target.value) })
@@ -3806,8 +3826,8 @@ export function TrackEditor() {
             <input
               className="editor-slider"
               type="range"
-              min="5"
-              max="60"
+              min={EDITOR_HAZARD.radiusMin}
+              max={EDITOR_HAZARD.radiusMax}
               value={state.activeHazardRadius}
               onChange={(e) =>
                 dispatch({
@@ -3841,7 +3861,7 @@ export function TrackEditor() {
                           dispatch({
                             type: "SET_HAZARD_RADIUS",
                             index: state.selectedHazardIndex,
-                            radius: (hz.radius ?? 15) + 5,
+                            radius: (hz.radius ?? EDITOR_HAZARD.defaultRadius) + EDITOR_HAZARD.radiusStep,
                           })
                         }
                       >
@@ -3858,7 +3878,7 @@ export function TrackEditor() {
                           dispatch({
                             type: "SET_HAZARD_RADIUS",
                             index: state.selectedHazardIndex,
-                            radius: (hz.radius ?? 15) - 5,
+                            radius: (hz.radius ?? EDITOR_HAZARD.defaultRadius) - EDITOR_HAZARD.radiusStep,
                           })
                         }
                       >
@@ -4027,8 +4047,8 @@ export function TrackEditor() {
             <input
               className="editor-slider"
               type="range"
-              min="1"
-              max="50"
+              min={EDITOR_LIGHT_SLIDER.heightMin}
+              max={EDITOR_LIGHT_SLIDER.heightMax}
               value={state.activeLightHeight}
               onChange={(e) =>
                 dispatch({
@@ -4044,9 +4064,9 @@ export function TrackEditor() {
             <input
               className="editor-slider"
               type="range"
-              min="0.1"
-              max="5"
-              step="0.1"
+              min={EDITOR_LIGHT_SLIDER.intensityMin}
+              max={EDITOR_LIGHT_SLIDER.intensityMax}
+              step={EDITOR_LIGHT_SLIDER.intensityStep}
               value={state.activeLightIntensity}
               onChange={(e) =>
                 dispatch({
@@ -4062,9 +4082,9 @@ export function TrackEditor() {
             <input
               className="editor-slider"
               type="range"
-              min="20"
-              max="300"
-              step="5"
+              min={EDITOR_LIGHT_SLIDER.distanceMin}
+              max={EDITOR_LIGHT_SLIDER.distanceMax}
+              step={EDITOR_LIGHT_SLIDER.distanceStep}
               value={state.activeLightDistance}
               onChange={(e) =>
                 dispatch({
@@ -4082,8 +4102,8 @@ export function TrackEditor() {
                 <input
                   className="editor-slider"
                   type="range"
-                  min="5"
-                  max="90"
+                  min={EDITOR_LIGHT_SLIDER.angleDegMin}
+                  max={EDITOR_LIGHT_SLIDER.angleDegMax}
                   value={Math.round((state.activeLightAngle * 180) / Math.PI)}
                   onChange={(e) =>
                     dispatch({
@@ -4099,9 +4119,9 @@ export function TrackEditor() {
                 <input
                   className="editor-slider"
                   type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
+                  min={EDITOR_LIGHT_SLIDER.penumbraMin}
+                  max={EDITOR_LIGHT_SLIDER.penumbraMax}
+                  step={EDITOR_LIGHT_SLIDER.penumbraStep}
                   value={state.activeLightPenumbra}
                   onChange={(e) =>
                     dispatch({
