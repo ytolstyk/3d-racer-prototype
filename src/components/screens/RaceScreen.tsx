@@ -120,6 +120,9 @@ export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, difficul
                 Edit Current Track
               </Button>
             )}
+            <Button variant="default" onClick={onRaceAgain}>
+              Restart Race
+            </Button>
             <Button variant="default" onClick={onMainMenu}>
               Main Menu
             </Button>

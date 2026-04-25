@@ -65,6 +65,7 @@ function GameApp() {
   const [gameMode, setGameMode] = useState<'solo' | 'versus'>('solo');
   const [versusSelections, setVersusSelections] = useState<VersusSelections | null>(null);
   const [reverse, setReverse] = useState(false);
+  const [raceKey, setRaceKey] = useState(0);
 
   const handleTrackSelect = useCallback((trackId: string, rev = false) => {
     setSelectedTrackId(trackId);
@@ -110,10 +111,7 @@ function GameApp() {
   }, []);
 
   const handleRaceAgain = useCallback(() => {
-    // Re-mount RaceScreen by going through lapSelect briefly
-    setPhase('lapSelect');
-    // Use setTimeout to ensure RaceScreen unmounts first
-    setTimeout(() => setPhase('racing'), 0);
+    setRaceKey(k => k + 1);
   }, []);
 
   const handleBackToEditor = useCallback(() => navigate('/track-editor'), [navigate]);
@@ -140,6 +138,7 @@ function GameApp() {
     case 'racing':
       return (
         <RaceScreen
+          key={raceKey}
           selectedTrackId={selectedTrackId}
           selectedCarId={selectedCarId}
           totalLaps={totalLaps}
