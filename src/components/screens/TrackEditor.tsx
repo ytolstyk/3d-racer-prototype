@@ -993,6 +993,36 @@ function hermiteTrackPoints(
   return result;
 }
 
+// Arc-length helpers for t-value conversion between editor (uniform) and game (arc-length)
+function computeArcLengths(samples: [number, number][]): number[] {
+  const lengths: number[] = [0];
+  for (let i = 1; i < samples.length; i++) {
+    const dx = samples[i][0] - samples[i - 1][0];
+    const dy = samples[i][1] - samples[i - 1][1];
+    lengths.push(lengths[i - 1] + Math.hypot(dx, dy));
+  }
+  return lengths;
+}
+
+// Convert uniform sample index → arc-length t (0–1)
+function uniformIndexToArcT(idx: number, arcLengths: number[]): number {
+  const total = arcLengths[arcLengths.length - 1];
+  return total > 0 ? arcLengths[idx] / total : idx / (arcLengths.length - 1);
+}
+
+// Convert arc-length t (0–1) → nearest sample index (binary search)
+function arcTToSampleIndex(t: number, arcLengths: number[]): number {
+  const total = arcLengths[arcLengths.length - 1];
+  const target = t * total;
+  let lo = 0, hi = arcLengths.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (arcLengths[mid] < target) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
 // Use hermite when any point has a rotation override, else plain CatmullRom
 function trackCurvePoints(
   pts: [number, number][],
@@ -1204,6 +1234,7 @@ export function TrackEditor() {
     if (points.length >= 2) {
       const curve = trackCurvePoints(points, pointRotations, loopClosed, EDITOR_CURVE.segments);
       splineSamplesRef.current = curve;
+      const curveArcLengths = computeArcLengths(curve);
 
       if (curve.length > 1) {
         const hw = trackWidth / 2;
@@ -1605,7 +1636,7 @@ export function TrackEditor() {
         const samples = splineSamplesRef.current;
         if (samples.length < 2) continue;
         const n = samples.length;
-        const idx = Math.round(strip.t * (n - 1));
+        const idx = arcTToSampleIndex(strip.t, curveArcLengths);
         const pt = samples[Math.min(idx, n - 1)];
         const prev = samples[(idx - 1 + n) % n];
         const next = samples[(idx + 1) % n];
@@ -1636,8 +1667,8 @@ export function TrackEditor() {
         const samples = splineSamplesRef.current;
         if (samples.length < 2) continue;
         const n = samples.length;
-        const startI = Math.round(bt.tStart * (n - 1));
-        const endI = Math.round(bt.tEnd * (n - 1));
+        const startI = arcTToSampleIndex(bt.tStart, curveArcLengths);
+        const endI = arcTToSampleIndex(bt.tEnd, curveArcLengths);
         const s = Math.min(startI, endI);
         const e2 = Math.max(startI, endI);
         if (e2 <= s + 1) continue;
@@ -1721,7 +1752,7 @@ export function TrackEditor() {
       if (activeTool === "boostTrack" && boostTrackStartT !== null) {
         const samples = splineSamplesRef.current;
         if (samples.length > 1) {
-          const si3 = Math.round(boostTrackStartT * (samples.length - 1));
+          const si3 = arcTToSampleIndex(boostTrackStartT, curveArcLengths);
           const sp = samples[Math.min(si3, samples.length - 1)];
           ctx.beginPath();
           ctx.arc(sp[0], sp[1], EDITOR_DRAW.startMarkerRadius * invZoom, 0, Math.PI * 2);
@@ -2740,7 +2771,7 @@ export function TrackEditor() {
             nearestI = ii;
           }
         }
-        const t = nearestI / (samples.length - 1);
+        const t = uniformIndexToArcT(nearestI, computeArcLengths(samples));
         dispatch({ type: "ADD_SPEED_STRIP", strip: { t } });
       }
     } else if (activeTool === "boostTrack") {
@@ -2758,7 +2789,7 @@ export function TrackEditor() {
             nearestI = ii;
           }
         }
-        const t = nearestI / (samples.length - 1);
+        const t = uniformIndexToArcT(nearestI, computeArcLengths(samples));
         if (stateRef.current.boostTrackStartT === null) {
           dispatch({ type: "SET_BOOST_TRACK_START", t });
           draw();
@@ -3187,10 +3218,11 @@ export function TrackEditor() {
       const pos = getPos(e);
       const samples = splineSamplesRef.current;
       const hitR2 = 12 / zoomRef.current;
+      const ssArcLengths = samples.length >= 2 ? computeArcLengths(samples) : [];
       for (let si2 = 0; si2 < ss.length; si2++) {
         const n = samples.length;
         if (n < 2) continue;
-        const idx = Math.round(ss[si2].t * (n - 1));
+        const idx = arcTToSampleIndex(ss[si2].t, ssArcLengths);
         const pt = samples[Math.min(idx, n - 1)];
         if (Math.hypot(pos[0] - pt[0], pos[1] - pt[1]) < hitR2) {
           dispatch({ type: "DELETE_SPEED_STRIP", index: si2 });
@@ -3209,12 +3241,13 @@ export function TrackEditor() {
       const pos = getPos(e);
       const samples = splineSamplesRef.current;
       const hitR2 = 8 / zoomRef.current;
+      const btArcLengths = samples.length >= 2 ? computeArcLengths(samples) : [];
       for (let bi = 0; bi < bts.length; bi++) {
         const bt = bts[bi];
         const n = samples.length;
         if (n < 2) continue;
-        const startI = Math.round(bt.tStart * (n - 1));
-        const endI = Math.round(bt.tEnd * (n - 1));
+        const startI = arcTToSampleIndex(bt.tStart, btArcLengths);
+        const endI = arcTToSampleIndex(bt.tEnd, btArcLengths);
         const s = Math.min(startI, endI);
         const e2 = Math.max(startI, endI);
         for (let ii = s; ii <= e2; ii++) {
