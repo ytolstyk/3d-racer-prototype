@@ -438,6 +438,7 @@ export class GameEngine {
       // Check if player just finished
       if (this.playerCar?.finished && !this.playerFinished) {
         this.playerFinished = true;
+        this.audioManager?.stopCarEngine(this.playerCar.id);
       }
     }
 

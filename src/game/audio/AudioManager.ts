@@ -191,6 +191,14 @@ export class AudioManager {
     return Math.abs(ndc.x) <= 1 + m && Math.abs(ndc.y) <= 1 + m && ndc.z <= 1;
   }
 
+  stopCarEngine(carId: string): void {
+    const node = this.carNodes.get(carId);
+    if (!node) return;
+    stopEngineNodes(node.engineNodes);
+    if (node.skidNodes) stopSkidNodes(node.skidNodes);
+    if (node.boostNodes) stopBoostNodes(node.boostNodes);
+  }
+
   dispose(): void {
     for (const node of this.carNodes.values()) {
       stopEngineNodes(node.engineNodes);
