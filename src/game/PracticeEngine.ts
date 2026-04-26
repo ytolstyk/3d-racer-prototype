@@ -647,7 +647,7 @@ export class PracticeEngine {
           if (Math.abs(car.speed) >= car.definition.maxSpeed * 0.1) {
             this.hazardSplash.emit(lPos, hColor, car.speed, car.definition.maxSpeed, 28, car.rotation);
             this.hazardSplash.emit(rPos, hColor, car.speed, car.definition.maxSpeed, 27, car.rotation);
-            this.audioManager?.onSplash();
+            this.audioManager?.onLiquidSlosh(hs.zoneType, car.id);
           }
         } else if (Math.abs(car.speed) >= car.definition.maxSpeed * 0.1) {
           hs.splashTimer -= dt;

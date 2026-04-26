@@ -32,7 +32,11 @@
       "Bash(./node_modules/.bin/eslint src/components/screens/TrackEditor.tsx)",
       "Bash(npm --version)",
       "Bash(npm uninstall:*)",
-      "Bash(npm ls:*)"
+      "Bash(npm ls:*)",
+      "mcp__jcodemunch__get_file_outline",
+      "mcp__jcodemunch__search_text",
+      "mcp__jcodemunch__get_symbol",
+      "mcp__jcodemunch__get_file_content"
     ]
   }
 }

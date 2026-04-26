@@ -24,6 +24,20 @@ export interface BoostNodes {
   gainNode: GainNode;
 }
 
+export interface TurbineNodes {
+  osc: OscillatorNode;
+  filterNode: BiquadFilterNode;
+  gainNode: GainNode;
+}
+
+export interface BoostTrackNodes {
+  osc: OscillatorNode;
+  lfo: OscillatorNode;
+  lfoGain: GainNode;
+  tremoloGain: GainNode;
+  gainNode: GainNode;
+}
+
 export function createNoiseBuffer(ctx: AudioContext, durationSec: number): AudioBuffer {
   const sampleRate = ctx.sampleRate;
   const length = Math.floor(sampleRate * durationSec);
@@ -368,4 +382,197 @@ export function stopBoostNodes(nodes: BoostNodes): void {
   nodes.osc.disconnect();
   nodes.filterNode.disconnect();
   nodes.gainNode.disconnect();
+}
+
+export function createTurbineNodes(ctx: AudioContext, destination: AudioNode): TurbineNodes {
+  const S = AUDIO_SYNTH;
+
+  const gainNode = ctx.createGain();
+  gainNode.gain.value = 0;
+  gainNode.connect(destination);
+
+  const filterNode = ctx.createBiquadFilter();
+  filterNode.type = 'bandpass';
+  filterNode.frequency.value = S.turbineBaseFreq;
+  filterNode.Q.value = 2.0;
+  filterNode.connect(gainNode);
+
+  const osc = ctx.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.value = S.turbineBaseFreq;
+  osc.connect(filterNode);
+  osc.start();
+
+  return { osc, filterNode, gainNode };
+}
+
+export function updateTurbineGain(nodes: TurbineNodes, boostRatio: number, ctx: AudioContext): void {
+  const S = AUDIO_SYNTH;
+  const t = ctx.currentTime;
+  const ratio = Math.max(0, Math.min(1, boostRatio));
+  const freq = S.turbineBaseFreq + ratio * (S.turbineMaxFreq - S.turbineBaseFreq);
+  const gain = ratio * S.turbineMaxGain;
+  nodes.osc.frequency.setTargetAtTime(freq, t, 0.05);
+  nodes.filterNode.frequency.setTargetAtTime(freq, t, 0.05);
+  nodes.gainNode.gain.setTargetAtTime(gain, t, 0.05);
+}
+
+export function stopTurbineNodes(nodes: TurbineNodes): void {
+  nodes.gainNode.gain.setTargetAtTime(0, 0, 0.05);
+  try { nodes.osc.stop(); } catch { /* already stopped */ }
+  nodes.osc.disconnect();
+  nodes.filterNode.disconnect();
+  nodes.gainNode.disconnect();
+}
+
+export function createBoostTrackNodes(ctx: AudioContext, destination: AudioNode): BoostTrackNodes {
+  const S = AUDIO_SYNTH;
+
+  // gainNode is the on/off gate — LFO must NOT connect here
+  const gainNode = ctx.createGain();
+  gainNode.gain.value = 0;
+  gainNode.connect(destination);
+
+  // tremoloGain is the inner AM stage — LFO modulates this, not gainNode
+  // Base 0.5 + LFO depth 0.5 → effective range [0, 1] (clean tremolo, no DC leak)
+  const tremoloGain = ctx.createGain();
+  tremoloGain.gain.value = 0.5;
+  tremoloGain.connect(gainNode);
+
+  const osc = ctx.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.value = S.boostTrackOscFreq;
+  osc.connect(tremoloGain);
+  osc.start();
+
+  const lfo = ctx.createOscillator();
+  lfo.type = 'sine';
+  lfo.frequency.value = S.boostTrackLFORate;
+  const lfoGain = ctx.createGain();
+  lfoGain.gain.value = 0.5;
+  lfo.connect(lfoGain);
+  lfoGain.connect(tremoloGain.gain); // modulates inner gain only
+  lfo.start();
+
+  return { osc, lfo, lfoGain, tremoloGain, gainNode };
+}
+
+export function stopBoostTrackNodes(nodes: BoostTrackNodes): void {
+  nodes.gainNode.gain.setTargetAtTime(0, 0, 0.05);
+  try { nodes.osc.stop(); } catch { /* already stopped */ }
+  try { nodes.lfo.stop(); } catch { /* already stopped */ }
+  nodes.osc.disconnect();
+  nodes.lfo.disconnect();
+  nodes.lfoGain.disconnect();
+  nodes.tremoloGain.disconnect();
+  nodes.gainNode.disconnect();
+}
+
+export function playCheckpointChime(ctx: AudioContext, destination: AudioNode): void {
+  const S = AUDIO_SYNTH;
+  const t = ctx.currentTime;
+  const dur = S.checkpointNoteDuration;
+  for (let i = 0; i < S.checkpointNotes.length; i++) {
+    const freq = S.checkpointNotes[i];
+    const start = t + i * dur * 0.8;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, start);
+    g.gain.linearRampToValueAtTime(S.checkpointNoteGain, start + 0.005);
+    g.gain.setValueAtTime(S.checkpointNoteGain, start + dur - 0.02);
+    g.gain.linearRampToValueAtTime(0, start + dur);
+    g.connect(destination);
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    osc.connect(g);
+    osc.start(start);
+    osc.stop(start + dur + 0.01);
+  }
+}
+
+export function playFinishChime(ctx: AudioContext, destination: AudioNode): void {
+  const S = AUDIO_SYNTH;
+  const t = ctx.currentTime;
+  const dur = S.checkpointNoteDuration;
+  for (let i = 0; i < S.finishNotes.length; i++) {
+    const freq = S.finishNotes[i];
+    const start = t + i * S.finishNoteStagger;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, start);
+    g.gain.linearRampToValueAtTime(S.finishNoteGain, start + 0.005);
+    g.gain.setValueAtTime(S.finishNoteGain, start + dur - 0.02);
+    g.gain.linearRampToValueAtTime(0, start + dur + 0.10);
+    g.connect(destination);
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    osc.connect(g);
+    osc.start(start);
+    osc.stop(start + dur + 0.15);
+  }
+}
+
+export function playRainDrop(ctx: AudioContext, destination: AudioNode): void {
+  const S = AUDIO_SYNTH;
+  const t = ctx.currentTime;
+  const dur = S.rainDropDuration;
+
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(S.rainDropGain, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  g.connect(destination);
+
+  const osc = ctx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(S.rainDropFreq, t);
+  osc.frequency.exponentialRampToValueAtTime(S.rainDropFreq * 0.5, t + dur);
+  osc.connect(g);
+  osc.start(t);
+  osc.stop(t + dur + 0.01);
+}
+
+export function playLiquidSlosh(
+  ctx: AudioContext,
+  destination: AudioNode,
+  noiseBuffer: AudioBuffer,
+  type: string,
+): void {
+  const S = AUDIO_SYNTH;
+  const t = ctx.currentTime;
+  const freqMap: Record<string, number> = {
+    oil: S.sloshOilFreq,
+    milk: S.sloshMilkFreq,
+    juice: S.sloshJuiceFreq,
+    butter: S.sloshButterFreq,
+    food: S.sloshFoodFreq,
+  };
+  const freq = freqMap[type] ?? 500;
+
+  const gainNode = ctx.createGain();
+  gainNode.gain.setValueAtTime(S.sloshGain, t);
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, t + S.sloshDuration);
+  gainNode.connect(destination);
+
+  const filterNode = ctx.createBiquadFilter();
+  filterNode.type = 'bandpass';
+  filterNode.frequency.value = freq;
+  filterNode.Q.value = 3.0;
+  filterNode.connect(gainNode);
+
+  // Gurgle LFO modulates filter frequency
+  const lfo = ctx.createOscillator();
+  lfo.type = 'sine';
+  lfo.frequency.value = 6;
+  const lfoGain = ctx.createGain();
+  lfoGain.gain.value = freq * 0.5;
+  lfo.connect(lfoGain);
+  lfoGain.connect(filterNode.frequency);
+  lfo.start(t);
+  lfo.stop(t + S.sloshDuration + 0.05);
+
+  const src = ctx.createBufferSource();
+  src.buffer = noiseBuffer;
+  src.connect(filterNode);
+  src.start(t);
+  src.stop(t + S.sloshDuration + 0.05);
 }

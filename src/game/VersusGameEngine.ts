@@ -65,6 +65,7 @@ export class VersusGameEngine {
   private rainSystem: RainHazardSystem | null = null;
   private speedStrips: SpeedStrip[] = [];
   private boostTracks: BoostTrack[] = [];
+  private trackConfig!: TrackConfig;
   private trackGroup: THREE.Group | null = null;
   private carHazardState: Map<string, CarHazardState> = new Map();
 
@@ -139,6 +140,7 @@ export class VersusGameEngine {
       const stored = sessionStorage.getItem('editor_track');
       if (stored) trackConfig = JSON.parse(stored) as TrackConfig;
     }
+    this.trackConfig = trackConfig;
     this.track = new TrackDefinition(trackConfig, reverse);
     this.speedStrips = trackConfig.speedStrips ?? [];
     this.boostTracks = trackConfig.boostTracks ?? [];
@@ -384,7 +386,7 @@ export class VersusGameEngine {
           car.boostDecayRate = SPEED_STRIP.capDecayRate;
           car.accelBoostTimer = SPEED_STRIP.accelBoostDuration;
           car.accelBoostMultiplier = SPEED_STRIP.accelMultiplier;
-          if (car.id === 'player1' || car.id === 'player2') this.audioManager?.onSpeedStripCrossed();
+          this.audioManager?.onSpeedStripCrossed(car.id);
         }
       }
       let onBoostTrack = false;
@@ -405,6 +407,15 @@ export class VersusGameEngine {
           break;
         }
       }
+      // Boost track audio + tunnel detection for player1
+      if (car.id === 'player1') {
+        this.audioManager?.onBoostTrackState(onBoostTrack);
+        const inTunnel = (this.trackConfig.tunnels ?? []).some(
+          t => car.currentT >= t.tStart && car.currentT <= t.tEnd,
+        );
+        this.audioManager?.setInTunnel(inTunnel);
+      }
+
       if (!onBoostTrack && car.boostMultiplier > 1.0 && car.boostDecayRate > 0) {
         car.boostMultiplier = Math.max(1.0, car.boostMultiplier - car.boostDecayRate * dt);
       }
@@ -434,7 +445,7 @@ export class VersusGameEngine {
         if (Math.abs(car.speed) >= car.definition.maxSpeed * 0.1) {
           this.hazardSplash?.emit(leftPos, color, car.speed, car.definition.maxSpeed, 28, car.rotation);
           this.hazardSplash?.emit(rightPos, color, car.speed, car.definition.maxSpeed, 27, car.rotation);
-          if (car.id === 'player1') this.audioManager?.onSplash();
+          this.audioManager?.onLiquidSlosh(hs.zoneType, car.id);
         }
       } else if (Math.abs(car.speed) >= car.definition.maxSpeed * 0.1) {
         hs.splashTimer -= dt;

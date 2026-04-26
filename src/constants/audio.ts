@@ -41,4 +41,33 @@ export const AUDIO_SYNTH = {
   collisionThudFreqMin: 40,  collisionThudFreqMax: 90,
   collisionMetalChance: 0.30,
   collisionMetalFreqMin: 2000, collisionMetalFreqMax: 4000,
+
+  // Turbine whine (speed strip sustained boost)
+  turbineBaseFreq: 800, turbineMaxFreq: 3200,
+  turbineMaxGain: 0.40,
+
+  // Boost track rev (sustained lane revving)
+  boostTrackOscFreq: 220, boostTrackLFORate: 8, boostTrackGain: 0.22,
+
+  // Checkpoint chime (E5 → G5)
+  checkpointNotes: [659, 784],
+  checkpointNoteDuration: 0.15, checkpointNoteGain: 0.30,
+
+  // Finish line chime (C5-E5-G5-C6)
+  finishNotes: [523, 659, 784, 1047],
+  finishNoteStagger: 0.12, finishNoteGain: 0.30,
+
+  // Rain drop impact
+  rainDropFreq: 1400, rainDropDuration: 0.06, rainDropGain: 0.40,
+
+  // Liquid slosh (bandpass center freq per hazard type)
+  sloshOilFreq: 320, sloshMilkFreq: 700, sloshJuiceFreq: 1100,
+  sloshButterFreq: 480, sloshFoodFreq: 850,
+  sloshDuration: 0.45, sloshGain: 0.65,
+
+  // Tunnel reverb (3-comb Schroeder)
+  tunnelDelayTimes: [0.05, 0.10, 0.17],
+  tunnelFeedbacks: [0.45, 0.40, 0.35],
+  tunnelWetGain: 0.35, tunnelDryGain: 0.75,
+  tunnelCrossfadeTimeConst: 0.15,
 };

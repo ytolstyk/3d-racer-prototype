@@ -204,6 +204,12 @@ export class GameEngine {
 
     // Race
     this.raceManager = new RaceManager(this.track, totalLaps);
+    this.raceManager.onCheckpointCrossed = (carId) => {
+      if (carId === this.playerCar?.id) this.audioManager?.onCheckpointCrossed();
+    };
+    this.raceManager.onFinishLine = (carId) => {
+      if (carId === this.playerCar?.id) this.audioManager?.onFinishLine();
+    };
     this.startSequence = new StartSequence();
     this.minimap = new Minimap(this.track);
 
@@ -220,6 +226,7 @@ export class GameEngine {
       for (const rz of rainZones) {
         this.rainSystem.addSplineZone(this.track, rz);
       }
+      this.rainSystem.onDropImpact = (x, z) => this.audioManager?.onRainDrop(x, z);
     }
 
     // Input
@@ -476,7 +483,7 @@ export class GameEngine {
           car.boostDecayRate = SPEED_STRIP.capDecayRate;
           car.accelBoostTimer = SPEED_STRIP.accelBoostDuration;
           car.accelBoostMultiplier = SPEED_STRIP.accelMultiplier;
-          if (car.isPlayer) this.audioManager?.onSpeedStripCrossed();
+          this.audioManager?.onSpeedStripCrossed(car.id);
         }
       }
 
@@ -503,6 +510,17 @@ export class GameEngine {
           car.boostDecayRate = 0; // Don't decay while on track
           break;
         }
+      }
+
+      // Boost track audio state for player
+      if (car.isPlayer) this.audioManager?.onBoostTrackState(onBoostTrack);
+
+      // Tunnel detection for player
+      if (car.isPlayer) {
+        const inTunnel = (this.trackConfig.tunnels ?? []).some(
+          t => car.currentT >= t.tStart && car.currentT <= t.tEnd,
+        );
+        this.audioManager?.setInTunnel(inTunnel);
       }
 
       // Decay boost back to 1.0
@@ -538,7 +556,7 @@ export class GameEngine {
         if (Math.abs(car.speed) >= car.definition.maxSpeed * 0.1) {
           this.hazardSplash?.emit(leftPos, color, car.speed, car.definition.maxSpeed, 28, car.rotation);
           this.hazardSplash?.emit(rightPos, color, car.speed, car.definition.maxSpeed, 27, car.rotation);
-          if (car.isPlayer) this.audioManager?.onSplash();
+          this.audioManager?.onLiquidSlosh(hs.zoneType, car.id);
         }
       } else if (Math.abs(car.speed) >= car.definition.maxSpeed * 0.1) {
         hs.splashTimer -= dt;

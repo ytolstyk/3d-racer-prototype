@@ -12,6 +12,9 @@ export class RaceManager {
   private readonly _carForward = new THREE.Vector3();
   private readonly _trackTangent = new THREE.Vector3();
 
+  onCheckpointCrossed?: (carId: string) => void;
+  onFinishLine?: (carId: string) => void;
+
   constructor(track: TrackDefinition, totalLaps: number) {
     this.track = track;
     this.totalLaps = totalLaps;
@@ -95,6 +98,7 @@ export class RaceManager {
           }
           car.lastCheckpointTime = now;
           car.lastCheckpointCrossedAt = now;
+          this.onCheckpointCrossed?.(car.id);
         }
       }
 
@@ -111,6 +115,7 @@ export class RaceManager {
       ) {
         car.checkpointProgress.fill(false);
         car.completedLaps++;
+        this.onFinishLine?.(car.id);
 
         // Reset checkpoint tracking for new lap
         car.lastCheckpointTime = now;

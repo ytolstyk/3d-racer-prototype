@@ -41,6 +41,8 @@ interface CircleZone {
 type Zone = SplineZone | CircleZone;
 
 export class RainHazardSystem {
+  onDropImpact?: (x: number, z: number) => void;
+
   private scene: THREE.Scene;
   private zones: Zone[] = [];
   private drops: RainDrop[][] = []; // per zone
@@ -305,6 +307,7 @@ export class RainHazardSystem {
 
             // Spawn ground splash particles
             this.emitSplash(drop.x, drop.z);
+            this.onDropImpact?.(drop.x, drop.z);
 
             // Check car hit
             for (const car of cars) {
