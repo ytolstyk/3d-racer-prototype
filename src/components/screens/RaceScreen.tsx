@@ -10,7 +10,7 @@ import { Speedometer } from '../hud/Speedometer.js';
 import { LapTimer } from '../hud/LapTimer.js';
 import { MinimapDisplay } from '../hud/MinimapDisplay.js';
 import { PositionIndicator } from '../hud/PositionIndicator.js';
-import { CheckpointTimer } from '../hud/CheckpointTimer.js';
+import { SegmentPanel } from '../hud/SegmentPanel.js';
 import { WrongWayIndicator } from '../hud/WrongWayIndicator.js';
 import { Scoreboard } from './Scoreboard.js';
 import { OptionsScreen } from './OptionsScreen.js';
@@ -158,10 +158,12 @@ export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, difficul
             carPositions={state.carPositions}
             startFinish={state.startFinish}
           />
-          <CheckpointTimer
-            segmentTime={state.checkpointSegmentTime}
-            bestTime={state.checkpointBestTime}
-            flashAge={state.checkpointFlashAge}
+          <SegmentPanel
+            segmentBests={state.segmentBests}
+            segmentLapTimes={state.segmentLapTimes}
+            segmentComparisonBests={state.segmentComparisonBests}
+            currentSegmentIndex={state.currentSegmentIndex}
+            segmentElapsed={state.segmentElapsed}
           />
         </>
       )}

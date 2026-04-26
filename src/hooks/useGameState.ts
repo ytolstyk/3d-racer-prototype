@@ -20,9 +20,11 @@ const DEFAULT_STATE: GameState = {
   trackPoints: [],
   startFinish: null,
   playerFinished: false,
-  checkpointSegmentTime: 0,
-  checkpointBestTime: 0,
-  checkpointFlashAge: 0,
+  segmentBests: [],
+  segmentLapTimes: [],
+  segmentComparisonBests: [],
+  currentSegmentIndex: 0,
+  segmentElapsed: 0,
   isWrongWay: false,
 };
 

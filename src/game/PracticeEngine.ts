@@ -171,10 +171,9 @@ export class PracticeEngine {
       pushVelocityX: 0,
       pushVelocityZ: 0,
       checkpointBests: [],
+      checkpointLapTimes: [],
+      checkpointLapComparisonBests: [],
       lastCheckpointTime: 0,
-      lastCheckpointSegmentTime: 0,
-      lastCheckpointBestTime: 0,
-      lastCheckpointCrossedAt: 0,
     };
 
     for (const obj of initialObjects) {

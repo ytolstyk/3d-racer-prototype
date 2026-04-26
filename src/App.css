@@ -722,45 +722,58 @@
   margin-bottom: 4px;
 }
 
-/* Checkpoint Timer */
-.hud-checkpoint-timer {
+/* Segment Panel */
+.hud-segment-panel {
   position: absolute;
-  top: 35%;
+  top: 50%;
+  transform: translateY(-50%);
   right: 16px;
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
-  border-top: 3px solid #00aaff;
+  border-top: 3px solid var(--curb-red);
   border-radius: 10px;
   backdrop-filter: blur(6px);
   z-index: 5;
-  padding: 8px 14px;
-  text-align: center;
-  min-width: 90px;
-  transition: opacity 0.15s;
+  padding: 8px 14px 10px;
+  min-width: 110px;
 }
 
-.checkpoint-label {
+.segment-panel-header {
   font-size: 9px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 1px;
   color: rgba(255, 248, 236, 0.45);
-  margin-bottom: 2px;
+  margin-bottom: 6px;
+  text-align: center;
 }
 
-.checkpoint-time {
+.segment-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 3px;
+}
+
+.segment-row:last-child {
+  margin-bottom: 0;
+}
+
+.segment-label {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(255, 248, 236, 0.45);
+}
+
+.segment-time {
   font-family: 'Russo One', monospace;
-  font-size: 26px;
+  font-size: 15px;
   font-weight: 400;
   font-variant-numeric: tabular-nums;
   line-height: 1;
-}
-
-.checkpoint-delta {
-  font-family: 'Russo One', monospace;
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-  margin-top: 2px;
 }
 
 /* Minimap */

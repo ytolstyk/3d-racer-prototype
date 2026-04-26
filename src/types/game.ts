@@ -91,12 +91,11 @@ export interface CarState {
   accelBoostMultiplier: number; // current acceleration multiplier (decays to 1.0)
   pushVelocityX: number; // pending rain push velocity X
   pushVelocityZ: number; // pending rain push velocity Z
-  // Checkpoint state
-  checkpointBests: number[];
+  // Checkpoint / segment state
+  checkpointBests: number[];            // best time per segment, length = numCheckpoints + 1
+  checkpointLapTimes: number[];         // latest completed time per segment (0 = never done)
+  checkpointLapComparisonBests: number[]; // previous best at the moment each segment was last completed
   lastCheckpointTime: number;
-  lastCheckpointSegmentTime: number;
-  lastCheckpointBestTime: number;
-  lastCheckpointCrossedAt: number;
 }
 
 export interface HazardZone {
@@ -149,10 +148,12 @@ export interface GameState {
   trackPoints: MinimapPoint[];
   startFinish: MinimapStartFinish | null;
   playerFinished: boolean;
-  // Checkpoint HUD
-  checkpointSegmentTime: number;
-  checkpointBestTime: number;
-  checkpointFlashAge: number;
+  // Segment panel HUD
+  segmentBests: number[];       // best time per segment
+  segmentLapTimes: number[];    // current lap time per segment (0 = not done yet)
+  segmentComparisonBests: number[]; // previous best at the moment each segment was last completed
+  currentSegmentIndex: number;  // which segment player is currently in (0-based)
+  segmentElapsed: number;       // ms elapsed in current segment
   isWrongWay: boolean;
 }
 

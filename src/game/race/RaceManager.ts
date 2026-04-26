@@ -82,13 +82,12 @@ export class RaceManager {
           if (!car.checkpointProgress[i] && car.previousT < checkpoints[i] && car.currentT >= checkpoints[i]) {
             car.checkpointProgress[i] = true;
             const segTime = now - car.lastCheckpointTime;
-            car.lastCheckpointSegmentTime = segTime;
-            car.lastCheckpointBestTime = car.checkpointBests[i];
+            car.checkpointLapTimes[i] = segTime;
+            car.checkpointLapComparisonBests[i] = car.checkpointBests[i];
             if (car.checkpointBests[i] === 0 || segTime < car.checkpointBests[i]) {
               car.checkpointBests[i] = segTime;
             }
             car.lastCheckpointTime = now;
-            car.lastCheckpointCrossedAt = now;
             this.onCheckpointCrossed?.(car.id);
           }
         }
@@ -105,6 +104,15 @@ export class RaceManager {
         car.currentT < 0.05 &&
         allCheckpointsPassed
       ) {
+        // Record the final segment (last checkpoint → finish line)
+        const finishSegTime = now - car.lastCheckpointTime;
+        const finishSegIdx = checkpoints.length;
+        car.checkpointLapTimes[finishSegIdx] = finishSegTime;
+        car.checkpointLapComparisonBests[finishSegIdx] = car.checkpointBests[finishSegIdx];
+        if (car.checkpointBests[finishSegIdx] === 0 || finishSegTime < car.checkpointBests[finishSegIdx]) {
+          car.checkpointBests[finishSegIdx] = finishSegTime;
+        }
+
         car.checkpointProgress.fill(false);
         car.completedLaps++;
         this.onFinishLine?.(car.id);

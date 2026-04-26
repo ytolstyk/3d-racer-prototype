@@ -307,11 +307,10 @@ export class GameEngine {
         finished: false,
         finishTime: 0,
         isPlayer,
-        checkpointBests: new Array(numCheckpoints).fill(0),
+        checkpointBests: new Array(numCheckpoints + 1).fill(0),
+        checkpointLapTimes: new Array(numCheckpoints + 1).fill(0),
+        checkpointLapComparisonBests: new Array(numCheckpoints + 1).fill(0),
         lastCheckpointTime: 0,
-        lastCheckpointSegmentTime: 0,
-        lastCheckpointBestTime: 0,
-        lastCheckpointCrossedAt: 0,
         hazardSteerFactor: 1.0,
         burnoutTimer: 0,
         boostMultiplier: 1.0,
@@ -586,9 +585,10 @@ export class GameEngine {
     const playerIndex = positions.findIndex((c) => c.isPlayer);
     const now = performance.now();
 
-    const flashAge = this.playerCar.lastCheckpointCrossedAt > 0
-      ? now - this.playerCar.lastCheckpointCrossedAt
-      : Infinity;
+    const currentSegmentIndex = this.playerCar.checkpointProgress.filter(Boolean).length;
+    const segmentElapsed = this.playerCar.lastCheckpointTime > 0
+      ? now - this.playerCar.lastCheckpointTime
+      : 0;
 
     const state: GameState = {
       playerSpeed: Math.abs(this.playerCar.speed),
@@ -610,9 +610,11 @@ export class GameEngine {
       trackPoints: this.minimap.getTrackPoints(),
       startFinish: this.minimap.getStartFinish(),
       playerFinished: this.playerFinished,
-      checkpointSegmentTime: this.playerCar.lastCheckpointSegmentTime,
-      checkpointBestTime: this.playerCar.lastCheckpointBestTime,
-      checkpointFlashAge: flashAge,
+      segmentBests: this.playerCar.checkpointBests.slice(),
+      segmentLapTimes: this.playerCar.checkpointLapTimes.slice(),
+      segmentComparisonBests: this.playerCar.checkpointLapComparisonBests.slice(),
+      currentSegmentIndex,
+      segmentElapsed,
       isWrongWay: this.raceManager.isWrongWay(this.playerCar.id),
     };
 
