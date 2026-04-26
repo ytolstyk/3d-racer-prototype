@@ -4,6 +4,7 @@ import type { Difficulty } from '../../types/game.js';
 import { GameStateEmitter } from '../../state/GameStateEmitter.js';
 import { useGameEngine } from '../../hooks/useGameEngine.js';
 import { useGameState } from '../../hooks/useGameState.js';
+import { useAutoHideCursor } from '../../hooks/useAutoHideCursor.js';
 import { Countdown } from '../hud/Countdown.js';
 import { Speedometer } from '../hud/Speedometer.js';
 import { LapTimer } from '../hud/LapTimer.js';
@@ -51,6 +52,8 @@ export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, difficul
 
   const engineRef = useGameEngine(canvasRef, selectedTrackId, selectedCarId, totalLaps, difficulty, emitter, reverse, () => setIsReady(true));
   const state = useGameState(emitter);
+
+  useAutoHideCursor(!paused && !state.playerFinished);
 
   const handleResume = useCallback(() => {
     setPaused(false);

@@ -4,6 +4,7 @@ import type { VersusSelections } from '../../types/game.js';
 import { VersusStateEmitter } from '../../state/VersusStateEmitter.js';
 import { useVersusGameEngine } from '../../hooks/useVersusGameEngine.js';
 import { useVersusGameState } from '../../hooks/useVersusGameState.js';
+import { useAutoHideCursor } from '../../hooks/useAutoHideCursor.js';
 import { Countdown } from '../hud/Countdown.js';
 import { Speedometer } from '../hud/Speedometer.js';
 import { VersusScoreDisplay } from '../hud/VersusScoreDisplay.js';
@@ -57,6 +58,8 @@ export function VersusRaceScreen({ selections, reverse, onMainMenu, onPlayAgain 
   );
 
   const state = useVersusGameState(emitter);
+
+  useAutoHideCursor(!paused && state.matchWinner === null);
 
   const handleResume = useCallback(() => {
     setPaused(false);
