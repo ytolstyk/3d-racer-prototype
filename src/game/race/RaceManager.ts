@@ -76,29 +76,21 @@ export class RaceManager {
         car.checkpointProgress.fill(false);
       }
 
-      // Set checkpoint guard flags only when actively crossing each zone (prev < cp <= current)
+      // Set checkpoint guard flags and trigger segment timing — forward crossing only, once per lap
       if (goingForward) {
         for (let i = 0; i < checkpoints.length; i++) {
           if (!car.checkpointProgress[i] && car.previousT < checkpoints[i] && car.currentT >= checkpoints[i]) {
             car.checkpointProgress[i] = true;
+            const segTime = now - car.lastCheckpointTime;
+            car.lastCheckpointSegmentTime = segTime;
+            car.lastCheckpointBestTime = car.checkpointBests[i];
+            if (car.checkpointBests[i] === 0 || segTime < car.checkpointBests[i]) {
+              car.checkpointBests[i] = segTime;
+            }
+            car.lastCheckpointTime = now;
+            car.lastCheckpointCrossedAt = now;
+            this.onCheckpointCrossed?.(car.id);
           }
-        }
-      }
-
-      // Checkpoint detection — forward crossing only
-      for (let ci = 0; ci < checkpoints.length; ci++) {
-        const cpT = checkpoints[ci];
-        const margin = 0.02;
-        if (car.previousT > cpT - margin && car.previousT < cpT && car.currentT >= cpT && car.currentT < cpT + margin) {
-          const segTime = now - car.lastCheckpointTime;
-          car.lastCheckpointSegmentTime = segTime;
-          car.lastCheckpointBestTime = car.checkpointBests[ci];
-          if (car.checkpointBests[ci] === 0 || segTime < car.checkpointBests[ci]) {
-            car.checkpointBests[ci] = segTime;
-          }
-          car.lastCheckpointTime = now;
-          car.lastCheckpointCrossedAt = now;
-          this.onCheckpointCrossed?.(car.id);
         }
       }
 
