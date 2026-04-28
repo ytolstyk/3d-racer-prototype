@@ -309,6 +309,14 @@ export class AudioManager {
     return Math.abs(ndc.x) <= 1 + m && Math.abs(ndc.y) <= 1 + m && ndc.z <= 1;
   }
 
+  muteAllCars(): void {
+    const t = this.ctx.currentTime;
+    for (const node of this.carNodes.values()) {
+      node.cullGain.gain.setTargetAtTime(0, t, 0.05);
+      node.cullGainCurrent = 0;
+    }
+  }
+
   stopCarEngine(carId: string): void {
     const node = this.carNodes.get(carId);
     if (!node) return;

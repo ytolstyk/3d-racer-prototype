@@ -389,6 +389,8 @@ export class VersusGameEngine {
 
     if (this.p1Score >= this.pointsToWin) this.matchWinner = 1;
     else if (this.p2Score >= this.pointsToWin) this.matchWinner = 2;
+
+    this.audioManager?.muteAllCars();
   }
 
   private updateStats(dt: number): void {
