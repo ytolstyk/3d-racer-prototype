@@ -156,7 +156,7 @@ export function VersusCarSelect({ trackId, onReady, onBack }: VersusCarSelectPro
       <Group justify="center" gap="sm">
         {canStart && (
           <Button autoContrast size="lg" color="yellow" onClick={handleStart}>
-            Start Versus
+            Next
           </Button>
         )}
         <Button variant="default" onClick={onBack}>

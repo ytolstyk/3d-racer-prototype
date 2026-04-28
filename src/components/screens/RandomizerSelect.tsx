@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import type { RandomizerCardDef } from '../../constants/randomizer.js';
 import { pickRandomCards } from '../../constants/randomizer.js';
+import { playCardSlam } from '../../game/audio/SoundSynthesizer.js';
+import { loadAudioPrefs } from '../../game/audio/AudioPrefs.js';
 
 interface RandomizerSelectProps {
   onSelect: (card: RandomizerCardDef) => void;
@@ -18,6 +20,7 @@ const CENTER_OFFSETS = [CARD_WIDTH + CARD_GAP, 0, -(CARD_WIDTH + CARD_GAP)];
 const DEAL_ROTS      = ['-14deg', '3deg', '-9deg'];
 
 interface SmokeParticle { id: number; dx: number; dy: number; }
+interface SparkParticle { id: number; dx: number; dy: number; rot: number; len: number; }
 
 export function RandomizerSelect({ onSelect, onSkip }: RandomizerSelectProps) {
   const [cards]       = useState<RandomizerCardDef[]>(() => pickRandomCards(3));
@@ -26,16 +29,33 @@ export function RandomizerSelect({ onSelect, onSkip }: RandomizerSelectProps) {
   // Once the flip animation finishes we keep a static transform so removing the
   // animation CSS property doesn't snap the card back to its default state.
   const [cardFlipped, setCardFlipped] = useState(false);
-  const [showSmoke, setShowSmoke]     = useState(false);
-  const [shaking, setShaking]         = useState(false);
-  const busyRef = useRef(false);
+  const [showSmoke, setShowSmoke]       = useState(false);
+  const [showSparks, setShowSparks]     = useState(false);
+  const [showShockwave, setShowShockwave] = useState(false);
+  const [shaking, setShaking]           = useState(false);
+  const busyRef  = useRef(false);
+  const audioCtxRef = useRef<AudioContext | null>(null);
 
-  // 8 smoke puffs spread in a full circle, originating from behind the card
+  // 16 smoke puffs spread in a full circle
   const smokeParticles = useMemo<SmokeParticle[]>(() =>
-    Array.from({ length: 8 }, (_, i) => {
-      const angle = (i / 8) * Math.PI * 2 + (Math.random() - 0.5) * 0.7;
-      const dist  = 70 + Math.random() * 70;
+    Array.from({ length: 16 }, (_, i) => {
+      const angle = (i / 16) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+      const dist  = 90 + Math.random() * 110;
       return { id: i, dx: Math.cos(angle) * dist, dy: Math.sin(angle) * dist };
+    }), []);
+
+  // 22 sharp sparks radiating outward
+  const sparkParticles = useMemo<SparkParticle[]>(() =>
+    Array.from({ length: 22 }, (_, i) => {
+      const angle = (i / 22) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+      const dist  = 130 + Math.random() * 170;
+      return {
+        id:  i,
+        dx:  Math.cos(angle) * dist,
+        dy:  Math.sin(angle) * dist,
+        rot: Math.atan2(Math.sin(angle), Math.cos(angle)) * (180 / Math.PI),
+        len: 10 + Math.random() * 14,
+      };
     }), []);
 
   // dealing → idle once all cards have landed
@@ -63,13 +83,28 @@ export function RandomizerSelect({ onSelect, onSkip }: RandomizerSelectProps) {
     // t=1180 screen shake
     // t=1400 animation done → freeze transform
     // t=1500 → revealed
-    setTimeout(() => setAnimState('flipping'),                    400);
-    setTimeout(() => setShowSmoke(true),                         1100);
-    setTimeout(() => setShaking(true),                           1180);
-    setTimeout(() => setCardFlipped(true),                       1400);
+    setTimeout(() => setAnimState('flipping'),                         400);
+    setTimeout(() => {
+      setShowShockwave(true);
+      setShowSparks(true);
+      try {
+        if (!audioCtxRef.current) audioCtxRef.current = new AudioContext();
+        const ctx = audioCtxRef.current;
+        const prefs = loadAudioPrefs();
+        const masterGain = ctx.createGain();
+        masterGain.gain.value = prefs.masterVolume;
+        masterGain.connect(ctx.destination);
+        playCardSlam(ctx, masterGain);
+      } catch { /* audio not available */ }
+    }, 1075);
+    setTimeout(() => setShowSmoke(true),                               1100);
+    setTimeout(() => setShaking(true),                                 1180);
+    setTimeout(() => setShowShockwave(false),                          1600);
+    setTimeout(() => setShowSparks(false),                             1700);
+    setTimeout(() => setCardFlipped(true),                             1400);
     setTimeout(() => { setAnimState('revealed'); busyRef.current = false; }, 1500);
-    setTimeout(() => setShaking(false),                          1580);
-    setTimeout(() => setShowSmoke(false),                        1750);
+    setTimeout(() => setShaking(false),                                1580);
+    setTimeout(() => setShowSmoke(false),                              1850);
   };
 
   const handleRevealedClick = () => {
@@ -136,7 +171,48 @@ export function RandomizerSelect({ onSelect, onSkip }: RandomizerSelectProps) {
                 : (animState === 'revealed' && isSelected ? handleRevealedClick : undefined)
               }
             >
-              {/* ── Smoke ── rendered FIRST so it sits BEHIND the card via DOM order */}
+              {/* ── Shockwave ring ── */}
+              {showShockwave && isSelected && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(50% - 10px)',
+                    left: 'calc(50% - 10px)',
+                    width: 20,
+                    height: 20,
+                    borderRadius: '50%',
+                    border: '3px solid rgba(255,210,63,0.9)',
+                    pointerEvents: 'none',
+                    animation: 'shockwaveExpand 0.5s ease-out forwards',
+                  }}
+                />
+              )}
+
+              {/* ── Sparks ── */}
+              {showSparks && isSelected && sparkParticles.map(p => (
+                <div
+                  key={p.id}
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    width: p.len,
+                    height: 3,
+                    marginTop: -1.5,
+                    marginLeft: -(p.len / 2),
+                    borderRadius: 2,
+                    background: `linear-gradient(90deg, rgba(255,255,200,0.95), rgba(255,180,0,0.6))`,
+                    pointerEvents: 'none',
+                    boxShadow: '0 0 6px rgba(255,220,80,0.8)',
+                    animation: `sparkShoot 0.45s ease-out ${p.id * 18}ms forwards`,
+                    '--dx': `${p.dx}px`,
+                    '--dy': `${p.dy}px`,
+                    '--rot': `${p.rot}deg`,
+                  } as React.CSSProperties & Record<string, string>}
+                />
+              ))}
+
+              {/* ── Smoke ── rendered after sparks so it sits on top */}
               {showSmoke && isSelected && smokeParticles.map(p => (
                 <div
                   key={p.id}
@@ -144,12 +220,12 @@ export function RandomizerSelect({ onSelect, onSkip }: RandomizerSelectProps) {
                     position: 'absolute',
                     top: '50%',
                     left: '50%',
-                    width: 34,
-                    height: 34,
+                    width: 44,
+                    height: 44,
                     borderRadius: '50%',
                     background: 'radial-gradient(circle, rgba(255,220,80,0.85) 0%, rgba(255,140,0,0.4) 55%, transparent 100%)',
                     pointerEvents: 'none',
-                    animation: `smokePuff 0.65s ease-out ${p.id * 35}ms forwards`,
+                    animation: `smokePuff 0.8s ease-out ${p.id * 25}ms forwards`,
                     '--dx': `${p.dx}px`,
                     '--dy': `${p.dy}px`,
                   } as React.CSSProperties & Record<string, string>}
@@ -200,17 +276,18 @@ export function RandomizerSelect({ onSelect, onSkip }: RandomizerSelectProps) {
       </div>
 
       {/* Always in DOM so layout doesn't jump */}
-      <div
+      <button
         style={{
-          ...clickHintStyle,
+          ...raceButtonStyle,
           opacity: animState === 'revealed' ? 1 : 0,
           pointerEvents: animState === 'revealed' ? 'auto' : 'none',
+          animation: animState === 'revealed' ? 'hintPulse 1.2s ease-in-out infinite' : undefined,
           transition: 'opacity 0.3s ease',
         }}
         onClick={handleRevealedClick}
       >
-        Click to apply
-      </div>
+        Race!
+      </button>
 
       <button
         style={{
@@ -357,6 +434,20 @@ const clickHintStyle: React.CSSProperties = {
   cursor: 'pointer',
 };
 
+const raceButtonStyle: React.CSSProperties = {
+  background: 'linear-gradient(135deg, #ffd23f 0%, #ffaa00 100%)',
+  border: 'none',
+  color: '#1a1a2e',
+  fontSize: 22,
+  fontWeight: 900,
+  letterSpacing: 3,
+  padding: '14px 48px',
+  borderRadius: 10,
+  cursor: 'pointer',
+  textTransform: 'uppercase',
+  boxShadow: '0 4px 24px rgba(255,210,63,0.4)',
+};
+
 const skipButtonStyle: React.CSSProperties = {
   background: 'transparent',
   border: '1px solid rgba(255,255,255,0.2)',
@@ -407,8 +498,21 @@ const cssAnimations = `
 
 /* Smoke puffs outward in all directions from card centre */
 @keyframes smokePuff {
-  0%   { transform: translate(-50%, -50%) translate(0, 0) scale(0.2); opacity: 0.9; }
-  100% { transform: translate(-50%, -50%) translate(var(--dx), var(--dy)) scale(2.8); opacity: 0; }
+  0%   { transform: translate(-50%, -50%) translate(0, 0) scale(0.2); opacity: 0.95; }
+  100% { transform: translate(-50%, -50%) translate(var(--dx), var(--dy)) scale(3.2); opacity: 0; }
+}
+
+/* Sharp sparks shoot outward from card centre */
+@keyframes sparkShoot {
+  0%   { transform: translate(-50%, -50%) translate(0, 0) rotate(var(--rot)) scaleX(0.3); opacity: 1; }
+  60%  { opacity: 0.9; }
+  100% { transform: translate(-50%, -50%) translate(var(--dx), var(--dy)) rotate(var(--rot)) scaleX(1); opacity: 0; }
+}
+
+/* Expanding shockwave ring at impact */
+@keyframes shockwaveExpand {
+  0%   { transform: scale(1);  opacity: 0.9; }
+  100% { transform: scale(14); opacity: 0; }
 }
 
 @keyframes hintPulse {

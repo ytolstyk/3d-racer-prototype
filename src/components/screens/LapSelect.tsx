@@ -58,7 +58,7 @@ export function LapSelect({ onSelect, onBack }: LapSelectProps) {
 
         <Group gap="sm" mt="sm">
           <Button autoContrast size="lg" color="yellow" onClick={() => onSelect(laps, difficulty)}>
-            Race!
+            Next
           </Button>
           <Button variant="default" onClick={onBack}>
             Back

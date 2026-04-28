@@ -531,6 +531,78 @@ export function playRainDrop(ctx: AudioContext, destination: AudioNode): void {
   osc.stop(t + dur + 0.01);
 }
 
+export function playCardSlam(ctx: AudioContext, destination: AudioNode): void {
+  const t = ctx.currentTime;
+
+  // Sub-bass thud — deep body of the impact
+  const subGain = ctx.createGain();
+  subGain.gain.setValueAtTime(0.9, t);
+  subGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+  subGain.connect(destination);
+  const subOsc = ctx.createOscillator();
+  subOsc.type = 'sine';
+  subOsc.frequency.setValueAtTime(80, t);
+  subOsc.frequency.exponentialRampToValueAtTime(30, t + 0.3);
+  subOsc.connect(subGain);
+  subOsc.start(t);
+  subOsc.stop(t + 0.5);
+
+  // Mid thud — click of the slam
+  const midGain = ctx.createGain();
+  midGain.gain.setValueAtTime(0.55, t);
+  midGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+  midGain.connect(destination);
+  const midOsc = ctx.createOscillator();
+  midOsc.type = 'sine';
+  midOsc.frequency.setValueAtTime(160, t);
+  midOsc.frequency.exponentialRampToValueAtTime(55, t + 0.18);
+  midOsc.connect(midGain);
+  midOsc.start(t);
+  midOsc.stop(t + 0.25);
+
+  // Noise smack — textured impact transient
+  const smackBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.12), ctx.sampleRate);
+  const smackData = smackBuf.getChannelData(0);
+  for (let i = 0; i < smackData.length; i++) smackData[i] = Math.random() * 2 - 1;
+
+  const smackFilter = ctx.createBiquadFilter();
+  smackFilter.type = 'bandpass';
+  smackFilter.frequency.value = 350;
+  smackFilter.Q.value = 0.8;
+  smackFilter.connect(destination);
+
+  const smackGain = ctx.createGain();
+  smackGain.gain.setValueAtTime(0.5, t);
+  smackGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+  smackGain.connect(smackFilter);
+
+  const smackSrc = ctx.createBufferSource();
+  smackSrc.buffer = smackBuf;
+  smackSrc.connect(smackGain);
+  smackSrc.start(t);
+
+  // High crack — sharp initial snap
+  const crackBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.04), ctx.sampleRate);
+  const crackData = crackBuf.getChannelData(0);
+  for (let i = 0; i < crackData.length; i++) crackData[i] = Math.random() * 2 - 1;
+
+  const crackFilter = ctx.createBiquadFilter();
+  crackFilter.type = 'bandpass';
+  crackFilter.frequency.value = 1800;
+  crackFilter.Q.value = 2.0;
+  crackFilter.connect(destination);
+
+  const crackGain = ctx.createGain();
+  crackGain.gain.setValueAtTime(0.35, t);
+  crackGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
+  crackGain.connect(crackFilter);
+
+  const crackSrc = ctx.createBufferSource();
+  crackSrc.buffer = crackBuf;
+  crackSrc.connect(crackGain);
+  crackSrc.start(t);
+}
+
 export function playLiquidSlosh(
   ctx: AudioContext,
   destination: AudioNode,
