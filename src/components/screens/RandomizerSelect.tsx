@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { RandomizerCardDef } from '../../constants/randomizer.js';
 import { pickRandomCards } from '../../constants/randomizer.js';
 import { playCardSlam } from '../../game/audio/SoundSynthesizer.js';
@@ -37,15 +37,15 @@ export function RandomizerSelect({ onSelect, onSkip }: RandomizerSelectProps) {
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   // 16 smoke puffs spread in a full circle
-  const smokeParticles = useMemo<SmokeParticle[]>(() =>
+  const [smokeParticles] = useState<SmokeParticle[]>(() =>
     Array.from({ length: 16 }, (_, i) => {
       const angle = (i / 16) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
       const dist  = 90 + Math.random() * 110;
       return { id: i, dx: Math.cos(angle) * dist, dy: Math.sin(angle) * dist };
-    }), []);
+    }));
 
   // 22 sharp sparks radiating outward
-  const sparkParticles = useMemo<SparkParticle[]>(() =>
+  const [sparkParticles] = useState<SparkParticle[]>(() =>
     Array.from({ length: 22 }, (_, i) => {
       const angle = (i / 22) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
       const dist  = 130 + Math.random() * 170;
@@ -56,7 +56,7 @@ export function RandomizerSelect({ onSelect, onSkip }: RandomizerSelectProps) {
         rot: Math.atan2(Math.sin(angle), Math.cos(angle)) * (180 / Math.PI),
         len: 10 + Math.random() * 14,
       };
-    }), []);
+    }));
 
   // dealing → idle once all cards have landed
   useEffect(() => {
@@ -208,7 +208,7 @@ export function RandomizerSelect({ onSelect, onSkip }: RandomizerSelectProps) {
                     '--dx': `${p.dx}px`,
                     '--dy': `${p.dy}px`,
                     '--rot': `${p.rot}deg`,
-                  } as React.CSSProperties & Record<string, string>}
+                  } as unknown as React.CSSProperties}
                 />
               ))}
 
@@ -228,7 +228,7 @@ export function RandomizerSelect({ onSelect, onSkip }: RandomizerSelectProps) {
                     animation: `smokePuff 0.8s ease-out ${p.id * 25}ms forwards`,
                     '--dx': `${p.dx}px`,
                     '--dy': `${p.dy}px`,
-                  } as React.CSSProperties & Record<string, string>}
+                  } as unknown as React.CSSProperties}
                 />
               ))}
 
@@ -425,14 +425,6 @@ const mutationBadgeStyle: React.CSSProperties = {
   letterSpacing: 0.5,
 };
 
-const clickHintStyle: React.CSSProperties = {
-  color: 'rgba(255,210,63,0.8)',
-  fontSize: 16,
-  letterSpacing: 2,
-  textTransform: 'uppercase',
-  animation: 'hintPulse 1.2s ease-in-out infinite',
-  cursor: 'pointer',
-};
 
 const raceButtonStyle: React.CSSProperties = {
   background: 'linear-gradient(135deg, #ffd23f 0%, #ffaa00 100%)',
