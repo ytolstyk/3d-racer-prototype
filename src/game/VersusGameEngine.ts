@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { CarState, VersusGameState, VersusRoundState, VersusStats } from '../types/game.js';
+import type { CarDefinition, CarState, VersusGameState, VersusRoundState, VersusStats, RandomizerValues } from '../types/game.js';
 import { CAR_DEFINITIONS } from '../constants/cars.js';
 import { TRACKS } from '../constants/track.js';
 import type { TrackConfig } from '../constants/track.js';
@@ -26,6 +26,7 @@ import { Minimap } from './race/Minimap.js';
 import { KITCHEN_ITEM_FACTORIES } from './scene/KitchenItems.js';
 import { HAZARD_HEX_COLORS } from '../constants/physics.js';
 import { SPEED_STRIP, BOOST_TRACK } from '../constants/effects.js';
+import { DRIFT_PHYSICS } from '../constants/physics.js';
 import type { SpeedStrip, BoostTrack } from '../types/game.js';
 import { AudioManager } from './audio/AudioManager.js';
 import { loadAudioPrefs } from './audio/AudioPrefs.js';
@@ -102,6 +103,7 @@ export class VersusGameEngine {
   private paused = false;
   private waitingForFirstFrame = true;
   private onReady: (() => void) | undefined;
+  private readonly randomizers: RandomizerValues | undefined;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -113,11 +115,13 @@ export class VersusGameEngine {
     emitter: VersusStateEmitter,
     reverse = false,
     onReady?: () => void,
+    randomizers?: RandomizerValues,
   ) {
     this.emitter = emitter;
     this.p1Name = p1Name;
     this.p2Name = p2Name;
     this.onReady = onReady;
+    this.randomizers = randomizers;
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
@@ -184,6 +188,20 @@ export class VersusGameEngine {
 
     this.setupCars(new CarFactory(), p1CarId, p2CarId);
 
+    // Apply physics overrides for randomizer
+    if (randomizers) {
+      if (randomizers.throttleInertiaMult !== 1) {
+        const v = DRIFT_PHYSICS.throttleInertiaTime * randomizers.throttleInertiaMult;
+        this.p1Physics.setOverride('drift', 'throttleInertiaTime', v);
+        this.p2Physics.setOverride('drift', 'throttleInertiaTime', v);
+      }
+      if (randomizers.corneringDragMult !== 1) {
+        const v = DRIFT_PHYSICS.corneringDragFactor * randomizers.corneringDragMult;
+        this.p1Physics.setOverride('drift', 'corneringDragFactor', v);
+        this.p2Physics.setOverride('drift', 'corneringDragFactor', v);
+      }
+    }
+
     this.tireSmoke = new TireSmokeSystem(this.scene);
     // Use p1Physics for boundary collision — bounceFromBoundary only reads/writes CarState
     this.collisionSystem = new CollisionSystem(this.track, [], this.p1Physics);
@@ -226,6 +244,18 @@ export class VersusGameEngine {
     this.loop();
   }
 
+  private applyCarRandomizer(def: CarDefinition): CarDefinition {
+    if (!this.randomizers) return def;
+    const r = this.randomizers;
+    return {
+      ...def,
+      maxSpeed: def.maxSpeed * r.carSpeedMult,
+      acceleration: def.acceleration * r.carAccelMult,
+      handling: def.handling * r.carHandlingMult,
+      braking: def.braking * r.carBrakingMult,
+    };
+  }
+
   private setupCars(factory: CarFactory, p1CarId: string, p2CarId: string): void {
     const trackLength = this.track.getLength();
 
@@ -237,6 +267,9 @@ export class VersusGameEngine {
       p1Def = { ...p1Def, color: 0x1565C0, accentColor: 0x90caf9 };
       p2Def = { ...p2Def, color: 0xB71C1C, accentColor: 0xef9a9a };
     }
+
+    p1Def = this.applyCarRandomizer(p1Def);
+    p2Def = this.applyCarRandomizer(p2Def);
 
     const lateralSpacing = 14;
     const staggerDist = 11;
@@ -424,8 +457,17 @@ export class VersusGameEngine {
   private updateCarHazard(car: CarState, dt: number): void {
     const hs = this.carHazardState.get(car.id);
     if (!hs) return;
-    const effect = this.hazardSystem.getEffect(car.position, car.currentT);
+    let effect = this.hazardSystem.getEffect(car.position, car.currentT);
     if (effect) {
+      if (this.randomizers && this.randomizers.hazardEffectivenessMult !== 1) {
+        const m = this.randomizers.hazardEffectivenessMult;
+        effect = {
+          ...effect,
+          speedMultiplier: 1 - (1 - effect.speedMultiplier) * m,
+          steeringMultiplier: 1 - (1 - effect.steeringMultiplier) * m,
+          lateralDrift: effect.lateralDrift * m,
+        };
+      }
       const physics = car.id === 'player1' ? this.p1Physics : this.p2Physics;
       physics.applyHazardEffect(car, effect, dt);
       const wasInHazard = hs.inHazard;

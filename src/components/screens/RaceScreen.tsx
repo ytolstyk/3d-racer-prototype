@@ -1,6 +1,7 @@
 import { useRef, useMemo, useState, useEffect, useCallback } from 'react';
 import { Button, Stack, Title } from '@mantine/core';
 import type { Difficulty } from '../../types/game.js';
+import type { RandomizerCardDef } from '../../constants/randomizer.js';
 import { GameStateEmitter } from '../../state/GameStateEmitter.js';
 import { useGameEngine } from '../../hooks/useGameEngine.js';
 import { useGameState } from '../../hooks/useGameState.js';
@@ -21,6 +22,7 @@ interface RaceScreenProps {
   totalLaps: number;
   difficulty: Difficulty;
   reverse?: boolean;
+  activeRandomizer?: RandomizerCardDef | null;
   onMainMenu: () => void;
   onRaceAgain: () => void;
   onBackToEditor?: () => void;
@@ -43,14 +45,14 @@ const loadingOverlayStyle = {
 
 const loadingTextStyle = { color: 'rgba(255,255,255,0.7)', fontSize: 18, letterSpacing: 2 };
 
-export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, difficulty, reverse, onMainMenu, onRaceAgain, onBackToEditor }: RaceScreenProps) {
+export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, difficulty, reverse, activeRandomizer, onMainMenu, onRaceAgain, onBackToEditor }: RaceScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const emitter = useMemo(() => new GameStateEmitter(), []);
   const [paused, setPaused] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [isReady, setIsReady] = useState(false);
 
-  const engineRef = useGameEngine(canvasRef, selectedTrackId, selectedCarId, totalLaps, difficulty, emitter, reverse, () => setIsReady(true));
+  const engineRef = useGameEngine(canvasRef, selectedTrackId, selectedCarId, totalLaps, difficulty, emitter, reverse, activeRandomizer, () => setIsReady(true));
   const state = useGameState(emitter);
 
   useAutoHideCursor(!paused && !state.playerFinished);
@@ -112,6 +114,13 @@ export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, difficul
         <div style={pauseOverlayStyle}>
           <Stack align="center" gap="sm">
             <Title order={2} c="white">Paused</Title>
+            {activeRandomizer && (
+              <div style={{ border: '1px solid rgba(255,210,63,0.3)', borderRadius: 8, padding: '8px 14px', textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: 'rgba(255,210,63,0.53)', textTransform: 'uppercase', letterSpacing: 1 }}>Active Randomizer</div>
+                <div style={{ color: '#ffd23f', fontWeight: 700 }}>{activeRandomizer.label}</div>
+                <div style={{ fontSize: 12, color: '#fff8ec' }}>{activeRandomizer.description}</div>
+              </div>
+            )}
             <Button color="yellow" autoContrast onClick={handleResume}>
               Resume
             </Button>

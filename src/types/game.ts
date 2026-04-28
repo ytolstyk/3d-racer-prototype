@@ -1,6 +1,27 @@
 import type * as THREE from 'three';
 
-export type RacePhase = 'menu' | 'options' | 'trackSelect' | 'carSelect' | 'lapSelect' | 'racing' | 'finished' | 'versusCarSelect' | 'versusRacing';
+export type RacePhase = 'menu' | 'options' | 'trackSelect' | 'carSelect' | 'lapSelect' | 'randomizerSelect' | 'racing' | 'finished' | 'versusCarSelect' | 'versusRandomizerSelect' | 'versusRacing';
+
+export interface RandomizerMutation {
+  target: 'carSpeed' | 'carAccel' | 'carHandling' | 'carBraking'
+        | 'aiSkill' | 'aiNoise' | 'aiReaction' | 'aiBrakeSensitivity'
+        | 'throttleInertia' | 'corneringDrag' | 'hazardEffectiveness';
+  multiplier: number;
+}
+
+export interface RandomizerValues {
+  carSpeedMult: number;
+  carAccelMult: number;
+  carHandlingMult: number;
+  carBrakingMult: number;
+  aiSkillMult: number;
+  aiNoiseMult: number;
+  aiReactionMult: number;
+  aiBrakeSensitivityMult: number;
+  throttleInertiaMult: number;
+  corneringDragMult: number;
+  hazardEffectivenessMult: number;
+}
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
 

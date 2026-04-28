@@ -11,7 +11,9 @@ import { VersusCarSelect } from './components/screens/VersusCarSelect.js';
 import { VersusRaceScreen } from './components/screens/VersusRaceScreen.js';
 import { TrackEditor } from './components/screens/TrackEditor.js';
 import { PracticeScreen } from './components/screens/PracticeScreen.js';
+import { RandomizerSelect } from './components/screens/RandomizerSelect.js';
 import { MenuMusicPlayer } from './game/audio/MenuMusicPlayer.js';
+import type { RandomizerCardDef } from './constants/randomizer.js';
 import './App.css';
 
 function PracticeRoute() {
@@ -61,6 +63,7 @@ function GameApp() {
   const [isEditorTest, setIsEditorTest] = useState(fromEditor);
   const [gameMode, setGameMode] = useState<'solo' | 'versus'>('solo');
   const [versusSelections, setVersusSelections] = useState<VersusSelections | null>(null);
+  const [activeRandomizer, setActiveRandomizer] = useState<RandomizerCardDef | null>(null);
   const [reverse, setReverse] = useState(false);
   const [raceKey, setRaceKey] = useState(0);
 
@@ -78,7 +81,27 @@ function GameApp() {
   const handleLapSelect = useCallback((laps: number, diff: Difficulty) => {
     setTotalLaps(laps);
     setDifficulty(diff);
+    setPhase('randomizerSelect');
+  }, []);
+
+  const handleRandomizerSelect = useCallback((card: RandomizerCardDef) => {
+    setActiveRandomizer(card);
     setPhase('racing');
+  }, []);
+
+  const handleRandomizerSkip = useCallback(() => {
+    setActiveRandomizer(null);
+    setPhase('racing');
+  }, []);
+
+  const handleVersusRandomizerSelect = useCallback((card: RandomizerCardDef) => {
+    setActiveRandomizer(card);
+    setPhase('versusRacing');
+  }, []);
+
+  const handleVersusRandomizerSkip = useCallback(() => {
+    setActiveRandomizer(null);
+    setPhase('versusRacing');
   }, []);
 
   const handleMainMenu = useCallback(() => {
@@ -88,6 +111,7 @@ function GameApp() {
     setGameMode('solo');
     setDifficulty('medium');
     setVersusSelections(null);
+    setActiveRandomizer(null);
     setIsEditorTest(false);
     navigate('/', { replace: true, state: {} });
   }, [navigate]);
@@ -99,7 +123,7 @@ function GameApp() {
 
   const handleVersusCarSelectReady = useCallback((sel: VersusSelections) => {
     setVersusSelections(sel);
-    setPhase('versusRacing');
+    setPhase('versusRandomizerSelect');
   }, []);
 
   const handleVersusPlayAgain = useCallback(() => {
@@ -132,6 +156,8 @@ function GameApp() {
       return <CarSelect onSelect={handleCarSelect} onBack={() => setPhase('trackSelect')} />;
     case 'lapSelect':
       return <LapSelect onSelect={handleLapSelect} onBack={() => setPhase('carSelect')} />;
+    case 'randomizerSelect':
+      return <RandomizerSelect onSelect={handleRandomizerSelect} onSkip={handleRandomizerSkip} />;
     case 'racing':
       return (
         <RaceScreen
@@ -141,6 +167,7 @@ function GameApp() {
           totalLaps={totalLaps}
           difficulty={difficulty}
           reverse={reverse}
+          activeRandomizer={activeRandomizer}
           onMainMenu={handleMainMenu}
           onRaceAgain={handleRaceAgain}
           onBackToEditor={isEditorTest ? handleBackToEditor : undefined}
@@ -154,11 +181,14 @@ function GameApp() {
           onBack={() => setPhase('trackSelect')}
         />
       );
+    case 'versusRandomizerSelect':
+      return <RandomizerSelect onSelect={handleVersusRandomizerSelect} onSkip={handleVersusRandomizerSkip} />;
     case 'versusRacing':
       return versusSelections ? (
         <VersusRaceScreen
           selections={versusSelections}
           reverse={reverse}
+          activeRandomizer={activeRandomizer}
           onMainMenu={handleMainMenu}
           onPlayAgain={handleVersusPlayAgain}
         />

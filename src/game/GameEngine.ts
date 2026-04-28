@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { CarDefinition, CarState, GameState, Difficulty } from '../types/game.js';
+import type { CarDefinition, CarState, GameState, Difficulty, RandomizerValues } from '../types/game.js';
 import { CAR_DEFINITIONS } from '../constants/cars.js';
 import { TRACKS } from '../constants/track.js';
 import type { TrackConfig } from '../constants/track.js';
@@ -28,6 +28,7 @@ import { RainHazardSystem } from './effects/RainHazardSystem.js';
 import { KITCHEN_ITEM_FACTORIES } from './scene/KitchenItems.js';
 import { HAZARD_HEX_COLORS } from '../constants/physics.js';
 import { DIFFICULTY_CONFIG } from '../constants/aiRacer.js';
+import { DRIFT_PHYSICS } from '../constants/physics.js';
 import { SPEED_STRIP, BOOST_TRACK } from '../constants/effects.js';
 import type { SpeedStrip, BoostTrack } from '../types/game.js';
 import { AudioManager } from './audio/AudioManager.js';
@@ -81,6 +82,7 @@ export class GameEngine {
   private onReady: (() => void) | undefined;
 
   private readonly difficulty: Difficulty;
+  private readonly randomizers: RandomizerValues | undefined;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -91,10 +93,12 @@ export class GameEngine {
     emitter: GameStateEmitter,
     reverse = false,
     onReady?: () => void,
+    randomizers?: RandomizerValues,
   ) {
     this.difficulty = difficulty;
     this.emitter = emitter;
     this.onReady = onReady;
+    this.randomizers = randomizers;
 
     // Renderer
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -241,11 +245,23 @@ export class GameEngine {
     this.loop();
   }
 
+  private applyCarRandomizer(def: CarDefinition): CarDefinition {
+    if (!this.randomizers) return def;
+    const r = this.randomizers;
+    return {
+      ...def,
+      maxSpeed: def.maxSpeed * r.carSpeedMult,
+      acceleration: def.acceleration * r.carAccelMult,
+      handling: def.handling * r.carHandlingMult,
+      braking: def.braking * r.carBrakingMult,
+    };
+  }
+
   private setupCars(factory: CarFactory, selectedCarId: string): void {
     const trackLength = this.track.getLength();
 
-    const playerDef = CAR_DEFINITIONS.find((c) => c.id === selectedCarId) ?? CAR_DEFINITIONS[0];
-    const aiDefs = CAR_DEFINITIONS.filter((c) => c.id !== selectedCarId);
+    const playerDef = this.applyCarRandomizer(CAR_DEFINITIONS.find((c) => c.id === selectedCarId) ?? CAR_DEFINITIONS[0]);
+    const aiDefs = CAR_DEFINITIONS.filter((c) => c.id !== selectedCarId).map(d => this.applyCarRandomizer(d));
 
     const allDefs: { def: CarDefinition; isPlayer: boolean }[] = aiDefs.map((def) => ({ def, isPlayer: false }));
     const slot = Math.floor(Math.random() * (allDefs.length + 1));
@@ -328,9 +344,28 @@ export class GameEngine {
         this.playerCar = car;
       } else {
         const diffParams = DIFFICULTY_CONFIG[this.difficulty];
-        const [minSkill, maxSkill] = diffParams.skillRange;
+        const r = this.randomizers;
+        const adjustedParams = r ? {
+          ...diffParams,
+          skillRange: [diffParams.skillRange[0] * r.aiSkillMult, diffParams.skillRange[1] * r.aiSkillMult] as [number, number],
+          steeringNoise: diffParams.steeringNoise * r.aiNoiseMult,
+          reactionDelay: diffParams.reactionDelay * r.aiReactionMult,
+          brakeSensitivity: diffParams.brakeSensitivity * r.aiBrakeSensitivityMult,
+        } : diffParams;
+        const [minSkill, maxSkill] = adjustedParams.skillRange;
         const skill = minSkill + Math.random() * (maxSkill - minSkill);
-        this.aiManager!.addCar(def.id, skill, diffParams);
+        this.aiManager!.addCar(def.id, skill, adjustedParams);
+      }
+    }
+
+    // Apply physics overrides for randomizer
+    if (this.randomizers) {
+      const r = this.randomizers;
+      if (r.throttleInertiaMult !== 1) {
+        this.carPhysics.setOverride('drift', 'throttleInertiaTime', DRIFT_PHYSICS.throttleInertiaTime * r.throttleInertiaMult);
+      }
+      if (r.corneringDragMult !== 1) {
+        this.carPhysics.setOverride('drift', 'corneringDragFactor', DRIFT_PHYSICS.corneringDragFactor * r.corneringDragMult);
       }
     }
   }
@@ -535,9 +570,18 @@ export class GameEngine {
     const hs = this.carHazardState.get(car.id);
     if (!hs) return;
 
-    const effect = this.hazardSystem.getEffect(car.position, car.currentT);
+    let effect = this.hazardSystem.getEffect(car.position, car.currentT);
 
     if (effect) {
+      if (this.randomizers && this.randomizers.hazardEffectivenessMult !== 1) {
+        const m = this.randomizers.hazardEffectivenessMult;
+        effect = {
+          ...effect,
+          speedMultiplier: 1 - (1 - effect.speedMultiplier) * m,
+          steeringMultiplier: 1 - (1 - effect.steeringMultiplier) * m,
+          lateralDrift: effect.lateralDrift * m,
+        };
+      }
       this.carPhysics.applyHazardEffect(car, effect, dt);
       const wasInHazard = hs.inHazard;
       hs.inHazard = true;

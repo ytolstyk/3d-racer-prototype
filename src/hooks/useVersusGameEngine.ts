@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react';
 import type { MutableRefObject } from 'react';
 import { VersusGameEngine } from '../game/VersusGameEngine.js';
 import type { VersusStateEmitter } from '../state/VersusStateEmitter.js';
+import type { RandomizerCardDef } from '../constants/randomizer.js';
+import { applyMutations } from '../constants/randomizer.js';
 
 export function useVersusGameEngine(
   canvasRef: React.RefObject<HTMLCanvasElement | null>,
@@ -12,6 +14,7 @@ export function useVersusGameEngine(
   p2Name: string,
   emitter: VersusStateEmitter,
   reverse?: boolean,
+  activeRandomizer?: RandomizerCardDef | null,
   onReady?: () => void,
 ): MutableRefObject<VersusGameEngine | null> {
   const engineRef = useRef<VersusGameEngine | null>(null);
@@ -22,12 +25,14 @@ export function useVersusGameEngine(
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    engineRef.current = new VersusGameEngine(canvas, trackId, p1CarId, p2CarId, p1Name, p2Name, emitter, reverse, () => onReadyRef.current?.());
+    const randomizerValues = activeRandomizer ? applyMutations([activeRandomizer]) : undefined;
+    engineRef.current = new VersusGameEngine(canvas, trackId, p1CarId, p2CarId, p1Name, p2Name, emitter, reverse, () => onReadyRef.current?.(), randomizerValues);
 
     return () => {
       engineRef.current?.dispose();
       engineRef.current = null;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canvasRef, trackId, p1CarId, p2CarId, p1Name, p2Name, emitter, reverse]);
 
   return engineRef;

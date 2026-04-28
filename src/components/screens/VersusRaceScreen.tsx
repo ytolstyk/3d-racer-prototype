@@ -1,6 +1,7 @@
 import { useRef, useMemo, useState, useEffect, useCallback } from 'react';
 import { Button, Stack, Title } from '@mantine/core';
 import type { VersusSelections } from '../../types/game.js';
+import type { RandomizerCardDef } from '../../constants/randomizer.js';
 import { VersusStateEmitter } from '../../state/VersusStateEmitter.js';
 import { useVersusGameEngine } from '../../hooks/useVersusGameEngine.js';
 import { useVersusGameState } from '../../hooks/useVersusGameState.js';
@@ -17,6 +18,7 @@ import { OptionsScreen } from './OptionsScreen.js';
 interface VersusRaceScreenProps {
   selections: VersusSelections;
   reverse?: boolean;
+  activeRandomizer?: RandomizerCardDef | null;
   onMainMenu: () => void;
   onPlayAgain: () => void;
 }
@@ -38,7 +40,7 @@ const loadingOverlayStyle = {
 
 const loadingTextStyle = { color: 'rgba(255,255,255,0.7)', fontSize: 18, letterSpacing: 2 };
 
-export function VersusRaceScreen({ selections, reverse, onMainMenu, onPlayAgain }: VersusRaceScreenProps) {
+export function VersusRaceScreen({ selections, reverse, activeRandomizer, onMainMenu, onPlayAgain }: VersusRaceScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const emitter = useMemo(() => new VersusStateEmitter(), []);
   const [paused, setPaused] = useState(false);
@@ -54,6 +56,7 @@ export function VersusRaceScreen({ selections, reverse, onMainMenu, onPlayAgain 
     selections.p2Name,
     emitter,
     reverse,
+    activeRandomizer,
     () => setIsReady(true),
   );
 
@@ -106,6 +109,13 @@ export function VersusRaceScreen({ selections, reverse, onMainMenu, onPlayAgain 
         <div style={pauseOverlayStyle}>
           <Stack align="center" gap="sm">
             <Title order={2} c="white">Paused</Title>
+            {activeRandomizer && (
+              <div style={{ border: '1px solid rgba(255,210,63,0.3)', borderRadius: 8, padding: '8px 14px', textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: 'rgba(255,210,63,0.53)', textTransform: 'uppercase', letterSpacing: 1 }}>Active Randomizer</div>
+                <div style={{ color: '#ffd23f', fontWeight: 700 }}>{activeRandomizer.label}</div>
+                <div style={{ fontSize: 12, color: '#fff8ec' }}>{activeRandomizer.description}</div>
+              </div>
+            )}
             <Button color="yellow" autoContrast onClick={handleResume}>
               Resume
             </Button>
