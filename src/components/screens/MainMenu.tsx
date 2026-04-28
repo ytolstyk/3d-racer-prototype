@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { Button, Stack, Title, Text } from '@mantine/core';
+import { MenuCarAnimations } from './MenuCarAnimations.js';
 
 interface MainMenuProps {
   onStart: () => void;
@@ -39,11 +40,7 @@ export function MainMenu({ onStart, onVersus, onPractice, onBackToEditor, onOpti
           </Button>
         </Stack>
       </div>
-      <div className="menu-cars">
-        <div className="car-silhouette" />
-        <div className="car-silhouette delay-1" />
-        <div className="car-silhouette delay-2" />
-      </div>
+      <MenuCarAnimations />
     </div>
   );
 }

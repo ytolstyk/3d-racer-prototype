@@ -40,11 +40,8 @@
    ============================ */
 .main-menu {
   background:
-    linear-gradient(180deg,
-      var(--grass-dark)  0%,
-      var(--grass-mid)  38%,
-      var(--sand)       62%,
-      var(--dirt)      100%);
+    linear-gradient(rgba(8, 6, 4, 0.52), rgba(8, 6, 4, 0.52)),
+    url('/background.jpg') center / cover no-repeat;
 }
 
 /* Racing stripes across the bottom */
@@ -111,45 +108,14 @@
   letter-spacing: 0.5px;
 }
 
-.menu-cars {
-  position: absolute;
-  bottom: 100px;
-  display: flex;
-  gap: 36px;
-  z-index: 1;
+@keyframes menuCarLtr {
+  from { transform: translateX(-80px); }
+  to   { transform: translateX(calc(100vw + 80px)); }
 }
 
-.car-silhouette {
-  width: 48px;
-  height: 24px;
-  border-radius: 5px 5px 2px 2px;
-  animation: carBounce 2s ease-in-out infinite;
-  position: relative;
-  box-shadow: 0 4px 0 rgba(0,0,0,0.4);
-}
-
-.car-silhouette:nth-child(1) { background: #e84040; }
-.car-silhouette:nth-child(2) { background: var(--yellow); }
-.car-silhouette:nth-child(3) { background: #4d96ff; }
-
-.car-silhouette::after {
-  content: '';
-  position: absolute;
-  top: -8px;
-  left: 8px;
-  right: 8px;
-  height: 10px;
-  background: inherit;
-  filter: brightness(1.2);
-  border-radius: 3px 3px 0 0;
-}
-
-.car-silhouette.delay-1 { animation-delay: 0.35s; }
-.car-silhouette.delay-2 { animation-delay: 0.7s; }
-
-@keyframes carBounce {
-  0%, 100% { transform: translateY(0) rotate(-1deg); }
-  50%       { transform: translateY(-10px) rotate(1deg); }
+@keyframes menuCarRtl {
+  from { transform: translateX(calc(100vw + 80px)); }
+  to   { transform: translateX(-80px); }
 }
 
 /* ============================

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { MenuCarAnimations } from './MenuCarAnimations.js';
 import type { RandomizerCardDef } from '../../constants/randomizer.js';
 import { pickRandomCards } from '../../constants/randomizer.js';
 import { playCardSlam } from '../../game/audio/SoundSynthesizer.js';
@@ -119,6 +120,7 @@ export function RandomizerSelect({ onSelect, onSkip }: RandomizerSelectProps) {
       }}
     >
       <style>{cssAnimations}</style>
+      <MenuCarAnimations />
 
       <div style={titleStyle}>Pick a card</div>
       <div style={subtitleStyle}>Choose one to reveal your race modifier</div>
@@ -309,7 +311,7 @@ export function RandomizerSelect({ onSelect, onSkip }: RandomizerSelectProps) {
 const containerStyle: React.CSSProperties = {
   position: 'fixed',
   inset: 0,
-  background: 'radial-gradient(ellipse at center, #1a1a2e 0%, #0d0d1a 100%)',
+  background: `linear-gradient(rgba(8,6,4,0.60), rgba(8,6,4,0.60)), url('/background.jpg') center/cover no-repeat`,
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
