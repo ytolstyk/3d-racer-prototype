@@ -33,13 +33,9 @@ import { SPEED_STRIP, BOOST_TRACK } from '../constants/effects.js';
 import type { SpeedStrip, BoostTrack } from '../types/game.js';
 import { AudioManager } from './audio/AudioManager.js';
 import { loadAudioPrefs } from './audio/AudioPrefs.js';
-
-interface CarHazardState {
-  inHazard: boolean;
-  zoneType: string;
-  drip: number;
-  splashTimer: number;
-}
+import type { CarHazardState } from './hazard/types.js';
+import { emitHazardSplash } from './hazard/updateHazardSplash.js';
+import { updateTireEffects } from './effects/updateTireEffects.js';
 
 
 export class GameEngine {
@@ -452,17 +448,7 @@ export class GameEngine {
       this.rainSystem?.update(dt, this.cars);
 
       // Tire marks and smoke for skidding or braking cars
-      for (const car of this.cars) {
-        if (car.isSkidding || car.isBraking) this.tireMarks?.addMarks(car);
-        if (car.isSkidding) this.tireSmoke?.emitForCar(car, dt);
-        if (car.accelBoostTimer > 0) this.tireMarks?.addFireMarks(car);
-      }
-
-      // Update tire mark fading
-      this.tireMarks?.update(dt);
-
-      // Update tire smoke
-      this.tireSmoke?.update(dt);
+      updateTireEffects(this.cars, dt, this.tireMarks, this.tireSmoke);
 
       // Update collision particles
       this.collisionParticles?.update(dt);
@@ -593,23 +579,7 @@ export class GameEngine {
       const frontZ = car.position.z + cosR * 2.5;
       const leftPos = new THREE.Vector3(frontX + cosR * 1.2, car.position.y, frontZ - sinR * 1.2);
       const rightPos = new THREE.Vector3(frontX - cosR * 1.2, car.position.y, frontZ + sinR * 1.2);
-      if (!wasInHazard) {
-        hs.drip = 0;
-        hs.splashTimer = 0;
-        if (Math.abs(car.speed) >= car.definition.maxSpeed * 0.1) {
-          this.hazardSplash?.emit(leftPos, color, car.speed, car.definition.maxSpeed, 28, car.rotation);
-          this.hazardSplash?.emit(rightPos, color, car.speed, car.definition.maxSpeed, 27, car.rotation);
-          this.audioManager?.onLiquidSlosh(hs.zoneType, car.id);
-        }
-      } else if (Math.abs(car.speed) >= car.definition.maxSpeed * 0.1) {
-        hs.splashTimer -= dt;
-        if (hs.splashTimer <= 0) {
-          hs.splashTimer = 0.06;
-          this.hazardSplash?.emit(leftPos, color, car.speed, car.definition.maxSpeed, 4, car.rotation);
-          this.hazardSplash?.emit(rightPos, color, car.speed, car.definition.maxSpeed, 4, car.rotation);
-        }
-      }
-      this.tireMarks?.addSubstanceMarks(car, hs.zoneType);
+      emitHazardSplash(car, hs, wasInHazard, color, leftPos, rightPos, dt, this.hazardSplash, this.audioManager, this.tireMarks);
     } else {
       if (hs.inHazard) {
         hs.inHazard = false;

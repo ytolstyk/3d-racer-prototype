@@ -30,13 +30,9 @@ import { DRIFT_PHYSICS } from '../constants/physics.js';
 import type { SpeedStrip, BoostTrack } from '../types/game.js';
 import { AudioManager } from './audio/AudioManager.js';
 import { loadAudioPrefs } from './audio/AudioPrefs.js';
-
-interface CarHazardState {
-  inHazard: boolean;
-  zoneType: string;
-  drip: number;
-  splashTimer: number;
-}
+import type { CarHazardState } from './hazard/types.js';
+import { emitHazardSplash } from './hazard/updateHazardSplash.js';
+import { updateTireEffects } from './effects/updateTireEffects.js';
 
 export class VersusGameEngine {
   private scene: THREE.Scene;
@@ -414,7 +410,8 @@ export class VersusGameEngine {
       const goingForward = (tDeltaStrip > 0.001 && tDeltaStrip < 0.5) || tDeltaStrip < -0.5;
       if (goingForward) for (const strip of this.speedStrips) {
         const crossed = (car.previousT < strip.t && car.currentT >= strip.t) ||
-          (car.previousT > 0.9 && car.currentT < 0.1 && strip.t < car.currentT);
+          (car.previousT > 0.9 && car.currentT < 0.1 && strip.t < car.currentT) ||
+          (car.previousT > strip.t - 0.01 && car.currentT > strip.t && car.previousT < strip.t);
         if (crossed) {
           car.boostMultiplier = Math.max(car.boostMultiplier, SPEED_STRIP.maxSpeedCap);
           car.boostDecayRate = SPEED_STRIP.capDecayRate;
@@ -482,23 +479,7 @@ export class VersusGameEngine {
       const frontZ = car.position.z + cosR * 2.5;
       const leftPos = new THREE.Vector3(frontX + cosR * 1.2, car.position.y, frontZ - sinR * 1.2);
       const rightPos = new THREE.Vector3(frontX - cosR * 1.2, car.position.y, frontZ + sinR * 1.2);
-      if (!wasInHazard) {
-        hs.drip = 0;
-        hs.splashTimer = 0;
-        if (Math.abs(car.speed) >= car.definition.maxSpeed * 0.1) {
-          this.hazardSplash?.emit(leftPos, color, car.speed, car.definition.maxSpeed, 28, car.rotation);
-          this.hazardSplash?.emit(rightPos, color, car.speed, car.definition.maxSpeed, 27, car.rotation);
-          this.audioManager?.onLiquidSlosh(hs.zoneType, car.id);
-        }
-      } else if (Math.abs(car.speed) >= car.definition.maxSpeed * 0.1) {
-        hs.splashTimer -= dt;
-        if (hs.splashTimer <= 0) {
-          hs.splashTimer = 0.06;
-          this.hazardSplash?.emit(leftPos, color, car.speed, car.definition.maxSpeed, 4, car.rotation);
-          this.hazardSplash?.emit(rightPos, color, car.speed, car.definition.maxSpeed, 4, car.rotation);
-        }
-      }
-      this.tireMarks?.addSubstanceMarks(car, hs.zoneType);
+      emitHazardSplash(car, hs, wasInHazard, color, leftPos, rightPos, dt, this.hazardSplash, this.audioManager, this.tireMarks);
     } else {
       if (hs.inHazard) {
         hs.inHazard = false;
@@ -555,13 +536,7 @@ export class VersusGameEngine {
           // Rain
           this.rainSystem?.update(dt, this.cars);
 
-          for (const car of this.cars) {
-            if (car.isSkidding || car.isBraking) this.tireMarks?.addMarks(car);
-            if (car.isSkidding) this.tireSmoke?.emitForCar(car, dt);
-            if (car.accelBoostTimer > 0) this.tireMarks?.addFireMarks(car);
-          }
-          this.tireMarks?.update(dt);
-          this.tireSmoke?.update(dt);
+          updateTireEffects(this.cars, dt, this.tireMarks, this.tireSmoke);
           this.collisionParticles?.update(dt);
           this.hazardSplash?.update(dt);
           this.collisionSystem.update(this.cars, dt);

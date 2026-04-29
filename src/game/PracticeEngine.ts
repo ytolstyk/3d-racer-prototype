@@ -40,6 +40,9 @@ import { buildCircleHazardMesh } from "./track/HazardSystem.js";
 import { HAZARD_HEX_COLORS } from "../constants/physics.js";
 import { AudioManager } from "./audio/AudioManager.js";
 import { loadAudioPrefs } from "./audio/AudioPrefs.js";
+import type { CarHazardState } from "./hazard/types.js";
+import { emitHazardSplash } from "./hazard/updateHazardSplash.js";
+import { updateTireEffects } from "./effects/updateTireEffects.js";
 
 const BOUND_X = 600;
 const BOUND_Z = 450;
@@ -53,13 +56,6 @@ export interface PracticeHazard {
   radius: number;
   alphaData?: Uint8ClampedArray;
   alphaSize?: number;
-}
-
-interface CarHazardState {
-  inHazard: boolean;
-  zoneType: string;
-  drip: number;
-  splashTimer: number;
 }
 
 export class PracticeEngine {
@@ -640,23 +636,7 @@ export class PracticeEngine {
         const fZ = car.position.z + cosR * 2.5;
         const lPos = new THREE.Vector3(fX + cosR * 1.2, car.position.y, fZ - sinR * 1.2);
         const rPos = new THREE.Vector3(fX - cosR * 1.2, car.position.y, fZ + sinR * 1.2);
-        if (!wasInHazard) {
-          hs.drip = 0;
-          hs.splashTimer = 0;
-          if (Math.abs(car.speed) >= car.definition.maxSpeed * 0.1) {
-            this.hazardSplash.emit(lPos, hColor, car.speed, car.definition.maxSpeed, 28, car.rotation);
-            this.hazardSplash.emit(rPos, hColor, car.speed, car.definition.maxSpeed, 27, car.rotation);
-            this.audioManager?.onLiquidSlosh(hs.zoneType, car.id);
-          }
-        } else if (Math.abs(car.speed) >= car.definition.maxSpeed * 0.1) {
-          hs.splashTimer -= dt;
-          if (hs.splashTimer <= 0) {
-            hs.splashTimer = 0.06;
-            this.hazardSplash.emit(lPos, hColor, car.speed, car.definition.maxSpeed, 4, car.rotation);
-            this.hazardSplash.emit(rPos, hColor, car.speed, car.definition.maxSpeed, 4, car.rotation);
-          }
-        }
-        this.tireMarks.addSubstanceMarks(car, hs.zoneType);
+        emitHazardSplash(car, hs, wasInHazard, hColor, lPos, rPos, dt, this.hazardSplash, this.audioManager, this.tireMarks);
       } else {
         if (hs.inHazard) {
           hs.inHazard = false;
@@ -675,12 +655,7 @@ export class PracticeEngine {
       this._axisXMarker.position.set(car.position.x, 1.5, 0);
       this._axisZMarker.position.set(0, 1.5, car.position.z);
 
-      if (car.isSkidding || car.isBraking) this.tireMarks.addMarks(car);
-      if (car.isSkidding) this.tireSmoke.emitForCar(car, dt);
-      if (car.accelBoostTimer > 0) this.tireMarks.addFireMarks(car);
-
-      this.tireMarks.update(dt);
-      this.tireSmoke.update(dt);
+      updateTireEffects([car], dt, this.tireMarks, this.tireSmoke);
       this.hazardSplash.update(dt);
       this.rainSystem?.update(dt, [car]);
       this.audioManager?.update([car], car, this.cameraController.camera);
@@ -861,6 +836,10 @@ export class PracticeEngine {
         if (Array.isArray(obj.material))
           obj.material.forEach((m) => m.dispose());
         else obj.material.dispose();
+      }
+      if (obj instanceof THREE.Sprite) {
+        obj.material.map?.dispose();
+        obj.material.dispose();
       }
     });
   }
