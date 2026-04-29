@@ -209,7 +209,7 @@ export type KitchenItemType =
   | 'saltShaker' | 'glass' | 'butterDish' | 'donut'
   | 'breadLoaf' | 'salami' | 'cheeseWedge' | 'apple'
   | 'berryCluster' | 'notepad' | 'pen' | 'pencil'
-  | 'stickyNote' | 'cauliflower';
+  | 'stickyNote' | 'cauliflower' | 'toaster' | 'knife' | 'fruitBowl';
 
 export interface PlacedObject {
   type: KitchenItemType;

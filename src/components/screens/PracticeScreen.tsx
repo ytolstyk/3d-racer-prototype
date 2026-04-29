@@ -11,7 +11,7 @@ const KITCHEN_ITEM_TYPES: KitchenItemType[] = [
   'saltShaker', 'glass', 'butterDish', 'donut',
   'breadLoaf', 'salami', 'cheeseWedge', 'apple',
   'berryCluster', 'notepad', 'pen', 'pencil',
-  'stickyNote', 'cauliflower',
+  'stickyNote', 'cauliflower', 'toaster', 'knife', 'fruitBowl',
 ];
 
 const ITEM_LABELS: Record<KitchenItemType, string> = {
@@ -19,7 +19,8 @@ const ITEM_LABELS: Record<KitchenItemType, string> = {
   saltShaker: 'Salt Sh.', glass: 'Glass', butterDish: 'Butter D.', donut: 'Donut',
   breadLoaf: 'Bread', salami: 'Salami', cheeseWedge: 'Cheese', apple: 'Apple',
   berryCluster: 'Berries', notepad: 'Notepad', pen: 'Pen', pencil: 'Pencil',
-  stickyNote: 'Sticky', cauliflower: 'Caulifl.',
+  stickyNote: 'Sticky', cauliflower: 'Caulifl.', toaster: 'Toaster',
+  knife: 'Knife', fruitBowl: 'Fruit Bowl',
 };
 
 type HazardType = HazardZone['type'];

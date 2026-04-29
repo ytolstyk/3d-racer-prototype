@@ -98,6 +98,9 @@ const KITCHEN_ITEM_TYPES: KitchenItemType[] = [
   "pencil",
   "stickyNote",
   "cauliflower",
+  "toaster",
+  "knife",
+  "fruitBowl",
 ];
 
 const OBJECT_LABELS: Record<KitchenItemType, string> = {
@@ -120,6 +123,9 @@ const OBJECT_LABELS: Record<KitchenItemType, string> = {
   pencil: "Pencil",
   stickyNote: "Sticky",
   cauliflower: "Caulifl.",
+  toaster: "Toaster",
+  knife: "Knife",
+  fruitBowl: "Fruit Bwl",
 };
 
 const OBJECT_ABBREVS: Record<KitchenItemType, string> = {
@@ -142,6 +148,9 @@ const OBJECT_ABBREVS: Record<KitchenItemType, string> = {
   pencil: "Pc",
   stickyNote: "SN",
   cauliflower: "Ca",
+  toaster: "To",
+  knife: "Kn",
+  fruitBowl: "FB",
 };
 
 const OBJECT_FOOTPRINTS: Record<
@@ -167,6 +176,9 @@ const OBJECT_FOOTPRINTS: Record<
   pencil: { w: 3.2, d: 40, shape: "rect" },
   stickyNote: { w: 24, d: 24, shape: "rect" },
   cauliflower: { w: 40, d: 40, shape: "oval" },
+  toaster: { w: 48, d: 32, shape: "rect" },
+  knife: { w: 4, d: 52, shape: "rect" },
+  fruitBowl: { w: 28, d: 28, shape: "oval" },
 };
 
 interface UndoSnapshot {

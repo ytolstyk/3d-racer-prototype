@@ -10,7 +10,6 @@ import {
   makeAppleSkinTexture,
   makeCheeseTexture,
   makeNapkinStackTexture,
-  makeSaltCapTexture,
   makePlateDepthTexture,
 } from "./ProceduralTextures.js";
 
@@ -53,53 +52,50 @@ function getSharedMats(): Materials {
   return _sharedMats;
 }
 
-function makeMug(mats: Materials): THREE.Group {
+function makeMug(_mats: Materials): THREE.Group {
   const g = new THREE.Group();
+
+  // Blue mug like in the background image
+  const mugMat = new THREE.MeshStandardMaterial({
+    color: 0x4a7fb5,
+    roughness: 0.35,
+    metalness: 0.0,
+  });
+  const mugMatDouble = mugMat.clone();
+  mugMatDouble.side = THREE.DoubleSide;
 
   // Outer shell (open-ended)
   const body = new THREE.Mesh(
     new THREE.CylinderGeometry(3, 2.8, 6, 20, 1, true),
-    mats.ceramic,
+    mugMat,
   );
   body.position.y = 3;
   body.castShadow = true;
   body.receiveShadow = true;
   g.add(body);
 
-  // Inner wall (DoubleSide clone to avoid mutating shared mat)
-  const innerMat = mats.ceramic.clone();
-  innerMat.side = THREE.DoubleSide;
+  // Inner wall
   const inner = new THREE.Mesh(
     new THREE.CylinderGeometry(2.8, 2.6, 6, 20, 1, true),
-    innerMat,
+    mugMatDouble,
   );
   inner.position.y = 3;
   g.add(inner);
 
-  // Bottom disc (inside)
-  const bottom = new THREE.Mesh(
-    new THREE.CircleGeometry(2.8, 20),
-    mats.ceramic,
-  );
+  // Bottom disc
+  const bottom = new THREE.Mesh(new THREE.CircleGeometry(2.8, 20), mugMat);
   bottom.rotation.x = -Math.PI / 2;
   bottom.position.y = 0.05;
   g.add(bottom);
 
   // Top rim ring
-  const rim = new THREE.Mesh(
-    new THREE.TorusGeometry(2.9, 0.2, 8, 20),
-    mats.ceramic,
-  );
-  rim.position.y = 6;
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(2.9, 0.2, 8, 20), mugMat);
   rim.rotation.x = Math.PI / 2;
   rim.position.set(0, 6, 0);
   g.add(rim);
 
-  // Handle: full torus (complete circle)
-  const handle = new THREE.Mesh(
-    new THREE.TorusGeometry(1.8, 0.4, 8, 12),
-    mats.ceramic,
-  );
+  // Handle
+  const handle = new THREE.Mesh(new THREE.TorusGeometry(1.8, 0.4, 8, 12), mugMat);
   handle.position.set(3.2, 3.5, 0);
   handle.rotation.z = Math.PI / 2;
   handle.castShadow = true;
@@ -186,33 +182,47 @@ function makeNapkin(_mats: Materials): THREE.Group {
   return g;
 }
 
-function makeSaltShaker(mats: Materials): THREE.Group {
+function makeSaltShaker(_mats: Materials): THREE.Group {
   const g = new THREE.Group();
-  const body = new THREE.Mesh(
-    new THREE.CylinderGeometry(1.5, 1.8, 5, 16),
-    mats.ceramic,
-  );
-  body.position.y = 2.5;
+
+  // Sage-green rounded shaker matching the background image
+  const bodyMat = new THREE.MeshStandardMaterial({
+    color: 0x7aab90,
+    roughness: 0.45,
+    metalness: 0.05,
+  });
+  const domeMat = new THREE.MeshStandardMaterial({
+    color: 0x8bbfa3,
+    roughness: 0.35,
+    metalness: 0.05,
+  });
+
+  // Squat cylindrical body
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.8, 4, 16), bodyMat);
+  body.position.y = 2;
   body.castShadow = true;
+  body.receiveShadow = true;
   g.add(body);
-  const sideMat = new THREE.MeshStandardMaterial({
-    color: 0x888888,
-    roughness: 0.3,
-    metalness: 0.6,
-  });
-  const topCapMat = new THREE.MeshStandardMaterial({
-    map: makeSaltCapTexture(),
-    roughness: 0.25,
-    metalness: 0.65,
-  });
-  const cap = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.5, 0.8, 16), [
-    sideMat,
-    topCapMat,
-    sideMat,
-  ]);
-  cap.position.y = 5.4;
-  cap.castShadow = true;
-  g.add(cap);
+
+  // Rounded dome top (half-sphere)
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(1.6, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+    domeMat,
+  );
+  dome.position.y = 4;
+  dome.castShadow = true;
+  g.add(dome);
+
+  // Small holes on dome
+  const holeMat = new THREE.MeshStandardMaterial({ color: 0x2a4a3a, roughness: 1.0 });
+  for (let i = 0; i < 3; i++) {
+    const angle = (i / 3) * Math.PI * 2;
+    const hole = new THREE.Mesh(new THREE.CircleGeometry(0.13, 6), holeMat);
+    hole.position.set(Math.cos(angle) * 0.9, 4.6, Math.sin(angle) * 0.9);
+    hole.lookAt(new THREE.Vector3(Math.cos(angle) * 10, 4.6, Math.sin(angle) * 10));
+    g.add(hole);
+  }
+
   return g;
 }
 
@@ -555,6 +565,146 @@ function makeCauliflower(_mats: Materials): THREE.Group {
   return g;
 }
 
+function makeToaster(_mats: Materials): THREE.Group {
+  const g = new THREE.Group();
+
+  // Cream/yellow body matching the background image
+  const bodyMat = new THREE.MeshStandardMaterial({
+    color: 0xe8d882,
+    roughness: 0.6,
+    metalness: 0.1,
+  });
+  const darkMat = new THREE.MeshStandardMaterial({
+    color: 0x1a1a1a,
+    roughness: 0.8,
+    metalness: 0.0,
+  });
+  const chromeMat = new THREE.MeshStandardMaterial({
+    color: 0xc0c0c0,
+    roughness: 0.2,
+    metalness: 0.8,
+  });
+
+  // Main boxy body
+  const body = new THREE.Mesh(new THREE.BoxGeometry(12, 7, 8), bodyMat);
+  body.position.y = 3.5;
+  body.castShadow = true;
+  body.receiveShadow = true;
+  g.add(body);
+
+  // Two slots on top
+  for (const sx of [-2.5, 2.5]) {
+    const slot = new THREE.Mesh(new THREE.BoxGeometry(2, 0.4, 5.5), darkMat);
+    slot.position.set(sx, 7.1, 0);
+    g.add(slot);
+  }
+
+  // Lever on side
+  const leverBase = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2, 0.8), chromeMat);
+  leverBase.position.set(6.3, 2.8, 1.5);
+  g.add(leverBase);
+  const leverKnob = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 6), chromeMat);
+  leverKnob.position.set(6.6, 2.0, 1.5);
+  g.add(leverKnob);
+
+  // Crumb tray slot line
+  const tray = new THREE.Mesh(new THREE.BoxGeometry(10, 0.25, 0.3), darkMat);
+  tray.position.set(0, 0.3, 4.1);
+  g.add(tray);
+
+  // Small feet
+  const footPositions: [number, number][] = [[-4.5, -3], [4.5, -3], [-4.5, 3], [4.5, 3]];
+  for (const [fx, fz] of footPositions) {
+    const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.5, 8), darkMat);
+    foot.position.set(fx, 0.25, fz);
+    g.add(foot);
+  }
+
+  return g;
+}
+
+function makeKnife(mats: Materials): THREE.Group {
+  const g = new THREE.Group();
+
+  // Handle
+  const handle = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.15, 6), mats.silver);
+  handle.position.set(0, 0.1, -2);
+  handle.castShadow = true;
+  g.add(handle);
+
+  // Blade (slightly narrower, tapers toward tip)
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.1, 7), mats.silver);
+  blade.position.set(0, 0.08, 4.5);
+  g.add(blade);
+
+  // Bolster (guard between handle and blade)
+  const bolster = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.2, 0.5), mats.silver);
+  bolster.position.set(0, 0.12, 1.2);
+  g.add(bolster);
+
+  return g;
+}
+
+function makeFruitBowl(_mats: Materials): THREE.Group {
+  const g = new THREE.Group();
+
+  // Blue bowl (matching the image)
+  const bowlMat = new THREE.MeshStandardMaterial({
+    color: 0x4a6fa5,
+    roughness: 0.35,
+    metalness: 0.05,
+    side: THREE.DoubleSide,
+  });
+
+  const pts = [
+    new THREE.Vector2(0, 0),
+    new THREE.Vector2(2, 0.3),
+    new THREE.Vector2(4.5, 1.5),
+    new THREE.Vector2(6, 3.5),
+    new THREE.Vector2(6.2, 4.2),
+  ];
+  const bowl = new THREE.Mesh(new THREE.LatheGeometry(pts, 24), bowlMat);
+  bowl.castShadow = true;
+  bowl.receiveShadow = true;
+  g.add(bowl);
+
+  // Red and green apples
+  const redMat = new THREE.MeshStandardMaterial({ color: 0xcc2222, roughness: 0.4 });
+  const greenMat = new THREE.MeshStandardMaterial({ color: 0x4aaa33, roughness: 0.4 });
+  const orangeMat2 = new THREE.MeshStandardMaterial({ color: 0xff7722, roughness: 0.4 });
+  const stemMat = new THREE.MeshStandardMaterial({ color: 0x5c3a1e, roughness: 0.9 });
+
+  const fruits: [number, number, number, THREE.MeshStandardMaterial][] = [
+    [0, 5.0, 0, redMat],
+    [2.2, 4.8, 1.2, greenMat],
+    [-2.0, 4.8, 0.8, redMat],
+    [0.5, 4.6, -2.0, orangeMat2],
+  ];
+  for (const [x, y, z, mat] of fruits) {
+    const fruit = new THREE.Mesh(new THREE.SphereGeometry(1.8, 10, 8), mat);
+    fruit.scale.set(1, 0.88, 1);
+    fruit.position.set(x, y, z);
+    fruit.castShadow = true;
+    g.add(fruit);
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.2, 1.0, 5), stemMat);
+    stem.position.set(x, y + 1.8, z);
+    g.add(stem);
+  }
+
+  // Banana on top (curved torus arc)
+  const bananaMat = new THREE.MeshStandardMaterial({ color: 0xffd740, roughness: 0.5 });
+  const banana = new THREE.Mesh(
+    new THREE.TorusGeometry(2.8, 0.55, 6, 14, Math.PI * 0.55),
+    bananaMat,
+  );
+  banana.position.set(-0.5, 7.0, 0);
+  banana.rotation.set(Math.PI / 2, 0, 0.4);
+  banana.castShadow = true;
+  g.add(banana);
+
+  return g;
+}
+
 export const OBJECT_HEIGHTS: Record<KitchenItemType, number> = {
   mug: 6,
   spoon: 0.3,
@@ -575,6 +725,9 @@ export const OBJECT_HEIGHTS: Record<KitchenItemType, number> = {
   pencil: 0.6,
   stickyNote: 0.5,
   cauliflower: 6,
+  toaster: 7,
+  knife: 0.2,
+  fruitBowl: 8,
 };
 
 /** Collision radii in world units (post 4× scale, scale=1). */
@@ -598,6 +751,9 @@ export const OBJECT_COLLISION_RADII: Record<KitchenItemType, number> = {
   pencil: 4,
   stickyNote: 16,
   cauliflower: 12,
+  toaster: 24,
+  knife: 4,
+  fruitBowl: 24,
 };
 
 function scaled4x(fn: () => THREE.Group): () => THREE.Group {
@@ -632,6 +788,9 @@ export const KITCHEN_ITEM_FACTORIES: Record<
   pencil: scaled4x(() => makePencil(getSharedMats())),
   stickyNote: scaled4x(() => makeStickyNote(getSharedMats())),
   cauliflower: scaled4x(() => makeCauliflower(getSharedMats())),
+  toaster: scaled4x(() => makeToaster(getSharedMats())),
+  knife: scaled4x(() => makeKnife(getSharedMats())),
+  fruitBowl: scaled4x(() => makeFruitBowl(getSharedMats())),
 };
 
 export class KitchenItems {
@@ -661,6 +820,9 @@ export class KitchenItems {
       makePen,
       makePencil,
       makeStickyNote,
+      makeToaster,
+      makeKnife,
+      makeFruitBowl,
     ];
 
     const clusters: [number, number][] = [
