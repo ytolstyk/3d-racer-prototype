@@ -7,20 +7,17 @@ import { HAZARD_COLORS, HAZARD_EFFECTS } from '../../constants/physics.js';
 import { OptionsScreen } from './OptionsScreen.js';
 
 const KITCHEN_ITEM_TYPES: KitchenItemType[] = [
-  'mug', 'spoon', 'plate', 'fork', 'napkin',
-  'saltShaker', 'glass', 'butterDish', 'donut',
-  'breadLoaf', 'salami', 'cheeseWedge', 'apple',
-  'berryCluster', 'notepad', 'pen', 'pencil',
-  'stickyNote', 'cauliflower', 'toaster', 'knife', 'fruitBowl',
+  'mug', 'spoon', 'plate', 'fork', 'glass',
+  'donut', 'cauliflower', 'toaster', 'knife', 'apple',
+  'bowl', 'cheese', 'cheeseburger', 'pizzaSlice', 'croissant',
+  'banana', 'broccoli', 'toast', 'pretzel',
 ];
 
 const ITEM_LABELS: Record<KitchenItemType, string> = {
-  mug: 'Mug', spoon: 'Spoon', plate: 'Plate', fork: 'Fork', napkin: 'Napkin',
-  saltShaker: 'Salt Sh.', glass: 'Glass', butterDish: 'Butter D.', donut: 'Donut',
-  breadLoaf: 'Bread', salami: 'Salami', cheeseWedge: 'Cheese', apple: 'Apple',
-  berryCluster: 'Berries', notepad: 'Notepad', pen: 'Pen', pencil: 'Pencil',
-  stickyNote: 'Sticky', cauliflower: 'Caulifl.', toaster: 'Toaster',
-  knife: 'Knife', fruitBowl: 'Fruit Bowl',
+  mug: 'Mug', spoon: 'Spoon', plate: 'Plate', fork: 'Fork', glass: 'Glass',
+  donut: 'Donut', cauliflower: 'Caulifl.', toaster: 'Toaster', knife: 'Knife', apple: 'Apple',
+  bowl: 'Bowl', cheese: 'Cheese', cheeseburger: 'Burger', pizzaSlice: 'Pizza',
+  croissant: 'Croissant', banana: 'Banana', broccoli: 'Broccoli', toast: 'Toast', pretzel: 'Pretzel',
 };
 
 type HazardType = HazardZone['type'];

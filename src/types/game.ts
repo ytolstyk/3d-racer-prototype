@@ -205,11 +205,10 @@ export interface ObstacleDef {
 }
 
 export type KitchenItemType =
-  | 'mug' | 'spoon' | 'plate' | 'fork' | 'napkin'
-  | 'saltShaker' | 'glass' | 'butterDish' | 'donut'
-  | 'breadLoaf' | 'salami' | 'cheeseWedge' | 'apple'
-  | 'berryCluster' | 'notepad' | 'pen' | 'pencil'
-  | 'stickyNote' | 'cauliflower' | 'toaster' | 'knife' | 'fruitBowl';
+  | 'mug' | 'spoon' | 'plate' | 'fork' | 'glass'
+  | 'donut' | 'cauliflower' | 'toaster' | 'knife' | 'apple'
+  | 'bowl' | 'cheese' | 'cheeseburger' | 'pizzaSlice' | 'croissant'
+  | 'banana' | 'broccoli' | 'toast' | 'pretzel';
 
 export interface PlacedObject {
   type: KitchenItemType;
