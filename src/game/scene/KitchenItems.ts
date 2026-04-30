@@ -41,8 +41,11 @@ function createGlbGroup(url: string, targetHeight: number): THREE.Group {
       scene.scale.setScalar(targetHeight / size.y);
     }
 
-    // Recompute after scaling; shift so bottom of model is at y=0
+    // Recompute after scaling; center X/Z and place bottom at y=0
     const scaledBox = new THREE.Box3().setFromObject(scene);
+    const center = scaledBox.getCenter(new THREE.Vector3());
+    scene.position.x = -center.x;
+    scene.position.z = -center.z;
     scene.position.y = -scaledBox.min.y;
 
     scene.traverse((child) => {
@@ -70,7 +73,7 @@ export const OBJECT_HEIGHTS: Record<KitchenItemType, number> = {
   donut: 2,
   cauliflower: 7,
   toaster: 7,
-  knife: 0.2,
+  knife: 0.1,
   apple: 5,
   bowl: 4,
   cheese: 4,
