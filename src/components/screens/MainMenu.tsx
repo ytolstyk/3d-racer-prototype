@@ -8,9 +8,10 @@ interface MainMenuProps {
   onPractice?: () => void;
   onBackToEditor?: () => void;
   onOptions: () => void;
+  onAttributions: () => void;
 }
 
-export function MainMenu({ onStart, onVersus, onPractice, onBackToEditor, onOptions }: MainMenuProps) {
+export function MainMenu({ onStart, onVersus, onPractice, onBackToEditor, onOptions, onAttributions }: MainMenuProps) {
   const navigate = useNavigate();
 
   return (
@@ -37,6 +38,9 @@ export function MainMenu({ onStart, onVersus, onPractice, onBackToEditor, onOpti
           </Button>
           <Button variant="default" onClick={onOptions}>
             Options
+          </Button>
+          <Button variant="default" onClick={onAttributions}>
+            Attributions
           </Button>
         </Stack>
       </div>

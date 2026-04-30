@@ -1,6 +1,6 @@
 import type * as THREE from 'three';
 
-export type RacePhase = 'menu' | 'options' | 'trackSelect' | 'carSelect' | 'lapSelect' | 'randomizerSelect' | 'racing' | 'finished' | 'versusCarSelect' | 'versusRandomizerSelect' | 'versusRacing';
+export type RacePhase = 'menu' | 'options' | 'attributions' | 'trackSelect' | 'carSelect' | 'lapSelect' | 'randomizerSelect' | 'racing' | 'finished' | 'versusCarSelect' | 'versusRandomizerSelect' | 'versusRacing';
 
 export interface RandomizerMutation {
   target: 'carSpeed' | 'carAccel' | 'carHandling' | 'carBraking'

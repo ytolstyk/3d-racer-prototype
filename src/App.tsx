@@ -3,6 +3,7 @@ import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import type { RacePhase, VersusSelections, Difficulty } from './types/game.js';
 import { MainMenu } from './components/screens/MainMenu.js';
 import { OptionsScreen } from './components/screens/OptionsScreen.js';
+import { AttributionsScreen } from './components/screens/AttributionsScreen.js';
 import { TrackSelect } from './components/screens/TrackSelect.js';
 import { CarSelect } from './components/screens/CarSelect.js';
 import { LapSelect } from './components/screens/LapSelect.js';
@@ -146,10 +147,13 @@ function GameApp() {
           onPractice={() => navigate('/practice')}
           onBackToEditor={isEditorTest ? handleBackToEditor : undefined}
           onOptions={() => setPhase('options')}
+          onAttributions={() => setPhase('attributions')}
         />
       );
     case 'options':
       return <OptionsScreen onBack={() => setPhase('menu')} musicPlayer={musicPlayer} />;
+    case 'attributions':
+      return <AttributionsScreen onBack={() => setPhase('menu')} />;
     case 'trackSelect':
       return <TrackSelect onSelect={handleTrackSelect} onBack={handleMainMenu} />;
     case 'carSelect':
@@ -194,7 +198,7 @@ function GameApp() {
         />
       ) : null;
     default:
-      return <MainMenu onStart={() => setPhase('trackSelect')} onOptions={() => setPhase('options')} />;
+      return <MainMenu onStart={() => setPhase('trackSelect')} onOptions={() => setPhase('options')} onAttributions={() => setPhase('attributions')} />;
   }
 }
 
