@@ -195,7 +195,7 @@ export class PracticeEngine {
     if (!factory) return;
     const item = factory();
     item.position.set(obj.x, obj.y ?? 0, obj.z);
-    item.rotation.y = obj.rotation;
+    item.rotation.y = -obj.rotation;
     item.scale.setScalar(obj.scale * 4);
     this.scene.add(item);
     this.objects.push(obj);

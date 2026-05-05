@@ -2468,8 +2468,8 @@ export function TrackEditor() {
         const hIdx = findNearestHazard(pos);
         if (hIdx !== -1) {
           const canvas = canvasRef.current!;
-          const originX = canvas.width / 2;
-          const originY = canvas.height / 2;
+          const originX = originRef.current?.x ?? canvas.width / 2;
+          const originY = originRef.current?.y ?? canvas.height / 2;
           const hz = stateRef.current.hazards[hIdx];
           const [hx, hy] = gameToCanvas(
             hz.centerX!,
@@ -2522,8 +2522,8 @@ export function TrackEditor() {
       }
     } else if (activeTool === "object") {
       const canvas = canvasRef.current!;
-      const originX = canvas.width / 2;
-      const originY = canvas.height / 2;
+      const originX = originRef.current?.x ?? canvas.width / 2;
+      const originY = originRef.current?.y ?? canvas.height / 2;
 
       // Check corner/rotation handles on selected object first
       const { selectedObjectIndex } = stateRef.current;
@@ -2609,8 +2609,8 @@ export function TrackEditor() {
       }
     } else if (activeTool === "hazard") {
       const canvas = canvasRef.current!;
-      const originX = canvas.width / 2;
-      const originY = canvas.height / 2;
+      const originX = originRef.current?.x ?? canvas.width / 2;
+      const originY = originRef.current?.y ?? canvas.height / 2;
       const { selectedHazardIndex, activeHazardType, activeHazardRadius } =
         stateRef.current;
 
@@ -2690,8 +2690,8 @@ export function TrackEditor() {
       }
     } else if (activeTool === "light") {
       const canvas = canvasRef.current!;
-      const originX = canvas.width / 2;
-      const originY = canvas.height / 2;
+      const originX = originRef.current?.x ?? canvas.width / 2;
+      const originY = originRef.current?.y ?? canvas.height / 2;
       const {
         selectedLightIndex: selLi,
         activeLightType,
@@ -2921,8 +2921,8 @@ export function TrackEditor() {
       }
       if (activeTool === "move" && dragHazardIndexRef.current !== -1) {
         const canvas = canvasRef.current!;
-        const originX = canvas.width / 2;
-        const originY = canvas.height / 2;
+        const originX = originRef.current?.x ?? canvas.width / 2;
+        const originY = originRef.current?.y ?? canvas.height / 2;
         const offset = dragHazardOffsetRef.current;
         const cx = pos[0] + offset[0];
         const cy = pos[1] + offset[1];
@@ -2939,8 +2939,8 @@ export function TrackEditor() {
       if (hazardMoveRef.current !== null) {
         const { idx, offX, offZ } = hazardMoveRef.current;
         const canvas = canvasRef.current!;
-        const originX = canvas.width / 2;
-        const originY = canvas.height / 2;
+        const originX = originRef.current?.x ?? canvas.width / 2;
+        const originY = originRef.current?.y ?? canvas.height / 2;
         const [gx, , gz] = canvasToGame(pos[0], pos[1], originX, originY);
         dispatch({
           type: "MOVE_HAZARD",
@@ -2955,8 +2955,8 @@ export function TrackEditor() {
         const hz = stateRef.current.hazards[idx];
         if (hz.centerX !== undefined && hz.centerZ !== undefined) {
           const canvas = canvasRef.current!;
-          const originX = canvas.width / 2;
-          const originY = canvas.height / 2;
+          const originX = originRef.current?.x ?? canvas.width / 2;
+          const originY = originRef.current?.y ?? canvas.height / 2;
           const [cx, cy] = gameToCanvas(
             hz.centerX,
             hz.centerZ,
@@ -2981,8 +2981,8 @@ export function TrackEditor() {
         const hz = stateRef.current.hazards[idx];
         if (hz.centerX !== undefined && hz.centerZ !== undefined) {
           const canvas = canvasRef.current!;
-          const originX = canvas.width / 2;
-          const originY = canvas.height / 2;
+          const originX = originRef.current?.x ?? canvas.width / 2;
+          const originY = originRef.current?.y ?? canvas.height / 2;
           const [cx, cy] = gameToCanvas(
             hz.centerX,
             hz.centerZ,
@@ -3003,8 +3003,8 @@ export function TrackEditor() {
       }
       if (activeTool === "object" && dragObjectIndexRef.current !== -1) {
         const canvas = canvasRef.current!;
-        const originX = canvas.width / 2;
-        const originY = canvas.height / 2;
+        const originX = originRef.current?.x ?? canvas.width / 2;
+        const originY = originRef.current?.y ?? canvas.height / 2;
         const offset = dragObjectOffsetRef.current;
         const cx = pos[0] + offset[0];
         const cy = pos[1] + offset[1];
@@ -3020,8 +3020,8 @@ export function TrackEditor() {
       if (lightMoveRef.current !== null) {
         const { idx, offX, offZ } = lightMoveRef.current;
         const canvas = canvasRef.current!;
-        const originX = canvas.width / 2;
-        const originY = canvas.height / 2;
+        const originX = originRef.current?.x ?? canvas.width / 2;
+        const originY = originRef.current?.y ?? canvas.height / 2;
         const [gx, , gz] = canvasToGame(pos[0], pos[1], originX, originY);
         dispatch({
           type: "MOVE_LIGHT",
@@ -3034,8 +3034,8 @@ export function TrackEditor() {
       if (lightTargetRef.current !== null) {
         const { idx } = lightTargetRef.current;
         const canvas = canvasRef.current!;
-        const originX = canvas.width / 2;
-        const originY = canvas.height / 2;
+        const originX = originRef.current?.x ?? canvas.width / 2;
+        const originY = originRef.current?.y ?? canvas.height / 2;
         const [gx, , gz] = canvasToGame(pos[0], pos[1], originX, originY);
         dispatch({
           type: "SET_LIGHT_TARGET",
@@ -3049,8 +3049,8 @@ export function TrackEditor() {
         const { idx } = lightDistanceRef.current;
         const lt = stateRef.current.lights[idx];
         const canvas = canvasRef.current!;
-        const originX = canvas.width / 2;
-        const originY = canvas.height / 2;
+        const originX = originRef.current?.x ?? canvas.width / 2;
+        const originY = originRef.current?.y ?? canvas.height / 2;
         const [lx, ly] = gameToCanvas(lt.x, lt.z, originX, originY);
         const newDist = Math.max(
           20,
