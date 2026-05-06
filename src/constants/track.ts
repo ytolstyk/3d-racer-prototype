@@ -7,6 +7,22 @@ import type {
   BoostTrack,
   RainZone,
 } from "../types/game.js";
+import { CORNER_LIGHTS, CORNER_LIGHT_DEFAULTS } from "./lighting.js";
+
+const DEFAULT_CORNER_LIGHTS: PlacedLight[] = CORNER_LIGHTS.map(c => ({
+  type: 'spot',
+  x: c.x,
+  y: c.y,
+  z: c.z,
+  color: c.color,
+  intensity: CORNER_LIGHT_DEFAULTS.intensity,
+  distance: CORNER_LIGHT_DEFAULTS.distance,
+  angle: CORNER_LIGHT_DEFAULTS.angle,
+  penumbra: CORNER_LIGHT_DEFAULTS.penumbra,
+  targetX: CORNER_LIGHT_DEFAULTS.targetX,
+  targetZ: CORNER_LIGHT_DEFAULTS.targetZ,
+  castShadow: CORNER_LIGHT_DEFAULTS.castShadow,
+}));
 
 export interface TrackConfig {
   id: string;
@@ -63,7 +79,7 @@ export const TRACKS: TrackConfig[] = [
     hazards: [],
     objects: [],
     tunnels: [],
-    lights: [],
+    lights: DEFAULT_CORNER_LIGHTS,
   },
   {
     id: "sebring",
@@ -131,7 +147,7 @@ export const TRACKS: TrackConfig[] = [
     hazards: [],
     objects: [],
     tunnels: [],
-    lights: [],
+    lights: DEFAULT_CORNER_LIGHTS,
   },
   {
     id: "cota",
@@ -171,7 +187,7 @@ export const TRACKS: TrackConfig[] = [
     hazards: [],
     objects: [],
     tunnels: [],
-    lights: [],
+    lights: DEFAULT_CORNER_LIGHTS,
   },
   {
     id: "interlagos",
@@ -218,7 +234,7 @@ export const TRACKS: TrackConfig[] = [
     hazards: [],
     objects: [],
     tunnels: [],
-    lights: [],
+    lights: DEFAULT_CORNER_LIGHTS,
   },
   {
     id: "monza",
@@ -246,6 +262,7 @@ export const TRACKS: TrackConfig[] = [
     ],
     width: 42,
     hazards: [],
+    lights: DEFAULT_CORNER_LIGHTS,
   },
   {
     id: "spa",
@@ -283,7 +300,7 @@ export const TRACKS: TrackConfig[] = [
     hazards: [],
     objects: [],
     tunnels: [],
-    lights: [],
+    lights: DEFAULT_CORNER_LIGHTS,
   },
   {
     id: "monaco",
@@ -325,7 +342,7 @@ export const TRACKS: TrackConfig[] = [
     hazards: [],
     objects: [],
     tunnels: [],
-    lights: [],
+    lights: DEFAULT_CORNER_LIGHTS,
   },
   {
     id: "silverstone",
@@ -367,6 +384,6 @@ export const TRACKS: TrackConfig[] = [
     hazards: [],
     objects: [],
     tunnels: [],
-    lights: [],
+    lights: DEFAULT_CORNER_LIGHTS,
   },
 ];

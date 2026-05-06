@@ -202,6 +202,7 @@ interface EditorState {
   activeLightHeight: number;
   activeLightAngle: number;
   activeLightPenumbra: number;
+  activeLightCastShadow: boolean;
   speedStrips: SpeedStrip[];
   boostTracks: BoostTrack[];
   rainZones: RainZone[];
@@ -284,6 +285,8 @@ type EditorAction =
   | { type: "SET_ACTIVE_LIGHT_HEIGHT"; height: number }
   | { type: "SET_ACTIVE_LIGHT_ANGLE"; angle: number }
   | { type: "SET_ACTIVE_LIGHT_PENUMBRA"; penumbra: number }
+  | { type: "SET_ACTIVE_LIGHT_CAST_SHADOW"; castShadow: boolean }
+  | { type: "SET_LIGHT_CAST_SHADOW"; index: number; castShadow: boolean }
   | { type: "ADD_SPEED_STRIP"; strip: SpeedStrip }
   | { type: "DELETE_SPEED_STRIP"; index: number }
   | { type: "ADD_BOOST_TRACK"; boostTrack: BoostTrack }
@@ -329,6 +332,7 @@ const initialState: EditorState = {
   activeLightHeight: 8,
   activeLightAngle: 0.4,
   activeLightPenumbra: 0.2,
+  activeLightCastShadow: false,
   speedStrips: [],
   boostTracks: [],
   rainZones: [],
@@ -785,6 +789,17 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
 
     case "SET_ACTIVE_LIGHT_PENUMBRA":
       return { ...state, activeLightPenumbra: action.penumbra };
+
+    case "SET_ACTIVE_LIGHT_CAST_SHADOW":
+      return { ...state, activeLightCastShadow: action.castShadow };
+
+    case "SET_LIGHT_CAST_SHADOW":
+      return {
+        ...state,
+        lights: state.lights.map((l, i) =>
+          i === action.index ? { ...l, castShadow: action.castShadow } : l
+        ),
+      };
 
     case "ADD_SPEED_STRIP":
       return { ...state, speedStrips: [...state.speedStrips, action.strip] };
@@ -2701,6 +2716,7 @@ export function TrackEditor() {
         activeLightHeight,
         activeLightAngle,
         activeLightPenumbra,
+        activeLightCastShadow,
       } = stateRef.current;
 
       if (selLi !== -1) {
@@ -2747,6 +2763,7 @@ export function TrackEditor() {
           color: activeLightColor,
           intensity: activeLightIntensity,
           distance: activeLightDistance,
+          castShadow: activeLightCastShadow,
         };
         if (activeLightType === "spot") {
           newLight.angle = activeLightAngle;
@@ -4166,6 +4183,20 @@ export function TrackEditor() {
               </>
             )}
 
+            <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6 }}>
+              <input
+                type="checkbox"
+                id="activeLightCastShadow"
+                checked={state.activeLightCastShadow}
+                onChange={(e) =>
+                  dispatch({ type: "SET_ACTIVE_LIGHT_CAST_SHADOW", castShadow: e.target.checked })
+                }
+              />
+              <label htmlFor="activeLightCastShadow" className="editor-label" style={{ marginTop: 0 }}>
+                Cast shadows (GPU-expensive)
+              </label>
+            </div>
+
             {state.selectedLightIndex !== -1 &&
               state.lights[state.selectedLightIndex] &&
               (() => {
@@ -4209,6 +4240,27 @@ export function TrackEditor() {
                     </div>
                     <div style={{ fontSize: 9, opacity: 0.7, marginTop: 2 }}>
                       color: {cssCol}
+                    </div>
+                    <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 6 }}>
+                      <input
+                        type="checkbox"
+                        id={`lightCastShadow-${state.selectedLightIndex}`}
+                        checked={lt.castShadow ?? false}
+                        onChange={(e) =>
+                          dispatch({
+                            type: "SET_LIGHT_CAST_SHADOW",
+                            index: state.selectedLightIndex,
+                            castShadow: e.target.checked,
+                          })
+                        }
+                      />
+                      <label
+                        htmlFor={`lightCastShadow-${state.selectedLightIndex}`}
+                        className="editor-label"
+                        style={{ marginTop: 0, fontSize: 9 }}
+                      >
+                        Cast shadows
+                      </label>
                     </div>
                     <button
                       className="tool-btn tool-btn-danger"

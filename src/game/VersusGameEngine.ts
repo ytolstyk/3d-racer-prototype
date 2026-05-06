@@ -10,6 +10,7 @@ import { TrackBuilder } from './track/TrackBuilder.js';
 import { HazardSystem } from './track/HazardSystem.js';
 import { TableScene } from './scene/TableScene.js';
 import { LightingSetup } from './scene/LightingSetup.js';
+import { SUN_LIGHT } from '../constants/lighting.js';
 import { TopDownCamera } from './camera/TopDownCamera.js';
 import { CarFactory } from './car/CarFactory.js';
 import { CarPhysics } from './car/CarPhysics.js';
@@ -92,6 +93,7 @@ export class VersusGameEngine {
     closestGap: Infinity,
   };
 
+  private sun: THREE.DirectionalLight | null = null;
   private audioManager: AudioManager | null = null;
   private animFrameId = 0;
   private lastTime = 0;
@@ -123,7 +125,8 @@ export class VersusGameEngine {
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x87c1e8);
@@ -132,7 +135,8 @@ export class VersusGameEngine {
     const aspect = canvas.clientWidth / canvas.clientHeight;
     this.cameraController = new TopDownCamera(aspect);
 
-    new LightingSetup().setup(this.scene);
+    const { sun } = new LightingSetup().setup(this.scene);
+    this.sun = sun;
     this.scene.add(new TableScene().build());
 
     let trackConfig = TRACKS.find(t => t.id === trackId) ?? TRACKS[0];
@@ -164,11 +168,21 @@ export class VersusGameEngine {
       if (light.type === 'point') {
         const pl = new THREE.PointLight(light.color, light.intensity, light.distance);
         pl.position.set(light.x, light.y, light.z);
+        pl.castShadow = light.castShadow ?? false;
+        if (pl.castShadow) {
+          pl.shadow.mapSize.set(512, 512);
+        }
         this.scene.add(pl);
       } else if (light.type === 'spot') {
         const sl = new THREE.SpotLight(light.color, light.intensity, light.distance,
           light.angle ?? 0.4, light.penumbra ?? 0.2);
         sl.position.set(light.x, light.y, light.z);
+        sl.castShadow = light.castShadow ?? false;
+        if (sl.castShadow) {
+          sl.shadow.mapSize.set(1024, 1024);
+          sl.shadow.camera.near = 1;
+          sl.shadow.camera.far = light.distance;
+        }
         const target = new THREE.Object3D();
         target.position.set(light.targetX ?? light.x, 0, light.targetZ ?? light.z);
         this.scene.add(target);
@@ -595,6 +609,15 @@ export class VersusGameEngine {
         this.car1.speed, this.car1.definition.maxSpeed,
         this.car2.speed, this.car2.definition.maxSpeed,
       );
+      if (this.sun) {
+        this.sun.position.set(
+          this.car1.position.x + SUN_LIGHT.posX,
+          this.car1.position.y + SUN_LIGHT.posY,
+          this.car1.position.z + SUN_LIGHT.posZ,
+        );
+        this.sun.target.position.set(this.car1.position.x, 0, this.car1.position.z);
+        this.sun.target.updateMatrixWorld();
+      }
     }
 
     // Update animated track materials

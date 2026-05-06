@@ -24,6 +24,7 @@ import {
 } from "../constants/effects.js";
 import { CAMERA } from "../constants/camera.js";
 import { LightingSetup } from "./scene/LightingSetup.js";
+import { SUN_LIGHT } from "../constants/lighting.js";
 import { TableScene } from "./scene/TableScene.js";
 import { CarFactory } from "./car/CarFactory.js";
 import { CarPhysics } from "./car/CarPhysics.js";
@@ -77,6 +78,7 @@ export class PracticeEngine {
   private rainSystem: RainHazardSystem | null = null;
   private rainCircles: { x: number; z: number; radius: number }[] = [];
   private hazardState: CarHazardState = { inHazard: false, zoneType: '', drip: 0, splashTimer: 0 };
+  private sun: THREE.DirectionalLight | null = null;
   private audioManager: AudioManager | null = null;
   private _axisXMarker!: THREE.Mesh;
   private _axisZMarker!: THREE.Mesh;
@@ -104,7 +106,8 @@ export class PracticeEngine {
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x87c1e8);
@@ -113,7 +116,8 @@ export class PracticeEngine {
     const aspect = canvas.clientWidth / canvas.clientHeight;
     this.cameraController = new TopDownCamera(aspect);
 
-    new LightingSetup().setup(this.scene);
+    const { sun } = new LightingSetup().setup(this.scene);
+    this.sun = sun;
     this.scene.add(new TableScene().build());
 
     const { group: axesGroup, xMarker, zMarker } = this._buildLabeledAxes();
@@ -666,6 +670,16 @@ export class PracticeEngine {
         car.definition.maxSpeed,
         car.rotation,
       );
+
+      if (this.sun) {
+        this.sun.position.set(
+          car.position.x + SUN_LIGHT.posX,
+          car.position.y + SUN_LIGHT.posY,
+          car.position.z + SUN_LIGHT.posZ,
+        );
+        this.sun.target.position.set(car.position.x, 0, car.position.z);
+        this.sun.target.updateMatrixWorld();
+      }
     }
 
     this.renderer.render(this.scene, this.cameraController.camera);

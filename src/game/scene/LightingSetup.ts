@@ -1,29 +1,30 @@
 import * as THREE from 'three';
+import { HEMI_LIGHT, SUN_LIGHT, FILL_LIGHT } from '../../constants/lighting.js';
 
 export class LightingSetup {
-  setup(scene: THREE.Scene): void {
-    // Sky/ground hemisphere — blue sky above, warm green below
-    const hemi = new THREE.HemisphereLight(0x87ceeb, 0x6db33f, 0.55);
+  setup(scene: THREE.Scene): { sun: THREE.DirectionalLight } {
+    const hemi = new THREE.HemisphereLight(HEMI_LIGHT.skyColor, HEMI_LIGHT.groundColor, HEMI_LIGHT.intensity);
     scene.add(hemi);
 
-    // Main afternoon sun — low angle from upper-left for long diagonal shadows
-    const sun = new THREE.DirectionalLight(0xfff0cc, 1.4);
-    sun.position.set(-60, 80, 40);
+    const sun = new THREE.DirectionalLight(SUN_LIGHT.color, SUN_LIGHT.intensity);
+    sun.position.set(SUN_LIGHT.posX, SUN_LIGHT.posY, SUN_LIGHT.posZ);
     sun.castShadow = true;
-    sun.shadow.mapSize.width = 4096;
-    sun.shadow.mapSize.height = 4096;
-    sun.shadow.camera.near = 1;
-    sun.shadow.camera.far = 400;
-    sun.shadow.camera.left = -180;
-    sun.shadow.camera.right = 180;
-    sun.shadow.camera.top = 140;
-    sun.shadow.camera.bottom = -140;
-    sun.shadow.bias = -0.0003;
+    sun.shadow.mapSize.width = SUN_LIGHT.shadowMapSize;
+    sun.shadow.mapSize.height = SUN_LIGHT.shadowMapSize;
+    sun.shadow.camera.near = SUN_LIGHT.shadowNear;
+    sun.shadow.camera.far = SUN_LIGHT.shadowFar;
+    sun.shadow.camera.left = SUN_LIGHT.shadowLeft;
+    sun.shadow.camera.right = SUN_LIGHT.shadowRight;
+    sun.shadow.camera.top = SUN_LIGHT.shadowTop;
+    sun.shadow.camera.bottom = SUN_LIGHT.shadowBottom;
+    sun.shadow.bias = SUN_LIGHT.shadowBias;
     scene.add(sun);
+    scene.add(sun.target);
 
-    // Soft fill from opposite side — cooler blue to simulate sky bounce
-    const fill = new THREE.DirectionalLight(0xb0c8e8, 0.25);
-    fill.position.set(40, 30, -30);
+    const fill = new THREE.DirectionalLight(FILL_LIGHT.color, FILL_LIGHT.intensity);
+    fill.position.set(FILL_LIGHT.posX, FILL_LIGHT.posY, FILL_LIGHT.posZ);
     scene.add(fill);
+
+    return { sun };
   }
 }

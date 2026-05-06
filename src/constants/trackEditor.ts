@@ -112,7 +112,7 @@ export const EDITOR_LIGHT_DEFAULTS = {
 /** Light tool slider bounds */
 export const EDITOR_LIGHT_SLIDER = {
   heightMin: 1,
-  heightMax: 50,
+  heightMax: 150,
   intensityMin: 0.1,
   intensityMax: 5,
   intensityStep: 0.1,

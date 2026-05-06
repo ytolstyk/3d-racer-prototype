@@ -238,7 +238,7 @@ export interface PlacedLight {
   type: LightType;
   x: number;
   z: number;
-  y: number;          // height above floor, 1–50
+  y: number;          // height above floor, 1–150
   color: number;      // 0xRRGGBB hex
   intensity: number;  // 0.1–5.0
   distance: number;   // falloff radius, 20–300
@@ -246,6 +246,7 @@ export interface PlacedLight {
   penumbra?: number;  // 0–1
   targetX?: number;   // spot aim point X
   targetZ?: number;   // spot aim point Z
+  castShadow?: boolean;
 }
 
 export interface PhysicsTelemetry {
