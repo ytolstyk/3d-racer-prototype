@@ -46,15 +46,14 @@ export const NIGHT_SUN  = { intensity: 0.0 } as const;
 export const NIGHT_FILL = { intensity: 0.0 } as const;
 
 export const NIGHT_TRACK_LIGHT = {
-  color: 0xffeeaa, intensity: 80, distance: 120, height: 18, spacing: 100,
+  color: 0xffeeaa, intensity: 600, distance: 150, height: 18, spacing: 100, maxCount: 10,
 } as const;
 
-export const CAR_SPOTLIGHT = {
-  color: 0xffeedd, intensity: 350, distance: 380, angle: 0.28, penumbra: 0.45,
-} as const;
-
-export const CAR_HEADLIGHT_GLOW = {
-  color: 0xffeedd, intensity: 25, distance: 20,
+// Single PointLight per headlight — illuminates the road ahead cheaply.
+// SpotLights are not used: from a top-down camera the cone is invisible
+// and each SpotLight adds significant fragment-shader cost.
+export const CAR_HEADLIGHT = {
+  color: 0xffeedd, intensity: 60, distance: 55,
 } as const;
 
 // Local car-group space (positive Z is forward)

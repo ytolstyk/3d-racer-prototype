@@ -69,7 +69,8 @@ export class GameEngine {
   private trackGroup: THREE.Group | null = null;
   private carHazardState: Map<string, CarHazardState> = new Map();
   private sun: THREE.DirectionalLight | null = null;
-  private streetLights: THREE.PointLight[] = [];
+  private streetLightMap: Map<number, THREE.PointLight> = new Map();
+  private streetLightSlotCount = 0;
   private audioManager: AudioManager | null = null;
   private animFrameId = 0;
   private lastTime = 0;
@@ -145,8 +146,10 @@ export class GameEngine {
     this.trackGroup = trackBuilder.build(this.track, this.trackConfig.tunnels ?? [], this.speedStrips, this.boostTracks);
     this.scene.add(this.trackGroup);
 
-    // Night street lights
-    if (nightMode) this.addNightStreetLights();
+    // Rolling street lights — slot count only; lights spawned each frame
+    if (nightMode) {
+      this.streetLightSlotCount = Math.max(20, Math.floor(this.track.getLength() / NIGHT_TRACK_LIGHT.spacing));
+    }
 
     // Hazards
     this.hazardSystem = new HazardSystem(this.track);
@@ -266,19 +269,36 @@ export class GameEngine {
     this.loop();
   }
 
-  private addNightStreetLights(): void {
-    const arcLen = this.track.getLength();
-    const count = Math.floor(arcLen / NIGHT_TRACK_LIGHT.spacing);
-    for (let i = 0; i < count; i++) {
-      const t = i / count;
-      const pos = this.track.getPointAt(t);
-      const pl = new THREE.PointLight(
-        NIGHT_TRACK_LIGHT.color, NIGHT_TRACK_LIGHT.intensity, NIGHT_TRACK_LIGHT.distance,
-      );
-      pl.castShadow = false;
-      pl.position.set(pos.x, NIGHT_TRACK_LIGHT.height, pos.z);
-      this.scene.add(pl);
-      this.streetLights.push(pl);
+  private updateRollingStreetLights(): void {
+    if (!this.playerCar || this.streetLightSlotCount === 0) return;
+    const total = this.streetLightSlotCount;
+    const playerSlot = Math.floor(this.playerCar.currentT * total);
+
+    const desired = new Set<number>();
+    for (let offset = -5; offset <= 15; offset++) {
+      if (offset === 0) continue;
+      desired.add(((playerSlot + offset) % total + total) % total);
+    }
+
+    for (const [slot, light] of this.streetLightMap) {
+      if (!desired.has(slot)) {
+        this.scene.remove(light);
+        light.dispose();
+        this.streetLightMap.delete(slot);
+      }
+    }
+
+    for (const slot of desired) {
+      if (!this.streetLightMap.has(slot)) {
+        const pos = this.track.getPointAt(slot / total);
+        const pl = new THREE.PointLight(
+          NIGHT_TRACK_LIGHT.color, NIGHT_TRACK_LIGHT.intensity, NIGHT_TRACK_LIGHT.distance,
+        );
+        pl.castShadow = false;
+        pl.position.set(pos.x, NIGHT_TRACK_LIGHT.height, pos.z);
+        this.scene.add(pl);
+        this.streetLightMap.set(slot, pl);
+      }
     }
   }
 
@@ -332,7 +352,7 @@ export class GameEngine {
       carMesh.rotation.y = carRotation;
       this.scene.add(carMesh);
 
-      if (this.nightMode) CarFactory.addNightHeadlights(carMesh, def.id);
+      if (this.nightMode && isPlayer) CarFactory.addNightHeadlights(carMesh, def.id);
 
       if (!isPlayer) {
         const nameplate = factory.createNameplate(def.name, def.color);
@@ -526,6 +546,9 @@ export class GameEngine {
       }
     }
 
+    // Rolling street lights
+    if (this.nightMode) this.updateRollingStreetLights();
+
     // Update animated track materials
     if (this.trackGroup) {
       TrackBuilder.updateAnimatedMaterials(this.trackGroup, now / 1000);
@@ -701,8 +724,8 @@ export class GameEngine {
     this.disposed = true;
     cancelAnimationFrame(this.animFrameId);
     window.removeEventListener('resize', this.handleResize);
-    for (const l of this.streetLights) { this.scene.remove(l); l.dispose(); }
-    this.streetLights = [];
+    for (const l of this.streetLightMap.values()) { this.scene.remove(l); l.dispose(); }
+    this.streetLightMap.clear();
     this.inputManager.dispose();
     this.audioManager?.dispose();
     this.tireMarks?.dispose();

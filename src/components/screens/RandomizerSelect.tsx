@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Button, Group } from '@mantine/core';
 import { MenuCarAnimations } from './MenuCarAnimations.js';
 import type { RandomizerCardDef } from '../../constants/randomizer.js';
 import { pickRandomCards } from '../../constants/randomizer.js';
@@ -292,30 +293,19 @@ export function RandomizerSelect({ onSelect, onSkip, onBack }: RandomizerSelectP
         Race!
       </button>
 
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-        <button
-          style={{
-            ...skipButtonStyle,
-            opacity: animState === 'idle' ? 1 : 0,
-            pointerEvents: animState === 'idle' ? 'auto' : 'none',
-            transition: 'opacity 0.3s ease',
-          }}
-          onClick={onBack}
-        >
-          ← Back
-        </button>
-        <button
-          style={{
-            ...skipButtonStyle,
-            opacity: animState === 'idle' ? 1 : 0,
-            pointerEvents: animState === 'idle' ? 'auto' : 'none',
-            transition: 'opacity 0.3s ease',
-          }}
-          onClick={onSkip}
-        >
-          Skip
-        </button>
-      </div>
+      <Group
+        gap="sm"
+        justify="space-between"
+        w={240}
+        style={{
+          opacity: animState === 'idle' ? 1 : 0,
+          pointerEvents: animState === 'idle' ? 'auto' : 'none',
+          transition: 'opacity 0.3s ease',
+        }}
+      >
+        <Button variant="default" onClick={onBack}>Back</Button>
+        <Button variant="default" onClick={onSkip}>Skip</Button>
+      </Group>
     </div>
   );
 }
@@ -454,18 +444,6 @@ const raceButtonStyle: React.CSSProperties = {
   cursor: 'pointer',
   textTransform: 'uppercase',
   boxShadow: '0 4px 24px rgba(255,210,63,0.4)',
-};
-
-const skipButtonStyle: React.CSSProperties = {
-  background: 'transparent',
-  border: '1px solid rgba(255,255,255,0.2)',
-  color: 'rgba(255,255,255,0.5)',
-  fontSize: 14,
-  letterSpacing: 2,
-  padding: '8px 24px',
-  borderRadius: 8,
-  cursor: 'pointer',
-  textTransform: 'uppercase',
 };
 
 // ── CSS Animations ────────────────────────────────────────────────────────────

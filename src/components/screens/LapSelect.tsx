@@ -56,12 +56,12 @@ export function LapSelect({ onSelect, onBack }: LapSelectProps) {
           </Group>
         </Stack>
 
-        <Group gap="sm" mt="sm">
-          <Button autoContrast size="lg" color="yellow" onClick={() => onSelect(laps, difficulty)}>
-            Next
-          </Button>
+        <Group gap="sm" mt="sm" justify="space-between" w={240}>
           <Button variant="default" onClick={onBack}>
             Back
+          </Button>
+          <Button autoContrast size="lg" color="yellow" onClick={() => onSelect(laps, difficulty)}>
+            Next
           </Button>
         </Group>
       </Stack>
