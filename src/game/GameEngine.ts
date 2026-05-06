@@ -11,7 +11,7 @@ import { HazardSystem } from './track/HazardSystem.js';
 import { TableScene } from './scene/TableScene.js';
 import type { ObstacleInfo } from './scene/ObstacleFactory.js';
 import { LightingSetup } from './scene/LightingSetup.js';
-import { SUN_LIGHT } from '../constants/lighting.js';
+import { SUN_LIGHT, NIGHT_SCENE, NIGHT_TRACK_LIGHT } from '../constants/lighting.js';
 import { TopDownCamera } from './camera/TopDownCamera.js';
 import { CarFactory } from './car/CarFactory.js';
 import { CarPhysics } from './car/CarPhysics.js';
@@ -69,6 +69,7 @@ export class GameEngine {
   private trackGroup: THREE.Group | null = null;
   private carHazardState: Map<string, CarHazardState> = new Map();
   private sun: THREE.DirectionalLight | null = null;
+  private streetLights: THREE.PointLight[] = [];
   private audioManager: AudioManager | null = null;
   private animFrameId = 0;
   private lastTime = 0;
@@ -81,6 +82,7 @@ export class GameEngine {
 
   private readonly difficulty: Difficulty;
   private readonly randomizers: RandomizerValues | undefined;
+  private readonly nightMode: boolean;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -90,6 +92,7 @@ export class GameEngine {
     difficulty: Difficulty,
     emitter: GameStateEmitter,
     reverse = false,
+    nightMode = false,
     onReady?: () => void,
     randomizers?: RandomizerValues,
   ) {
@@ -97,6 +100,7 @@ export class GameEngine {
     this.emitter = emitter;
     this.onReady = onReady;
     this.randomizers = randomizers;
+    this.nightMode = nightMode;
 
     // Renderer
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -108,15 +112,19 @@ export class GameEngine {
 
     // Scene
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x87c1e8);
-    this.scene.fog = new THREE.Fog(0x87c1e8, 400, 750);
+    const bg = nightMode ? NIGHT_SCENE.background : 0x87c1e8;
+    this.scene.background = new THREE.Color(bg);
+    this.scene.fog = new THREE.Fog(bg,
+      nightMode ? NIGHT_SCENE.fogNear : 400,
+      nightMode ? NIGHT_SCENE.fogFar : 750,
+    );
 
     // Camera
     const aspect = canvas.clientWidth / canvas.clientHeight;
     this.cameraController = new TopDownCamera(aspect);
 
     // Lighting
-    const { sun } = new LightingSetup().setup(this.scene);
+    const { sun } = new LightingSetup().setup(this.scene, nightMode);
     this.sun = sun;
 
     // Table
@@ -136,6 +144,9 @@ export class GameEngine {
     const trackBuilder = new TrackBuilder();
     this.trackGroup = trackBuilder.build(this.track, this.trackConfig.tunnels ?? [], this.speedStrips, this.boostTracks);
     this.scene.add(this.trackGroup);
+
+    // Night street lights
+    if (nightMode) this.addNightStreetLights();
 
     // Hazards
     this.hazardSystem = new HazardSystem(this.track);
@@ -255,6 +266,22 @@ export class GameEngine {
     this.loop();
   }
 
+  private addNightStreetLights(): void {
+    const arcLen = this.track.getLength();
+    const count = Math.floor(arcLen / NIGHT_TRACK_LIGHT.spacing);
+    for (let i = 0; i < count; i++) {
+      const t = i / count;
+      const pos = this.track.getPointAt(t);
+      const pl = new THREE.PointLight(
+        NIGHT_TRACK_LIGHT.color, NIGHT_TRACK_LIGHT.intensity, NIGHT_TRACK_LIGHT.distance,
+      );
+      pl.castShadow = false;
+      pl.position.set(pos.x, NIGHT_TRACK_LIGHT.height, pos.z);
+      this.scene.add(pl);
+      this.streetLights.push(pl);
+    }
+  }
+
   private applyCarRandomizer(def: CarDefinition): CarDefinition {
     if (!this.randomizers) return def;
     const r = this.randomizers;
@@ -304,6 +331,8 @@ export class GameEngine {
       carMesh.position.copy(pos);
       carMesh.rotation.y = carRotation;
       this.scene.add(carMesh);
+
+      if (this.nightMode) CarFactory.addNightHeadlights(carMesh, def.id);
 
       if (!isPlayer) {
         const nameplate = factory.createNameplate(def.name, def.color);
@@ -672,6 +701,8 @@ export class GameEngine {
     this.disposed = true;
     cancelAnimationFrame(this.animFrameId);
     window.removeEventListener('resize', this.handleResize);
+    for (const l of this.streetLights) { this.scene.remove(l); l.dispose(); }
+    this.streetLights = [];
     this.inputManager.dispose();
     this.audioManager?.dispose();
     this.tireMarks?.dispose();

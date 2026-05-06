@@ -10,7 +10,7 @@ import { TrackBuilder } from './track/TrackBuilder.js';
 import { HazardSystem } from './track/HazardSystem.js';
 import { TableScene } from './scene/TableScene.js';
 import { LightingSetup } from './scene/LightingSetup.js';
-import { SUN_LIGHT } from '../constants/lighting.js';
+import { SUN_LIGHT, NIGHT_SCENE, NIGHT_TRACK_LIGHT } from '../constants/lighting.js';
 import { TopDownCamera } from './camera/TopDownCamera.js';
 import { CarFactory } from './car/CarFactory.js';
 import { CarPhysics } from './car/CarPhysics.js';
@@ -94,6 +94,7 @@ export class VersusGameEngine {
   };
 
   private sun: THREE.DirectionalLight | null = null;
+  private streetLights: THREE.PointLight[] = [];
   private audioManager: AudioManager | null = null;
   private animFrameId = 0;
   private lastTime = 0;
@@ -102,6 +103,7 @@ export class VersusGameEngine {
   private waitingForFirstFrame = true;
   private onReady: (() => void) | undefined;
   private readonly randomizers: RandomizerValues | undefined;
+  private readonly nightMode: boolean = false;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -112,6 +114,7 @@ export class VersusGameEngine {
     p2Name: string,
     emitter: VersusStateEmitter,
     reverse = false,
+    nightMode = false,
     onReady?: () => void,
     randomizers?: RandomizerValues,
   ) {
@@ -120,6 +123,7 @@ export class VersusGameEngine {
     this.p2Name = p2Name;
     this.onReady = onReady;
     this.randomizers = randomizers;
+    this.nightMode = nightMode;
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
@@ -129,13 +133,17 @@ export class VersusGameEngine {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x87c1e8);
-    this.scene.fog = new THREE.Fog(0x87c1e8, 400, 750);
+    const bg = nightMode ? NIGHT_SCENE.background : 0x87c1e8;
+    this.scene.background = new THREE.Color(bg);
+    this.scene.fog = new THREE.Fog(bg,
+      nightMode ? NIGHT_SCENE.fogNear : 400,
+      nightMode ? NIGHT_SCENE.fogFar : 750,
+    );
 
     const aspect = canvas.clientWidth / canvas.clientHeight;
     this.cameraController = new TopDownCamera(aspect);
 
-    const { sun } = new LightingSetup().setup(this.scene);
+    const { sun } = new LightingSetup().setup(this.scene, nightMode);
     this.sun = sun;
     this.scene.add(new TableScene().build());
 
@@ -150,6 +158,8 @@ export class VersusGameEngine {
     this.boostTracks = trackConfig.boostTracks ?? [];
     this.trackGroup = new TrackBuilder().build(this.track, trackConfig.tunnels ?? [], this.speedStrips, this.boostTracks);
     this.scene.add(this.trackGroup);
+
+    if (nightMode) this.addNightStreetLights();
 
     this.hazardSystem = new HazardSystem(this.track);
     this.scene.add(this.hazardSystem.buildMeshes());
@@ -340,8 +350,10 @@ export class VersusGameEngine {
 
     this.car1 = makeCar(p1Def, t1, -1, 'player1');
     this.car1.mesh.add(factory.createNameplate(this.p1Name, p1Def.color));
+    if (this.nightMode) CarFactory.addNightHeadlights(this.car1.mesh, p1Def.id);
     this.car2 = makeCar(p2Def, t2, 1, 'player2');
     this.car2.mesh.add(factory.createNameplate(this.p2Name, p2Def.color));
+    if (this.nightMode) CarFactory.addNightHeadlights(this.car2.mesh, p2Def.id);
     this.cars = [this.car1, this.car2];
     this.carHazardState.set('player1', { inHazard: false, zoneType: '', drip: 0, splashTimer: 0 });
     this.carHazardState.set('player2', { inHazard: false, zoneType: '', drip: 0, splashTimer: 0 });
@@ -685,10 +697,28 @@ export class VersusGameEngine {
     this.cameraController.resize(w / h);
   }
 
+  private addNightStreetLights(): void {
+    const arcLen = this.track.getLength();
+    const count = Math.floor(arcLen / NIGHT_TRACK_LIGHT.spacing);
+    for (let i = 0; i < count; i++) {
+      const t = i / count;
+      const pos = this.track.getPointAt(t);
+      const pl = new THREE.PointLight(
+        NIGHT_TRACK_LIGHT.color, NIGHT_TRACK_LIGHT.intensity, NIGHT_TRACK_LIGHT.distance,
+      );
+      pl.castShadow = false;
+      pl.position.set(pos.x, NIGHT_TRACK_LIGHT.height, pos.z);
+      this.scene.add(pl);
+      this.streetLights.push(pl);
+    }
+  }
+
   dispose(): void {
     this.disposed = true;
     cancelAnimationFrame(this.animFrameId);
     window.removeEventListener('resize', this.handleResize);
+    for (const l of this.streetLights) { this.scene.remove(l); l.dispose(); }
+    this.streetLights = [];
     this.inputManager.dispose();
     this.audioManager?.dispose();
     this.tireMarks?.dispose();

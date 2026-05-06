@@ -8,6 +8,7 @@ import { loadAudioPrefs } from '../../game/audio/AudioPrefs.js';
 interface RandomizerSelectProps {
   onSelect: (card: RandomizerCardDef) => void;
   onSkip: () => void;
+  onBack: () => void;
 }
 
 type AnimState = 'dealing' | 'idle' | 'centering' | 'flipping' | 'revealed';
@@ -23,7 +24,7 @@ const DEAL_ROTS      = ['-14deg', '3deg', '-9deg'];
 interface SmokeParticle { id: number; dx: number; dy: number; }
 interface SparkParticle { id: number; dx: number; dy: number; rot: number; len: number; }
 
-export function RandomizerSelect({ onSelect, onSkip }: RandomizerSelectProps) {
+export function RandomizerSelect({ onSelect, onSkip, onBack }: RandomizerSelectProps) {
   const [cards]       = useState<RandomizerCardDef[]>(() => pickRandomCards(3));
   const [animState, setAnimState] = useState<AnimState>('dealing');
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
@@ -291,17 +292,30 @@ export function RandomizerSelect({ onSelect, onSkip }: RandomizerSelectProps) {
         Race!
       </button>
 
-      <button
-        style={{
-          ...skipButtonStyle,
-          opacity: animState === 'idle' ? 1 : 0,
-          pointerEvents: animState === 'idle' ? 'auto' : 'none',
-          transition: 'opacity 0.3s ease',
-        }}
-        onClick={onSkip}
-      >
-        Skip
-      </button>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+        <button
+          style={{
+            ...skipButtonStyle,
+            opacity: animState === 'idle' ? 1 : 0,
+            pointerEvents: animState === 'idle' ? 'auto' : 'none',
+            transition: 'opacity 0.3s ease',
+          }}
+          onClick={onBack}
+        >
+          ← Back
+        </button>
+        <button
+          style={{
+            ...skipButtonStyle,
+            opacity: animState === 'idle' ? 1 : 0,
+            pointerEvents: animState === 'idle' ? 'auto' : 'none',
+            transition: 'opacity 0.3s ease',
+          }}
+          onClick={onSkip}
+        >
+          Skip
+        </button>
+      </div>
     </div>
   );
 }

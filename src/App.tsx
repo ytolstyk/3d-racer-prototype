@@ -66,11 +66,17 @@ function GameApp() {
   const [versusSelections, setVersusSelections] = useState<VersusSelections | null>(null);
   const [activeRandomizer, setActiveRandomizer] = useState<RandomizerCardDef | null>(null);
   const [reverse, setReverse] = useState(false);
+  const [nightMode, setNightMode] = useState(() =>
+    (location.state as { fromEditor?: boolean } | null)?.fromEditor === true
+      ? sessionStorage.getItem('editor_night') === '1'
+      : false
+  );
   const [raceKey, setRaceKey] = useState(0);
 
-  const handleTrackSelect = useCallback((trackId: string, rev = false) => {
+  const handleTrackSelect = useCallback((trackId: string, rev = false, night = false) => {
     setSelectedTrackId(trackId);
     setReverse(rev);
+    setNightMode(night);
     setPhase(gameMode === 'versus' ? 'versusCarSelect' : 'carSelect');
   }, [gameMode]);
 
@@ -113,6 +119,7 @@ function GameApp() {
     setDifficulty('medium');
     setVersusSelections(null);
     setActiveRandomizer(null);
+    setNightMode(false);
     setIsEditorTest(false);
     navigate('/', { replace: true, state: {} });
   }, [navigate]);
@@ -161,7 +168,7 @@ function GameApp() {
     case 'lapSelect':
       return <LapSelect onSelect={handleLapSelect} onBack={() => setPhase('carSelect')} />;
     case 'randomizerSelect':
-      return <RandomizerSelect onSelect={handleRandomizerSelect} onSkip={handleRandomizerSkip} />;
+      return <RandomizerSelect onSelect={handleRandomizerSelect} onSkip={handleRandomizerSkip} onBack={() => setPhase('lapSelect')} />;
     case 'racing':
       return (
         <RaceScreen
@@ -171,6 +178,7 @@ function GameApp() {
           totalLaps={totalLaps}
           difficulty={difficulty}
           reverse={reverse}
+          nightMode={nightMode}
           activeRandomizer={activeRandomizer}
           onMainMenu={handleMainMenu}
           onRaceAgain={handleRaceAgain}
@@ -186,12 +194,13 @@ function GameApp() {
         />
       );
     case 'versusRandomizerSelect':
-      return <RandomizerSelect onSelect={handleVersusRandomizerSelect} onSkip={handleVersusRandomizerSkip} />;
+      return <RandomizerSelect onSelect={handleVersusRandomizerSelect} onSkip={handleVersusRandomizerSkip} onBack={() => setPhase('versusCarSelect')} />;
     case 'versusRacing':
       return versusSelections ? (
         <VersusRaceScreen
           selections={versusSelections}
           reverse={reverse}
+          nightMode={nightMode}
           activeRandomizer={activeRandomizer}
           onMainMenu={handleMainMenu}
           onPlayAgain={handleVersusPlayAgain}

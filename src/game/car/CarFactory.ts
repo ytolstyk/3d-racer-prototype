@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { CarDefinition } from "../../types/game.js";
+import { CAR_SPOTLIGHT, CAR_HEADLIGHT_GLOW, getHeadlightPositions } from "../../constants/lighting.js";
 
 // Shared materials (created once)
 const CARBON = new THREE.MeshStandardMaterial({
@@ -26,9 +27,9 @@ const DARK_GLASS = new THREE.MeshStandardMaterial({
 });
 const HEADLIGHT_MAT = new THREE.MeshStandardMaterial({
   color: 0xffffff,
-  emissive: 0xffffff,
-  emissiveIntensity: 1.0,
-  roughness: 0.1,
+  emissive: 0xffeedd,
+  emissiveIntensity: 4.0,
+  roughness: 0.05,
 });
 const TAILLIGHT_MAT = new THREE.MeshStandardMaterial({
   color: 0xff1a00,
@@ -614,6 +615,32 @@ export class CarFactory {
     sidewall.rotation.z = Math.PI / 2;
     sidewall.position.set(x, y, z);
     g.add(sidewall);
+  }
+
+  static addNightHeadlights(carGroup: THREE.Group, carId: string): void {
+    const positions = getHeadlightPositions(carId);
+    for (const [hx, hy, hz] of positions) {
+      // Spotlight for the forward beam
+      const spot = new THREE.SpotLight(
+        CAR_SPOTLIGHT.color, CAR_SPOTLIGHT.intensity,
+        CAR_SPOTLIGHT.distance, CAR_SPOTLIGHT.angle, CAR_SPOTLIGHT.penumbra,
+      );
+      spot.castShadow = false;
+      spot.position.set(hx, hy, hz);
+      const target = new THREE.Object3D();
+      target.position.set(hx, hy - 1.8, hz + 30);
+      carGroup.add(target);
+      spot.target = target;
+      carGroup.add(spot);
+
+      // Point light for close-range glow around the lens
+      const glow = new THREE.PointLight(
+        CAR_HEADLIGHT_GLOW.color, CAR_HEADLIGHT_GLOW.intensity, CAR_HEADLIGHT_GLOW.distance,
+      );
+      glow.castShadow = false;
+      glow.position.set(hx, hy, hz);
+      carGroup.add(glow);
+    }
   }
 
   createNameplate(name: string, color: number): THREE.Sprite {

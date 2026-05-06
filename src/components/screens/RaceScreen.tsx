@@ -22,6 +22,7 @@ interface RaceScreenProps {
   totalLaps: number;
   difficulty: Difficulty;
   reverse?: boolean;
+  nightMode?: boolean;
   activeRandomizer?: RandomizerCardDef | null;
   onMainMenu: () => void;
   onRaceAgain: () => void;
@@ -45,14 +46,14 @@ const loadingOverlayStyle = {
 
 const loadingTextStyle = { color: 'rgba(255,255,255,0.7)', fontSize: 18, letterSpacing: 2 };
 
-export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, difficulty, reverse, activeRandomizer, onMainMenu, onRaceAgain, onBackToEditor }: RaceScreenProps) {
+export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, difficulty, reverse, nightMode, activeRandomizer, onMainMenu, onRaceAgain, onBackToEditor }: RaceScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const emitter = useMemo(() => new GameStateEmitter(), []);
   const [paused, setPaused] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [isReady, setIsReady] = useState(false);
 
-  const engineRef = useGameEngine(canvasRef, selectedTrackId, selectedCarId, totalLaps, difficulty, emitter, reverse, activeRandomizer, () => setIsReady(true));
+  const engineRef = useGameEngine(canvasRef, selectedTrackId, selectedCarId, totalLaps, difficulty, emitter, reverse, nightMode, activeRandomizer, () => setIsReady(true));
   const state = useGameState(emitter);
 
   useAutoHideCursor(!paused && !state.playerFinished);

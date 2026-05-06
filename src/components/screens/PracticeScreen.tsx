@@ -112,6 +112,32 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
   const [showEffectsExport, setShowEffectsExport] = useState(false);
   const [effectsExportTs, setEffectsExportTs] = useState('');
 
+  // Night mode
+  const [nightMode, setNightMode] = useState(false);
+
+  // Lighting panel state
+  const [lightingOpen, setLightingOpen] = useState(false);
+  const [lightingTab, setLightingTab] = useState<'sun' | 'hemi' | 'fill'>('sun');
+  const [lightingState, setLightingState] = useState<{
+    sun: { intensity: number; posX: number; posY: number; posZ: number };
+    hemi: { skyColor: number; groundColor: number; intensity: number };
+    fill: { intensity: number };
+  } | null>(null);
+  const [lightingOverrides, setLightingOverrides] = useState<Record<string, number>>({});
+  const [showLightingExport, setShowLightingExport] = useState(false);
+  const [lightingExportJson, setLightingExportJson] = useState('');
+
+  // Light sources placement state
+  const [lightType, setLightType] = useState<'point' | 'spot'>('point');
+  const [lightDraftHeight, setLightDraftHeight] = useState(12);
+  const [lightDraftIntensity, setLightDraftIntensity] = useState(1.0);
+  const [lightDraftDistance, setLightDraftDistance] = useState(80);
+  const [lightDraftColor, setLightDraftColor] = useState(0xffffff);
+  const [lightDraftAngle, setLightDraftAngle] = useState(0.4);
+  const [lightDraftPenumbra, setLightDraftPenumbra] = useState(0.2);
+  const [placingLight, setPlacingLight] = useState(false);
+  const [lightCount, setLightCount] = useState(0);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -123,6 +149,9 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
     setCameraOverrideMap({});
     setEffectsDefaults(engineRef.current.getEffectsDefaults());
     setEffectsOverrideMap({});
+    setLightingState(engineRef.current.getLightingState());
+    setLightingOverrides({});
+    setLightCount(0);
     return () => {
       engineRef.current?.dispose();
       engineRef.current = null;
@@ -189,6 +218,20 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
       return;
     }
 
+    if (placingLight) {
+      engine.addLight({
+        type: lightType,
+        x, z, y: lightDraftHeight,
+        color: lightDraftColor,
+        intensity: lightDraftIntensity,
+        distance: lightDraftDistance,
+        angle: lightDraftAngle,
+        penumbra: lightDraftPenumbra,
+      });
+      setLightCount(engine.getLights().length);
+      return;
+    }
+
     // Select nearest object
     const objects = engine.getObjects();
     let nearestIdx = -1;
@@ -198,7 +241,7 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
       if (dist < nearestDist) { nearestDist = dist; nearestIdx = i; }
     }
     setSelectedObjIdx(nearestIdx);
-  }, [activeType, hazardType, hazardRadius, splatterType, splatterRadius, placingRain, rainRadius, paused]);
+  }, [activeType, hazardType, hazardRadius, splatterType, splatterRadius, placingRain, rainRadius, placingLight, lightType, lightDraftHeight, lightDraftIntensity, lightDraftDistance, lightDraftColor, lightDraftAngle, lightDraftPenumbra, paused]);
 
   const handleDeleteSelected = () => {
     if (selectedObjIdx === -1 || !engineRef.current) return;
@@ -289,20 +332,35 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
     setShowEffectsExport(true);
   }, []);
 
+  const closeAllPanels = () => {
+    setTelemetryOpen(false); setTunerOpen(false); setCameraOpen(false);
+    setEffectsOpen(false); setLightingOpen(false);
+  };
+
   const toggleTelemetry = useCallback(() => {
-    setTelemetryOpen(p => { if (!p) { setTunerOpen(false); setCameraOpen(false); setEffectsOpen(false); } return !p; });
+    setTelemetryOpen(p => { if (!p) { setTunerOpen(false); setCameraOpen(false); setEffectsOpen(false); setLightingOpen(false); } return !p; });
   }, []);
 
   const toggleTuner = useCallback(() => {
-    setTunerOpen(p => { if (!p) { setTelemetryOpen(false); setCameraOpen(false); setEffectsOpen(false); } return !p; });
+    setTunerOpen(p => { if (!p) { setTelemetryOpen(false); setCameraOpen(false); setEffectsOpen(false); setLightingOpen(false); } return !p; });
   }, []);
 
   const toggleCamera = useCallback(() => {
-    setCameraOpen(p => { if (!p) { setTelemetryOpen(false); setTunerOpen(false); setEffectsOpen(false); } return !p; });
+    setCameraOpen(p => { if (!p) { setTelemetryOpen(false); setTunerOpen(false); setEffectsOpen(false); setLightingOpen(false); } return !p; });
   }, []);
 
   const toggleEffects = useCallback(() => {
-    setEffectsOpen(p => { if (!p) { setTelemetryOpen(false); setTunerOpen(false); setCameraOpen(false); } return !p; });
+    setEffectsOpen(p => { if (!p) { setTelemetryOpen(false); setTunerOpen(false); setCameraOpen(false); setLightingOpen(false); } return !p; });
+  }, []);
+
+  const toggleLighting = useCallback(() => {
+    setLightingOpen(p => {
+      if (!p) {
+        closeAllPanels();
+        setLightingState(engineRef.current?.getLightingState() ?? null);
+      }
+      return !p;
+    });
   }, []);
 
   const btnStyle: React.CSSProperties = {
@@ -460,10 +518,80 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
             <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10, marginTop: 2 }}>{rainCount} rain zone{rainCount !== 1 ? 's' : ''}</div>
           </div>
 
+          {/* Light Sources section */}
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.12)', paddingTop: 6, marginTop: 2 }}>
+            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 9, letterSpacing: 1, marginBottom: 4 }}>
+              LIGHTS <span style={{ color: 'rgba(255,255,255,0.25)' }}>({lightCount})</span>
+            </div>
+            <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
+              {(['point', 'spot'] as const).map(t => (
+                <button key={t} onClick={() => setLightType(t)} style={{
+                  ...btnStyle, fontSize: 10, padding: '2px 7px',
+                  background: lightType === t ? 'rgba(255,200,80,0.35)' : 'rgba(255,255,255,0.08)',
+                  borderColor: lightType === t ? '#ffc850' : 'rgba(255,255,255,0.25)',
+                }}>{t}</button>
+              ))}
+            </div>
+            {([
+              ['height', lightDraftHeight, setLightDraftHeight, 1, 60, 1] as const,
+              ['intensity', lightDraftIntensity, setLightDraftIntensity, 0.1, 50, 0.1] as const,
+              ['distance', lightDraftDistance, setLightDraftDistance, 20, 300, 5] as const,
+            ] as [string, number, (v: number) => void, number, number, number][]).map(([label, val, setter, min, max, step]) => (
+              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
+                <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, minWidth: 55 }}>{label}</span>
+                <input type="number" value={val} min={min} max={max} step={step}
+                  onChange={e => setter(Number(e.target.value))}
+                  style={{ flex: 1, fontSize: 10, background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', borderRadius: 2, padding: '2px 4px' }}
+                />
+              </div>
+            ))}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
+              <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, minWidth: 55 }}>color (hex)</span>
+              <input type="number" value={lightDraftColor}
+                onChange={e => setLightDraftColor(Number(e.target.value))}
+                style={{ flex: 1, fontSize: 10, background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', borderRadius: 2, padding: '2px 4px' }}
+              />
+            </div>
+            {lightType === 'spot' && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
+                  <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, minWidth: 55 }}>angle</span>
+                  <input type="number" value={lightDraftAngle} min={0.1} max={0.8} step={0.05}
+                    onChange={e => setLightDraftAngle(Number(e.target.value))}
+                    style={{ flex: 1, fontSize: 10, background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', borderRadius: 2, padding: '2px 4px' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
+                  <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, minWidth: 55 }}>penumbra</span>
+                  <input type="number" value={lightDraftPenumbra} min={0} max={1} step={0.05}
+                    onChange={e => setLightDraftPenumbra(Number(e.target.value))}
+                    style={{ flex: 1, fontSize: 10, background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', borderRadius: 2, padding: '2px 4px' }}
+                  />
+                </div>
+              </>
+            )}
+            <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+              <button
+                onClick={() => { setPlacingLight(p => !p); setActiveType(null); setHazardType(null); setSplatterType(null); setPlacingRain(false); }}
+                style={{
+                  ...btnStyle, fontSize: 10, padding: '3px 7px',
+                  background: placingLight ? 'rgba(255,200,80,0.4)' : 'rgba(255,255,255,0.08)',
+                  borderColor: placingLight ? '#ffc850' : 'rgba(255,255,255,0.25)',
+                }}
+              >
+                {placingLight ? '× Stop Placing' : '+ Place Light'}
+              </button>
+              <button onClick={() => { engineRef.current?.clearLights(); setLightCount(0); }}
+                style={{ ...btnStyle, fontSize: 10, padding: '3px 7px', borderColor: '#ff6644', color: '#ffaa88' }}>
+                Clear
+              </button>
+            </div>
+          </div>
+
           {/* Placement hint */}
-          {(activeType || hazardType || splatterType || placingRain) ? (
+          {(activeType || hazardType || splatterType || placingRain || placingLight) ? (
             <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', textAlign: 'center', marginTop: 4 }}>
-              Click canvas to place {activeType ? ITEM_LABELS[activeType] : hazardType ? `${hazardType} (r=${hazardRadius})` : placingRain ? `rain zone (r=${rainRadius})` : `${splatterType} splatter (r=${splatterRadius})`}
+              Click canvas to place {activeType ? ITEM_LABELS[activeType] : hazardType ? `${hazardType} (r=${hazardRadius})` : placingRain ? `rain zone (r=${rainRadius})` : placingLight ? `${lightType} light` : `${splatterType} splatter (r=${splatterRadius})`}
             </div>
           ) : (
             <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', textAlign: 'center', marginTop: 4 }}>
@@ -615,6 +743,29 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
           onClick={toggleEffects}
         >
           ✦ Effects
+        </button>
+        <button
+          style={{
+            ...btnStyle, fontSize: 10, padding: '2px 8px',
+            background: lightingOpen ? 'rgba(255,220,80,0.3)' : 'rgba(255,255,255,0.08)',
+          }}
+          onClick={toggleLighting}
+        >
+          ☀ Lighting
+        </button>
+        <button
+          style={{
+            ...btnStyle, fontSize: 10, padding: '2px 8px',
+            background: nightMode ? 'rgba(30,30,120,0.7)' : 'rgba(255,255,255,0.08)',
+            borderColor: nightMode ? '#6688ff' : 'rgba(255,255,255,0.25)',
+          }}
+          onClick={() => {
+            const next = !nightMode;
+            setNightMode(next);
+            engineRef.current?.setNightMode(next);
+          }}
+        >
+          Night
         </button>
       </div>
 
@@ -851,6 +1002,90 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
         </div>
       )}
 
+      {/* Lighting tuner panel */}
+      {lightingOpen && lightingState && (
+        <div style={{
+          position: 'absolute', top: 40, left: 10, zIndex: 20,
+          background: 'rgba(0,0,0,0.88)', border: '1px solid rgba(255,220,80,0.25)',
+          borderRadius: 6, padding: '8px 10px', width: 240,
+        }}>
+          <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+            {(['sun', 'hemi', 'fill'] as const).map(tab => (
+              <button key={tab} onClick={() => setLightingTab(tab)} style={{
+                ...btnStyle, fontSize: 10, padding: '2px 7px',
+                background: lightingTab === tab ? 'rgba(255,220,80,0.35)' : 'rgba(255,255,255,0.07)',
+                borderColor: lightingTab === tab ? '#ffdc50' : 'rgba(255,255,255,0.2)',
+              }}>{tab}</button>
+            ))}
+          </div>
+
+          {lightingTab === 'sun' && (
+            <div>
+              {(['intensity', 'posX', 'posY', 'posZ'] as const).map(key => {
+                const mapKey = `sun:${key}`;
+                const isModified = mapKey in lightingOverrides;
+                return (
+                  <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <span style={{ color: isModified ? '#ffdc50' : 'rgba(255,255,255,0.55)', fontSize: 10 }}>{key}</span>
+                    <input type="number" defaultValue={lightingState.sun[key]} step="any"
+                      onBlur={e => { const v = parseFloat(e.target.value); if (!isNaN(v)) { engineRef.current?.setSun({ [key]: v }); setLightingOverrides(p => ({ ...p, [mapKey]: v })); } }}
+                      onKeyDown={e => { if (e.key === 'Enter') { const v = parseFloat((e.target as HTMLInputElement).value); if (!isNaN(v)) { engineRef.current?.setSun({ [key]: v }); setLightingOverrides(p => ({ ...p, [mapKey]: v })); } } }}
+                      style={{ width: 80, fontSize: 10, fontFamily: 'monospace', background: '#0d0d1a', color: '#fff', border: `1px solid ${isModified ? '#ffdc50' : 'rgba(255,255,255,0.2)'}`, borderRadius: 3, padding: '2px 4px', textAlign: 'right' }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {lightingTab === 'hemi' && (
+            <div>
+              {(['intensity', 'skyColor', 'groundColor'] as const).map(key => {
+                const mapKey = `hemi:${key}`;
+                const isModified = mapKey in lightingOverrides;
+                return (
+                  <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <span style={{ color: isModified ? '#ffdc50' : 'rgba(255,255,255,0.55)', fontSize: 10 }}>{key}</span>
+                    <input type="number" defaultValue={lightingState.hemi[key]} step="any"
+                      onBlur={e => { const v = parseFloat(e.target.value); if (!isNaN(v)) { engineRef.current?.setHemi({ [key]: v }); setLightingOverrides(p => ({ ...p, [mapKey]: v })); } }}
+                      onKeyDown={e => { if (e.key === 'Enter') { const v = parseFloat((e.target as HTMLInputElement).value); if (!isNaN(v)) { engineRef.current?.setHemi({ [key]: v }); setLightingOverrides(p => ({ ...p, [mapKey]: v })); } } }}
+                      style={{ width: 80, fontSize: 10, fontFamily: 'monospace', background: '#0d0d1a', color: '#fff', border: `1px solid ${isModified ? '#ffdc50' : 'rgba(255,255,255,0.2)'}`, borderRadius: 3, padding: '2px 4px', textAlign: 'right' }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {lightingTab === 'fill' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <span style={{ color: 'fill:intensity' in lightingOverrides ? '#ffdc50' : 'rgba(255,255,255,0.55)', fontSize: 10 }}>intensity</span>
+                <input type="number" defaultValue={lightingState.fill.intensity} step="any"
+                  onBlur={e => { const v = parseFloat(e.target.value); if (!isNaN(v)) { engineRef.current?.setFill({ intensity: v }); setLightingOverrides(p => ({ ...p, 'fill:intensity': v })); } }}
+                  onKeyDown={e => { if (e.key === 'Enter') { const v = parseFloat((e.target as HTMLInputElement).value); if (!isNaN(v)) { engineRef.current?.setFill({ intensity: v }); setLightingOverrides(p => ({ ...p, 'fill:intensity': v })); } } }}
+                  style={{ width: 80, fontSize: 10, fontFamily: 'monospace', background: '#0d0d1a', color: '#fff', border: `1px solid ${'fill:intensity' in lightingOverrides ? '#ffdc50' : 'rgba(255,255,255,0.2)'}`, borderRadius: 3, padding: '2px 4px', textAlign: 'right' }}
+                />
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 6, marginTop: 8, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+            <button style={{ ...btnStyle, fontSize: 10, padding: '3px 8px' }} onClick={() => {
+              engineRef.current?.setSun({ intensity: 0.8, posX: -60, posY: 80, posZ: 40 });
+              engineRef.current?.setHemi({ skyColor: 0x87ceeb, groundColor: 0x6db33f, intensity: 0.3 });
+              engineRef.current?.setFill({ intensity: 0.25 });
+              setLightingOverrides({});
+              setLightingState(engineRef.current?.getLightingState() ?? null);
+            }}>↺ Reset All</button>
+            <button style={{ ...btnStyle, fontSize: 10, padding: '3px 8px', background: 'rgba(100,200,100,0.2)' }} onClick={() => {
+              setLightingExportJson(engineRef.current?.exportLightingJSON() ?? '');
+              setShowLightingExport(true);
+            }}>Export JSON</button>
+          </div>
+        </div>
+      )}
+
       {/* Effects export modal */}
       {showEffectsExport && (
         <div style={{ ...overlayStyle, background: 'rgba(0,0,0,0.85)' }}>
@@ -927,6 +1162,25 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
             <div style={{ display: 'flex', gap: 8 }}>
               <button style={primaryBtnStyle} onClick={() => navigator.clipboard.writeText(physicsExportTs)}>Copy to Clipboard</button>
               <button style={btnStyle} onClick={() => setShowPhysicsExport(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lighting export modal */}
+      {showLightingExport && (
+        <div style={{ ...overlayStyle, background: 'rgba(0,0,0,0.85)' }}>
+          <div style={{
+            background: '#1a1a2e', padding: 16, borderRadius: 8,
+            width: '80%', maxWidth: 500, display: 'flex', flexDirection: 'column', gap: 8,
+          }}>
+            <h3 style={{ color: '#fff', margin: 0 }}>Lighting JSON</h3>
+            <pre style={{ width: '100%', height: 220, fontFamily: 'monospace', fontSize: 11, background: '#0d0d1a', color: '#ccc', border: '1px solid #333', borderRadius: 4, padding: 8, margin: 0, overflowY: 'auto', boxSizing: 'border-box' }}>
+              {lightingExportJson}
+            </pre>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button style={primaryBtnStyle} onClick={() => navigator.clipboard.writeText(lightingExportJson)}>Copy to Clipboard</button>
+              <button style={btnStyle} onClick={() => setShowLightingExport(false)}>Close</button>
             </div>
           </div>
         </div>

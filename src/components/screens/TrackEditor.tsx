@@ -1110,6 +1110,7 @@ export function TrackEditor() {
   const splineSamplesRef = useRef<[number, number][]>([]);
   const tunnelStartRef = useRef<number | null>(null);
   const [tunnelStartSet, setTunnelStartSet] = useState(false);
+  const [nightPreview, setNightPreview] = useState(false);
   const hazardMoveRef = useRef<{
     idx: number;
     offX: number;
@@ -3426,6 +3427,7 @@ export function TrackEditor() {
         originY: originRef.current?.y,
       }),
     );
+    sessionStorage.setItem('editor_night', nightPreview ? '1' : '');
     navigate("/", { state: { fromEditor: true } });
   };
 
@@ -4709,6 +4711,15 @@ export function TrackEditor() {
           >
             Save JSON
           </button>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'rgba(255,255,255,0.7)', cursor: 'pointer', userSelect: 'none' }}>
+            <input
+              type="checkbox"
+              checked={nightPreview}
+              onChange={e => setNightPreview(e.target.checked)}
+              style={{ cursor: 'pointer' }}
+            />
+            Night Preview
+          </label>
           <button
             className="tool-btn tool-btn-test"
             onClick={handleTest}

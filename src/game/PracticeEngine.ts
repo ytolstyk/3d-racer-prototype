@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type {
   PlacedObject,
   PlacedSplatter,
+  PlacedLight,
   CarState,
   PhysicsTelemetry,
   PhysicsGroup,
@@ -24,7 +25,10 @@ import {
 } from "../constants/effects.js";
 import { CAMERA } from "../constants/camera.js";
 import { LightingSetup } from "./scene/LightingSetup.js";
-import { SUN_LIGHT } from "../constants/lighting.js";
+import {
+  SUN_LIGHT, HEMI_LIGHT, FILL_LIGHT,
+  NIGHT_SCENE, NIGHT_HEMI, NIGHT_SUN, NIGHT_FILL,
+} from "../constants/lighting.js";
 import { TableScene } from "./scene/TableScene.js";
 import { CarFactory } from "./car/CarFactory.js";
 import { CarPhysics } from "./car/CarPhysics.js";
@@ -79,6 +83,12 @@ export class PracticeEngine {
   private rainCircles: { x: number; z: number; radius: number }[] = [];
   private hazardState: CarHazardState = { inHazard: false, zoneType: '', drip: 0, splashTimer: 0 };
   private sun: THREE.DirectionalLight | null = null;
+  private hemi: THREE.HemisphereLight | null = null;
+  private fill: THREE.DirectionalLight | null = null;
+  private nightMode = false;
+  private nightHeadlightLights: Array<THREE.SpotLight | THREE.PointLight> = [];
+  private placedLights: PlacedLight[] = [];
+  private placedLightObjects: THREE.Light[] = [];
   private audioManager: AudioManager | null = null;
   private _axisXMarker!: THREE.Mesh;
   private _axisZMarker!: THREE.Mesh;
@@ -116,8 +126,10 @@ export class PracticeEngine {
     const aspect = canvas.clientWidth / canvas.clientHeight;
     this.cameraController = new TopDownCamera(aspect);
 
-    const { sun } = new LightingSetup().setup(this.scene);
+    const { sun, hemi, fill } = new LightingSetup().setup(this.scene);
     this.sun = sun;
+    this.hemi = hemi;
+    this.fill = fill;
     this.scene.add(new TableScene().build());
 
     const { group: axesGroup, xMarker, zMarker } = this._buildLabeledAxes();
@@ -538,6 +550,145 @@ export class PracticeEngine {
     return blocks.join('\n\n') + '\n';
   }
 
+  setNightMode(enabled: boolean): void {
+    this.nightMode = enabled;
+    const bg = enabled ? NIGHT_SCENE.background : 0x87c1e8;
+    this.scene.background = new THREE.Color(bg);
+    this.scene.fog = new THREE.Fog(bg,
+      enabled ? NIGHT_SCENE.fogNear : 400,
+      enabled ? NIGHT_SCENE.fogFar : 750,
+    );
+    if (this.hemi) {
+      this.hemi.color.setHex(enabled ? NIGHT_HEMI.skyColor : HEMI_LIGHT.skyColor);
+      this.hemi.groundColor.setHex(enabled ? NIGHT_HEMI.groundColor : HEMI_LIGHT.groundColor);
+      this.hemi.intensity = enabled ? NIGHT_HEMI.intensity : HEMI_LIGHT.intensity;
+    }
+    if (this.sun) this.sun.intensity = enabled ? NIGHT_SUN.intensity : SUN_LIGHT.intensity;
+    if (this.fill) this.fill.intensity = enabled ? NIGHT_FILL.intensity : FILL_LIGHT.intensity;
+
+    // Remove existing headlight lights before re-adding
+    for (const l of this.nightHeadlightLights) {
+      if (this.playerCar) {
+        this.playerCar.mesh.remove(l);
+        l.dispose();
+      }
+    }
+    this.nightHeadlightLights = [];
+
+    if (enabled && this.playerCar) {
+      CarFactory.addNightHeadlights(this.playerCar.mesh, this.playerCar.id);
+      // Track all added lights so we can remove them later
+      this.playerCar.mesh.traverse(child => {
+        if ((child instanceof THREE.SpotLight || child instanceof THREE.PointLight)
+          && !this.nightHeadlightLights.includes(child as THREE.SpotLight | THREE.PointLight)) {
+          this.nightHeadlightLights.push(child as THREE.SpotLight | THREE.PointLight);
+        }
+      });
+    }
+  }
+
+  getNightMode(): boolean {
+    return this.nightMode;
+  }
+
+  getLightingState(): {
+    sun: { intensity: number; posX: number; posY: number; posZ: number };
+    hemi: { skyColor: number; groundColor: number; intensity: number };
+    fill: { intensity: number };
+  } {
+    return {
+      sun: {
+        intensity: this.sun?.intensity ?? SUN_LIGHT.intensity,
+        posX: this.sun?.position.x ?? SUN_LIGHT.posX,
+        posY: this.sun?.position.y ?? SUN_LIGHT.posY,
+        posZ: this.sun?.position.z ?? SUN_LIGHT.posZ,
+      },
+      hemi: {
+        skyColor: this.hemi?.color.getHex() ?? HEMI_LIGHT.skyColor,
+        groundColor: this.hemi?.groundColor.getHex() ?? HEMI_LIGHT.groundColor,
+        intensity: this.hemi?.intensity ?? HEMI_LIGHT.intensity,
+      },
+      fill: {
+        intensity: this.fill?.intensity ?? FILL_LIGHT.intensity,
+      },
+    };
+  }
+
+  setSun(props: Partial<{ intensity: number; posX: number; posY: number; posZ: number }>): void {
+    if (!this.sun) return;
+    if (props.intensity !== undefined) this.sun.intensity = props.intensity;
+    if (props.posX !== undefined) this.sun.position.x = props.posX;
+    if (props.posY !== undefined) this.sun.position.y = props.posY;
+    if (props.posZ !== undefined) this.sun.position.z = props.posZ;
+  }
+
+  setHemi(props: Partial<{ skyColor: number; groundColor: number; intensity: number }>): void {
+    if (!this.hemi) return;
+    if (props.skyColor !== undefined) this.hemi.color.setHex(props.skyColor);
+    if (props.groundColor !== undefined) this.hemi.groundColor.setHex(props.groundColor);
+    if (props.intensity !== undefined) this.hemi.intensity = props.intensity;
+  }
+
+  setFill(props: Partial<{ intensity: number }>): void {
+    if (!this.fill) return;
+    if (props.intensity !== undefined) this.fill.intensity = props.intensity;
+  }
+
+  exportLightingJSON(): string {
+    return JSON.stringify(this.getLightingState(), null, 2);
+  }
+
+  addLight(light: PlacedLight): void {
+    if (light.type === 'point') {
+      const pl = new THREE.PointLight(light.color, light.intensity, light.distance);
+      pl.position.set(light.x, light.y, light.z);
+      pl.castShadow = light.castShadow ?? false;
+      if (pl.castShadow) pl.shadow.mapSize.set(512, 512);
+      this.scene.add(pl);
+      this.placedLights.push(light);
+      this.placedLightObjects.push(pl);
+    } else {
+      const sl = new THREE.SpotLight(light.color, light.intensity, light.distance,
+        light.angle ?? 0.4, light.penumbra ?? 0.2);
+      sl.position.set(light.x, light.y, light.z);
+      sl.castShadow = light.castShadow ?? false;
+      if (sl.castShadow) {
+        sl.shadow.mapSize.set(1024, 1024);
+        sl.shadow.camera.near = 1;
+        sl.shadow.camera.far = light.distance;
+      }
+      const target = new THREE.Object3D();
+      target.position.set(light.targetX ?? light.x, 0, light.targetZ ?? light.z);
+      this.scene.add(target);
+      sl.target = target;
+      this.scene.add(sl);
+      this.placedLights.push(light);
+      this.placedLightObjects.push(sl);
+    }
+  }
+
+  removeLight(idx: number): void {
+    if (idx < 0 || idx >= this.placedLights.length) return;
+    const lightObj = this.placedLightObjects[idx];
+    this.scene.remove(lightObj);
+    if (lightObj instanceof THREE.SpotLight) {
+      this.scene.remove(lightObj.target);
+    }
+    (lightObj as THREE.PointLight | THREE.SpotLight).dispose();
+    this.placedLights.splice(idx, 1);
+    this.placedLightObjects.splice(idx, 1);
+  }
+
+  getLights(): readonly PlacedLight[] {
+    return [...this.placedLights];
+  }
+
+  clearLights(): void {
+    for (let i = this.placedLights.length - 1; i >= 0; i--) {
+      this.removeLight(i);
+    }
+  }
+
   pause(): void {
     this.paused = true;
     this.inputManager.clearKeys();
@@ -836,6 +987,9 @@ export class PracticeEngine {
     this.disposed = true;
     cancelAnimationFrame(this.animFrameId);
     window.removeEventListener("resize", this.boundHandleResize);
+    this.clearLights();
+    for (const l of this.nightHeadlightLights) { l.dispose(); }
+    this.nightHeadlightLights = [];
     this.inputManager.dispose();
     this.audioManager?.dispose();
     this.tireMarks.dispose();

@@ -14,6 +14,7 @@ export function useVersusGameEngine(
   p2Name: string,
   emitter: VersusStateEmitter,
   reverse?: boolean,
+  nightMode?: boolean,
   activeRandomizer?: RandomizerCardDef | null,
   onReady?: () => void,
 ): MutableRefObject<VersusGameEngine | null> {
@@ -26,14 +27,14 @@ export function useVersusGameEngine(
     if (!canvas) return;
 
     const randomizerValues = activeRandomizer ? applyMutations([activeRandomizer]) : undefined;
-    engineRef.current = new VersusGameEngine(canvas, trackId, p1CarId, p2CarId, p1Name, p2Name, emitter, reverse, () => onReadyRef.current?.(), randomizerValues);
+    engineRef.current = new VersusGameEngine(canvas, trackId, p1CarId, p2CarId, p1Name, p2Name, emitter, reverse, nightMode, () => onReadyRef.current?.(), randomizerValues);
 
     return () => {
       engineRef.current?.dispose();
       engineRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canvasRef, trackId, p1CarId, p2CarId, p1Name, p2Name, emitter, reverse]);
+  }, [canvasRef, trackId, p1CarId, p2CarId, p1Name, p2Name, emitter, reverse, nightMode]);
 
   return engineRef;
 }

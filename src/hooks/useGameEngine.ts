@@ -14,6 +14,7 @@ export function useGameEngine(
   difficulty: Difficulty,
   emitter: GameStateEmitter,
   reverse?: boolean,
+  nightMode?: boolean,
   activeRandomizer?: RandomizerCardDef | null,
   onReady?: () => void,
 ): MutableRefObject<GameEngine | null> {
@@ -26,14 +27,14 @@ export function useGameEngine(
     if (!canvas) return;
 
     const randomizerValues = activeRandomizer ? applyMutations([activeRandomizer]) : undefined;
-    engineRef.current = new GameEngine(canvas, selectedTrackId, selectedCarId, totalLaps, difficulty, emitter, reverse, () => onReadyRef.current?.(), randomizerValues);
+    engineRef.current = new GameEngine(canvas, selectedTrackId, selectedCarId, totalLaps, difficulty, emitter, reverse, nightMode, () => onReadyRef.current?.(), randomizerValues);
 
     return () => {
       engineRef.current?.dispose();
       engineRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canvasRef, selectedTrackId, selectedCarId, totalLaps, difficulty, emitter, reverse]);
+  }, [canvasRef, selectedTrackId, selectedCarId, totalLaps, difficulty, emitter, reverse, nightMode]);
 
   return engineRef;
 }

@@ -18,6 +18,7 @@ import { OptionsScreen } from './OptionsScreen.js';
 interface VersusRaceScreenProps {
   selections: VersusSelections;
   reverse?: boolean;
+  nightMode?: boolean;
   activeRandomizer?: RandomizerCardDef | null;
   onMainMenu: () => void;
   onPlayAgain: () => void;
@@ -40,7 +41,7 @@ const loadingOverlayStyle = {
 
 const loadingTextStyle = { color: 'rgba(255,255,255,0.7)', fontSize: 18, letterSpacing: 2 };
 
-export function VersusRaceScreen({ selections, reverse, activeRandomizer, onMainMenu, onPlayAgain }: VersusRaceScreenProps) {
+export function VersusRaceScreen({ selections, reverse, nightMode, activeRandomizer, onMainMenu, onPlayAgain }: VersusRaceScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const emitter = useMemo(() => new VersusStateEmitter(), []);
   const [paused, setPaused] = useState(false);
@@ -56,6 +57,7 @@ export function VersusRaceScreen({ selections, reverse, activeRandomizer, onMain
     selections.p2Name,
     emitter,
     reverse,
+    nightMode,
     activeRandomizer,
     () => setIsReady(true),
   );

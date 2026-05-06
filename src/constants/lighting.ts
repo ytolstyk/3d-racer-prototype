@@ -33,6 +33,44 @@ export const FILL_LIGHT = {
   posZ: -30,
 } as const;
 
+// ─── Night Mode Constants ──────────────────────────────────────────────────────
+
+export const NIGHT_SCENE = {
+  background: 0x050510,
+  fogNear: 150,
+  fogFar: 400,
+} as const;
+
+export const NIGHT_HEMI = { skyColor: 0x0a0a1a, groundColor: 0x000000, intensity: 0.02 } as const;
+export const NIGHT_SUN  = { intensity: 0.0 } as const;
+export const NIGHT_FILL = { intensity: 0.0 } as const;
+
+export const NIGHT_TRACK_LIGHT = {
+  color: 0xffeeaa, intensity: 80, distance: 120, height: 18, spacing: 100,
+} as const;
+
+export const CAR_SPOTLIGHT = {
+  color: 0xffeedd, intensity: 350, distance: 380, angle: 0.28, penumbra: 0.45,
+} as const;
+
+export const CAR_HEADLIGHT_GLOW = {
+  color: 0xffeedd, intensity: 25, distance: 20,
+} as const;
+
+// Local car-group space (positive Z is forward)
+export const HEADLIGHT_POSITIONS: Record<string, [number, number, number][]> = {
+  'racer-red':     [[-0.5, 0.80, 3.22],  [0.5, 0.80, 3.22]],
+  'sir-skids':     [[-0.66, 1.15, 2.18], [0.66, 1.15, 2.18]],
+  'captain-crumb': [[-0.64, 1.10, 1.85], [0.64, 1.10, 1.85]],
+  'butterknife':   [[-0.58, 0.95, 2.55], [0.58, 0.95, 2.55]],
+  'sauce-boss':    [[-0.72, 1.55, 2.2],  [0.72, 1.55, 2.2]],
+  'lil-pepper':    [[-0.5, 1.00, 1.58],  [0.5, 1.00, 1.58]],
+};
+const DEFAULT_HEADLIGHTS: [number, number, number][] = [[-0.64, 1.05, 2.1], [0.64, 1.05, 2.1]];
+export function getHeadlightPositions(carId: string): [number, number, number][] {
+  return HEADLIGHT_POSITIONS[carId] ?? DEFAULT_HEADLIGHTS;
+}
+
 /** Default corner spot lights added to every track */
 export const CORNER_LIGHTS = [
   { x: -560, y: 70, z: -420, color: 0xffcc88, label: "NW warm" },

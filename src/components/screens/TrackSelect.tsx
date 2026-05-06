@@ -4,7 +4,7 @@ import { TRACKS } from "../../constants/track.js";
 import type { TrackConfig } from "../../constants/track.js";
 
 interface TrackSelectProps {
-  onSelect: (trackId: string, reverse?: boolean) => void;
+  onSelect: (trackId: string, reverse?: boolean, nightMode?: boolean) => void;
   onBack: () => void;
 }
 
@@ -70,6 +70,7 @@ const TrackMinimap = memo(function TrackMinimap({ config }: { config: TrackConfi
 
 export function TrackSelect({ onSelect, onBack }: TrackSelectProps) {
   const [reverse, setReverse] = useState(false);
+  const [nightMode, setNightMode] = useState(false);
 
   return (
     <div className="screen main-menu">
@@ -82,13 +83,20 @@ export function TrackSelect({ onSelect, onBack }: TrackSelectProps) {
           color="yellow"
           fw={700}
         />
+        <Checkbox
+          checked={nightMode}
+          onChange={() => setNightMode(n => !n)}
+          label="Night Mode"
+          color="indigo"
+          fw={700}
+        />
       </Group>
       <div className="track-grid">
         {TRACKS.map((track) => (
           <button
             key={track.id}
             className="track-card"
-            onClick={() => onSelect(track.id, reverse)}
+            onClick={() => onSelect(track.id, reverse, nightMode)}
           >
             <TrackMinimap config={track} />
             <div className="track-info">
