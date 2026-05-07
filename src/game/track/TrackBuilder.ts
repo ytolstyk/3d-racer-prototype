@@ -83,6 +83,17 @@ export class TrackBuilder {
     track: TrackDefinition,
     tStart: number,
     tEnd: number,
+  ): THREE.Group {
+    const group = new THREE.Group();
+    group.add(this.buildTunnelShell(track, tStart, tEnd));
+    group.add(this.buildTunnelArches(track, tStart, tEnd));
+    return group;
+  }
+
+  private buildTunnelShell(
+    track: TrackDefinition,
+    tStart: number,
+    tEnd: number,
   ): THREE.Mesh {
     const N_SECTIONS = 80;
     const N_ARCH = 9;
@@ -108,7 +119,6 @@ export class TrackBuilder {
       }
     }
 
-    // Arch quads
     for (let si = 0; si < N_SECTIONS; si++) {
       for (let j = 0; j < N_ARCH - 1; j++) {
         const a = si * N_ARCH + j;
@@ -119,11 +129,74 @@ export class TrackBuilder {
       }
     }
 
-    // End caps (triangle fans from vertex 0 of each end)
-    for (const si of [0, N_SECTIONS]) {
-      const base = si * N_ARCH;
-      for (let j = 1; j < N_ARCH - 1; j++) {
-        idx.push(base, base + j, base + j + 1);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+
+    return new THREE.Mesh(
+      geo,
+      new THREE.MeshStandardMaterial({
+        transparent: true,
+        opacity: 0.3,
+        color: 0x99ccff,
+        roughness: 0.4,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      }),
+    );
+  }
+
+  /** Solid arch ribs at tunnel entrance, exit, and regular intervals. */
+  private buildTunnelArches(
+    track: TrackDefinition,
+    tStart: number,
+    tEnd: number,
+  ): THREE.Mesh {
+    const N_ARCH = 12;
+    const halfW = (track.width + 8) / 2;
+    const archH = 30;
+    const RIB_THICKNESS = 2.0;
+
+    // Ring t-values: entrance, exit, and evenly spaced intermediates
+    const span = tEnd - tStart;
+    const nRings = Math.max(2, Math.round(span / 0.06) + 1);
+    const ringTs: number[] = [];
+    for (let i = 0; i < nRings; i++) {
+      ringTs.push(tStart + (span * i) / (nRings - 1));
+    }
+
+    const up = new THREE.Vector3(0, 1, 0);
+    const pos: number[] = [];
+    const idx: number[] = [];
+
+    for (const ringT of ringTs) {
+      const c = track.curve.getPoint(ringT);
+      const tangent = track.curve.getTangent(ringT).normalize();
+      const n = new THREE.Vector3().crossVectors(tangent, up).normalize();
+      const half = RIB_THICKNESS / 2;
+      const vertBase = pos.length / 3;
+
+      // Two rows: front and back of the rib along the tangent direction
+      for (const side of [-1, 1]) {
+        for (let j = 0; j < N_ARCH; j++) {
+          const angle = Math.PI * (1 - j / (N_ARCH - 1));
+          pos.push(
+            c.x + n.x * halfW * Math.cos(angle) + tangent.x * side * half,
+            c.y + archH * Math.sin(angle),
+            c.z + n.z * halfW * Math.cos(angle) + tangent.z * side * half,
+          );
+        }
+      }
+
+      // Quads connecting front row to back row (both faces)
+      for (let j = 0; j < N_ARCH - 1; j++) {
+        const a = vertBase + j;
+        const b = vertBase + j + 1;
+        const c2 = vertBase + N_ARCH + j;
+        const d = vertBase + N_ARCH + j + 1;
+        idx.push(a, b, c2, b, d, c2);
+        idx.push(c2, b, a, c2, d, b);
       }
     }
 
@@ -132,16 +205,14 @@ export class TrackBuilder {
     geo.setIndex(idx);
     geo.computeVertexNormals();
 
-    const mat = new THREE.MeshStandardMaterial({
-      transparent: true,
-      opacity: 0.3,
-      color: 0x99ccff,
-      roughness: 0.4,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    });
-
-    return new THREE.Mesh(geo, mat);
+    return new THREE.Mesh(
+      geo,
+      new THREE.MeshStandardMaterial({
+        color: 0x778899,
+        roughness: 0.8,
+        metalness: 0.1,
+      }),
+    );
   }
 
   private buildSurfaceChunked(

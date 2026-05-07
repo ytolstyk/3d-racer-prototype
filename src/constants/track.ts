@@ -119,14 +119,14 @@ export const TRACKS: TrackConfig[] = [
         x: -495.62,
         z: 71.66,
         rotation: -0.7853981633974483,
-        scale: 1.400241210681914,
+        scale: 1.4,
       },
       {
         type: "toaster",
         x: 228.26,
         z: 103.68,
         rotation: 0.7853981633974483,
-        scale: 1.5763145953624595,
+        scale: 1.58,
       },
       {
         type: "apple",
@@ -217,14 +217,14 @@ export const TRACKS: TrackConfig[] = [
         x: 363.57,
         z: -378.13,
         rotation: 0,
-        scale: 0.9901805618922176,
+        scale: 0.99,
       },
       {
         type: "plate",
         x: 383.04,
         z: -180.44,
         rotation: 0,
-        scale: 0.9581965808166066,
+        scale: 0.96,
       },
       {
         type: "plate",
@@ -330,7 +330,7 @@ export const TRACKS: TrackConfig[] = [
         z: -181.7,
         rotation: 0,
         scale: 1,
-        y: 0.9581965808166066,
+        y: 0.96,
       },
       {
         type: "plate",
@@ -510,7 +510,7 @@ export const TRACKS: TrackConfig[] = [
         x: -40.04,
         z: 291.51,
         rotation: 0,
-        scale: 1.5036291925465923,
+        scale: 1.5,
       },
       {
         type: "croissant",
@@ -539,7 +539,7 @@ export const TRACKS: TrackConfig[] = [
         z: -378.22,
         rotation: 0.5235987755982988,
         scale: 1,
-        y: 0.9901805618922176,
+        y: 0.99,
       },
       {
         type: "toast",
@@ -581,8 +581,8 @@ export const TRACKS: TrackConfig[] = [
       },
       {
         type: "broccoli",
-        x: 591.42,
-        z: -380.97,
+        x: 581.59,
+        z: -385.51,
         rotation: 0,
         scale: 1,
       },
@@ -636,8 +636,25 @@ export const TRACKS: TrackConfig[] = [
         scale: 1,
       },
     ],
-    tunnels: [],
-    lights: DEFAULT_CORNER_LIGHTS,
+    tunnels: [
+      {
+        tStart: 0.012987012987012988,
+        tEnd: 0.02411873840445269,
+      },
+      {
+        tStart: 0.6493506493506493,
+        tEnd: 0.7068645640074211,
+      },
+      {
+        tStart: 0.8256029684601113,
+        tEnd: 0.8460111317254174,
+      },
+      {
+        tStart: 0.36363636363636365,
+        tEnd: 0.4805194805194805,
+      },
+    ],
+    lights: [],
     speedStrips: [
       {
         t: 0.03630708684608609,
