@@ -50,7 +50,7 @@ export function Scoreboard({ results, raceFinished, onMainMenu, onRaceAgain, onB
           </Table.Tbody>
         </Table>
         <Group gap="sm" mt="md" className="scoreboard-actions">
-          <Button color="yellow" onClick={onRaceAgain}>Race Again</Button>
+          <Button color="green" onClick={onRaceAgain}>Race Again</Button>
           <Button variant="default" onClick={onMainMenu}>Main Menu</Button>
           {onBackToEditor && (
             <Button variant="default" onClick={onBackToEditor}>← Back to Editor</Button>

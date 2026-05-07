@@ -20,7 +20,7 @@ export function MainMenu({ onStart, onVersus, onPractice, onBackToEditor, onOpti
         <Title order={1} className="game-title">Kitchen Grand Prix</Title>
         <Text className="game-subtitle">Tiny cars, big thrills, one kitchen table.</Text>
         <Stack gap="sm" mt="md" align="center">
-          <Button size="lg" color="yellow" onClick={onStart}>
+          <Button size="lg" color="green" onClick={onStart}>
             Start Race
           </Button>
           {onVersus && (

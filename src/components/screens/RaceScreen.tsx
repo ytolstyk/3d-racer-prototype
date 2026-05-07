@@ -122,7 +122,7 @@ export function RaceScreen({ selectedTrackId, selectedCarId, totalLaps, difficul
                 <div style={{ fontSize: 12, color: '#fff8ec' }}>{activeRandomizer.description}</div>
               </div>
             )}
-            <Button color="yellow" autoContrast onClick={handleResume}>
+            <Button color="green" autoContrast onClick={handleResume}>
               Resume
             </Button>
             <Button variant="default" onClick={handleOptionsOpen}>

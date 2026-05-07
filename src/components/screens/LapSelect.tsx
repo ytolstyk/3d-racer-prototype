@@ -60,7 +60,7 @@ export function LapSelect({ onSelect, onBack }: LapSelectProps) {
           <Button variant="default" onClick={onBack}>
             Back
           </Button>
-          <Button autoContrast size="lg" color="yellow" onClick={() => onSelect(laps, difficulty)}>
+          <Button autoContrast size="lg" color="green" onClick={() => onSelect(laps, difficulty)}>
             Next
           </Button>
         </Group>

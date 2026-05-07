@@ -118,7 +118,7 @@ export function VersusRaceScreen({ selections, reverse, nightMode, activeRandomi
                 <div style={{ fontSize: 12, color: '#fff8ec' }}>{activeRandomizer.description}</div>
               </div>
             )}
-            <Button color="yellow" autoContrast onClick={handleResume}>
+            <Button color="green" autoContrast onClick={handleResume}>
               Resume
             </Button>
             <Button variant="default" onClick={handleOptionsOpen}>

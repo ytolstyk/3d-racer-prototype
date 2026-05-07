@@ -1197,7 +1197,7 @@ export function PracticeScreen({ onMainMenu, onOpenInEditor }: PracticeScreenPro
         <div style={overlayStyle}>
           <Stack align="center" gap="sm">
             <Title order={2} c="white">Paused</Title>
-            <Button color="yellow" autoContrast onClick={() => { setPaused(false); engineRef.current?.resume(); }}>
+            <Button color="green" autoContrast onClick={() => { setPaused(false); engineRef.current?.resume(); }}>
               Resume
             </Button>
             <Button variant="default" onClick={() => setOptionsOpen(true)}>

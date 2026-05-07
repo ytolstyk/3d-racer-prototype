@@ -84,7 +84,7 @@ export function VersusEndScreen({ state, onPlayAgain, onMainMenu }: VersusEndScr
         </div>
 
         <Group gap="sm">
-          <Button color="yellow" onClick={onPlayAgain}>Play Again</Button>
+          <Button color="green" onClick={onPlayAgain}>Play Again</Button>
           <Button variant="default" onClick={onMainMenu}>Main Menu</Button>
         </Group>
       </Stack>
