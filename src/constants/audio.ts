@@ -26,9 +26,9 @@ export const AUDIO_SYNTH = {
   maxSpeedJitterCents: 14,
 
   // Speed strip woosh
-  wooshDuration: 0.22,
-  wooshGain: 0.55,
-  wooshFilterStart: 400, wooshFilterEnd: 4200,
+  wooshDuration: 0.35,
+  wooshGain: 0.70,
+  wooshFilterStart: 80, wooshFilterEnd: 500,
 
   // Boost turbo hum
   boostHumFreq: 180,
@@ -42,9 +42,9 @@ export const AUDIO_SYNTH = {
   collisionMetalChance: 0.30,
   collisionMetalFreqMin: 2000, collisionMetalFreqMax: 4000,
 
-  // Turbine whine (speed strip sustained boost)
-  turbineBaseFreq: 800, turbineMaxFreq: 3200,
-  turbineMaxGain: 0.40,
+  // Turbine / engine surge (speed strip sustained boost)
+  turbineBaseFreq: 90, turbineMaxFreq: 420,
+  turbineMaxGain: 0.45,
 
   // Boost track rev (sustained lane revving)
   boostTrackOscFreq: 220, boostTrackLFORate: 8, boostTrackGain: 0.22,

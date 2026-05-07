@@ -3455,6 +3455,14 @@ export function TrackEditor() {
           (v) => Math.round(v * 100) / 100,
         ) as [number, number, number],
     );
+    const r2 = (v: number) => Math.round(v * 100) / 100;
+    const roundedObjects = objects.map((o) => ({
+      ...o,
+      x: r2(o.x),
+      z: r2(o.z),
+      ...(o.y !== undefined ? { y: r2(o.y) } : {}),
+      scale: r2(o.scale),
+    }));
     const id = trackName.replace(/\s+/g, "-").toLowerCase();
     const data = {
       id,
@@ -3462,7 +3470,7 @@ export function TrackEditor() {
       controlPoints,
       width: trackWidth,
       hazards,
-      objects,
+      objects: roundedObjects,
       tunnels,
       lights,
       speedStrips,

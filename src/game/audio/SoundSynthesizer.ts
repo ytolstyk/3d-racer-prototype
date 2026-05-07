@@ -342,8 +342,8 @@ export function playSpeedStripWoosh(
   gainNode.connect(destination);
 
   const filterNode = ctx.createBiquadFilter();
-  filterNode.type = 'bandpass';
-  filterNode.Q.value = 1.5;
+  filterNode.type = 'lowpass';
+  filterNode.Q.value = 0.8;
   filterNode.frequency.setValueAtTime(S.wooshFilterStart, t);
   filterNode.frequency.linearRampToValueAtTime(S.wooshFilterEnd, t + dur);
   filterNode.connect(gainNode);
