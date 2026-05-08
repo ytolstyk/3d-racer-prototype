@@ -3716,7 +3716,7 @@ export function TrackEditor() {
                 </label>
                 <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                   <span style={{ fontSize: 9, opacity: 0.7 }}>
-                    Scale: {selectedObj.scale.toFixed(1)}
+                    Scale: {selectedObj.scale.toFixed(1)} Rot: {selectedObj.rotation.toFixed(2)}
                   </span>
                   <button
                     className="tool-btn"
@@ -3819,8 +3819,8 @@ export function TrackEditor() {
                         borderRadius: 2,
                       }}
                     >
-                      {(tn.tStart * 100).toFixed(0)}%–
-                      {(tn.tEnd * 100).toFixed(0)}%
+                      {(tn.tStart * 100).toFixed(2)}%–
+                      {(tn.tEnd * 100).toFixed(2)}%
                     </span>
                     <button
                       className="tool-btn tool-btn-danger"
@@ -3908,7 +3908,7 @@ export function TrackEditor() {
                       style={{ display: "flex", alignItems: "center", gap: 4 }}
                     >
                       <span style={{ fontSize: 9, opacity: 0.7 }}>
-                        r={hz.radius?.toFixed(0)}
+                        r={hz.radius?.toFixed(0)} rot={(hz.rotation ?? 0).toFixed(2)}
                       </span>
                       <button
                         className="tool-btn"
@@ -4024,7 +4024,7 @@ export function TrackEditor() {
                       {hz.type}
                       {hz.radius !== undefined
                         ? ` r=${hz.radius.toFixed(0)}`
-                        : ` ${((hz.tStart ?? 0) * 100).toFixed(0)}–${((hz.tEnd ?? 0) * 100).toFixed(0)}%`}
+                        : ` ${((hz.tStart ?? 0) * 100).toFixed(2)}–${((hz.tEnd ?? 0) * 100).toFixed(2)}%`}
                     </button>
                     <button
                       className="tool-btn tool-btn-danger"
@@ -4367,7 +4367,7 @@ export function TrackEditor() {
                         borderRadius: 2,
                       }}
                     >
-                      t={(ss.t * 100).toFixed(0)}%
+                      t={(ss.t * 100).toFixed(2)}%
                     </span>
                     <button
                       className="tool-btn tool-btn-danger"
@@ -4451,8 +4451,8 @@ export function TrackEditor() {
                         borderRadius: 2,
                       }}
                     >
-                      {(bt.tStart * 100).toFixed(0)}%–
-                      {(bt.tEnd * 100).toFixed(0)}% {bt.side[0].toUpperCase()}
+                      {(bt.tStart * 100).toFixed(2)}%–
+                      {(bt.tEnd * 100).toFixed(2)}% {bt.side[0].toUpperCase()}
                     </span>
                     <button
                       className="tool-btn tool-btn-danger"
@@ -4624,8 +4624,8 @@ export function TrackEditor() {
                         borderRadius: 2,
                       }}
                     >
-                      {(rz.tStart * 100).toFixed(0)}%–
-                      {(rz.tEnd * 100).toFixed(0)}%
+                      {(rz.tStart * 100).toFixed(2)}%–
+                      {(rz.tEnd * 100).toFixed(2)}%
                     </span>
                     <button
                       className="tool-btn tool-btn-danger"
