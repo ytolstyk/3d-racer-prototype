@@ -3566,7 +3566,15 @@ export function TrackEditor() {
         tEnd: h.tEnd,
         lateralOffset: h.lateralOffset,
         width: h.width,
+        centerX: h.centerX,
+        centerZ: h.centerZ,
+        radius: h.radius,
+        rotation: h.rotation,
       }));
+    const validLightTypes = new Set<string>(["point", "spot"]);
+    const lights: PlacedLight[] = (track.lights ?? []).filter((l) =>
+      validLightTypes.has(l.type),
+    );
     dispatch({
       type: "LOAD_STATE",
       points,
@@ -3575,6 +3583,12 @@ export function TrackEditor() {
       hazards,
       loopClosed: true,
       objects: track.objects ?? [],
+      tunnels: track.tunnels ?? [],
+      lights,
+      speedStrips: track.speedStrips ?? [],
+      boostTracks: track.boostTracks ?? [],
+      rainZones: track.rainZones ?? [],
+      pointRotations: track.pointRotations ?? [],
     });
   };
 
