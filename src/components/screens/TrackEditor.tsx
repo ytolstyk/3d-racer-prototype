@@ -40,6 +40,7 @@ type Tool =
   | "startPoint"
   | "insert"
   | "object"
+  | "objectSelect"
   | "tunnel"
   | "hazard"
   | "light"
@@ -212,6 +213,8 @@ interface EditorState {
   pointRotations: number[];
   selectedPoints: number[];
   selectionRect: { x1: number; y1: number; x2: number; y2: number } | null;
+  selectedObjectIndices: number[];
+  objectSelectionRect: { x1: number; y1: number; x2: number; y2: number } | null;
 }
 
 type EditorAction =
@@ -304,6 +307,13 @@ type EditorAction =
   | {
       type: "SET_SELECTION_RECT";
       rect: { x1: number; y1: number; x2: number; y2: number } | null;
+    }
+  | { type: "SELECT_OBJECTS"; indices: number[]; append: boolean }
+  | { type: "CLEAR_OBJECT_SELECTION" }
+  | { type: "MOVE_SELECTED_OBJECTS"; dx: number; dz: number }
+  | {
+      type: "SET_OBJECT_SELECTION_RECT";
+      rect: { x1: number; y1: number; x2: number; y2: number } | null;
     };
 
 const initialState: EditorState = {
@@ -342,6 +352,8 @@ const initialState: EditorState = {
   pointRotations: [],
   selectedPoints: [],
   selectionRect: null,
+  selectedObjectIndices: [],
+  objectSelectionRect: null,
 };
 
 function getInitialState(): EditorState {
@@ -516,6 +528,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         selectedLightIndex: -1,
         selectedPoints: [],
         selectionRect: null,
+        selectedObjectIndices: [],
+        objectSelectionRect: null,
       };
 
     case "SET_NAME":
@@ -904,6 +918,38 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case "SET_SELECTION_RECT":
       return { ...state, selectionRect: action.rect };
 
+    case "SELECT_OBJECTS": {
+      if (action.append) {
+        const existing = new Set(state.selectedObjectIndices);
+        for (const idx of action.indices) {
+          if (existing.has(idx)) existing.delete(idx);
+          else existing.add(idx);
+        }
+        return { ...state, selectedObjectIndices: Array.from(existing) };
+      }
+      return { ...state, selectedObjectIndices: action.indices };
+    }
+
+    case "CLEAR_OBJECT_SELECTION":
+      return { ...state, selectedObjectIndices: [], objectSelectionRect: null };
+
+    case "MOVE_SELECTED_OBJECTS": {
+      const objs = [...state.objects];
+      for (const idx of state.selectedObjectIndices) {
+        if (idx >= 0 && idx < objs.length) {
+          objs[idx] = {
+            ...objs[idx],
+            x: objs[idx].x + action.dx,
+            z: objs[idx].z + action.dz,
+          };
+        }
+      }
+      return { ...state, objects: objs };
+    }
+
+    case "SET_OBJECT_SELECTION_RECT":
+      return { ...state, objectSelectionRect: action.rect };
+
     default:
       return state;
   }
@@ -1170,6 +1216,10 @@ export function TrackEditor() {
   const selectRectStartRef = useRef<[number, number] | null>(null);
   const selectDragLastRef = useRef<[number, number] | null>(null);
   const selectDraggingPointsRef = useRef(false);
+  const objSelectRectStartRef = useRef<[number, number] | null>(null);
+  const objSelectDragLastRef = useRef<[number, number] | null>(null);
+  const objSelectDraggingRef = useRef<number[]>([]);
+  const objRotateDragRef = useRef<{ idx: number; lastAngle: number } | null>(null);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -1210,6 +1260,8 @@ export function TrackEditor() {
       rainZoneStartT,
       pointRotations,
       selectedPoints,
+      selectedObjectIndices,
+      objectSelectionRect,
     } = stateRef.current;
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -1654,6 +1706,58 @@ export function TrackEditor() {
             cx2,
             cy2 + displayR + 10 * invZoom,
           );
+        }
+      }
+
+      // objectSelect: selection rings + rotation handles + selection rect
+      if (activeTool === "objectSelect") {
+        const canvas3 = canvasRef.current;
+        const ox3 = canvas3 ? (originRef.current?.x ?? canvas3.width / 2) : 0;
+        const oy3 = canvas3 ? (originRef.current?.y ?? canvas3.height / 2) : 0;
+        for (const si of selectedObjectIndices) {
+          if (si < 0 || si >= objects.length) continue;
+          const sobj = objects[si];
+          const [scx, scy] = gameToCanvas(sobj.x, sobj.z, ox3, oy3);
+          const sfp = OBJECT_FOOTPRINTS[sobj.type] ?? { w: 12, d: 12, shape: "oval" as const };
+          const sR = Math.max(sfp.w, sfp.d) * 0.5 * sobj.scale;
+          // Selection ring
+          ctx.beginPath();
+          ctx.arc(scx, scy, sR + 5 * invZoom, 0, Math.PI * 2);
+          ctx.strokeStyle = "rgba(0,255,255,0.85)";
+          ctx.lineWidth = 2 * invZoom;
+          ctx.stroke();
+          // Rotation handle line
+          const rotLen = (sR + 24 * invZoom);
+          const rtx = scx + Math.cos(sobj.rotation) * rotLen;
+          const rty = scy + Math.sin(sobj.rotation) * rotLen;
+          ctx.beginPath();
+          ctx.moveTo(scx, scy);
+          ctx.lineTo(rtx, rty);
+          ctx.strokeStyle = "#ff66ff";
+          ctx.lineWidth = 2.5 * invZoom;
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(rtx, rty, EDITOR_DRAW.rotArrowDotR * invZoom, 0, Math.PI * 2);
+          ctx.fillStyle = "#ff66ff";
+          ctx.fill();
+          ctx.strokeStyle = "#fff";
+          ctx.lineWidth = 1.5 * invZoom;
+          ctx.stroke();
+        }
+        // Object selection rectangle
+        if (objectSelectionRect) {
+          const { x1, y1, x2, y2 } = objectSelectionRect;
+          const rx = Math.min(x1, x2);
+          const ry = Math.min(y1, y2);
+          const rw = Math.abs(x2 - x1);
+          const rh = Math.abs(y2 - y1);
+          ctx.setLineDash([6 * invZoom, 4 * invZoom]);
+          ctx.strokeStyle = "rgba(0, 255, 255, 0.7)";
+          ctx.lineWidth = 1.5 * invZoom;
+          ctx.strokeRect(rx, ry, rw, rh);
+          ctx.fillStyle = "rgba(0, 255, 255, 0.08)";
+          ctx.fillRect(rx, ry, rw, rh);
+          ctx.setLineDash([]);
         }
       }
 
@@ -2894,6 +2998,49 @@ export function TrackEditor() {
           dispatch({ type: "ADD_RAIN_ZONE", rainZone: { tStart, tEnd } });
         }
       }
+    } else if (activeTool === "objectSelect") {
+      const canvas4 = canvasRef.current!;
+      const ox4 = originRef.current?.x ?? canvas4.width / 2;
+      const oy4 = originRef.current?.y ?? canvas4.height / 2;
+      const { selectedObjectIndices: selObjIdx } = stateRef.current;
+
+      // Check rotation handle tip hits first
+      for (const si of selObjIdx) {
+        const sobj = stateRef.current.objects[si];
+        const [scx, scy] = gameToCanvas(sobj.x, sobj.z, ox4, oy4);
+        const sfp = OBJECT_FOOTPRINTS[sobj.type] ?? { w: 12, d: 12, shape: "oval" as const };
+        const sR = Math.max(sfp.w, sfp.d) * 0.5 * sobj.scale;
+        const rotLen = sR + 24 / zoomRef.current;
+        const rtx = scx + Math.cos(sobj.rotation) * rotLen;
+        const rty = scy + Math.sin(sobj.rotation) * rotLen;
+        const hitR = EDITOR_DRAW.rotArrowDotR * 2 / zoomRef.current;
+        if (Math.hypot(pos[0] - rtx, pos[1] - rty) <= hitR) {
+          dispatch({ type: "PUSH_HISTORY" });
+          objRotateDragRef.current = { idx: si, lastAngle: Math.atan2(pos[1] - scy, pos[0] - scx) };
+          return;
+        }
+      }
+
+      const objIdx2 = findNearestObject(pos);
+      if (objIdx2 !== -1) {
+        if (e.shiftKey) {
+          dispatch({ type: "SELECT_OBJECTS", indices: [objIdx2], append: true });
+        } else {
+          // Determine which indices will be dragged
+          const dragIndices = selObjIdx.includes(objIdx2)
+            ? selObjIdx
+            : [objIdx2];
+          if (!selObjIdx.includes(objIdx2)) {
+            dispatch({ type: "SELECT_OBJECTS", indices: [objIdx2], append: false });
+          }
+          dispatch({ type: "PUSH_HISTORY" });
+          objSelectDraggingRef.current = dragIndices;
+          objSelectDragLastRef.current = pos;
+        }
+      } else {
+        if (!e.shiftKey) dispatch({ type: "CLEAR_OBJECT_SELECTION" });
+        objSelectRectStartRef.current = pos;
+      }
     } else if (activeTool === "select") {
       // Check rotation arrow tip hit first (single selected point)
       {
@@ -3142,6 +3289,59 @@ export function TrackEditor() {
         dispatch({ type: "SET_LIGHT_DISTANCE", index: idx, distance: newDist });
         return;
       }
+      if (objRotateDragRef.current !== null) {
+        const { idx: ridx, lastAngle: rLast } = objRotateDragRef.current;
+        const robj = stateRef.current.objects[ridx];
+        const canvas5 = canvasRef.current!;
+        const ox5 = originRef.current?.x ?? canvas5.width / 2;
+        const oy5 = originRef.current?.y ?? canvas5.height / 2;
+        const [rcx, rcy] = gameToCanvas(robj.x, robj.z, ox5, oy5);
+        const currentAngle = Math.atan2(pos[1] - rcy, pos[0] - rcx);
+        const newRot = robj.rotation + (currentAngle - rLast);
+        dispatch({ type: "SET_OBJECT_ROTATION", index: ridx, rotation: newRot });
+        objRotateDragRef.current = { idx: ridx, lastAngle: currentAngle };
+        draw();
+        return;
+      }
+      if (
+        activeTool === "objectSelect" &&
+        objSelectDraggingRef.current.length > 0 &&
+        objSelectDragLastRef.current
+      ) {
+        const canvas5 = canvasRef.current!;
+        const ox5 = originRef.current?.x ?? canvas5.width / 2;
+        const oy5 = originRef.current?.y ?? canvas5.height / 2;
+        const [gdx_last, , gdz_last] = canvasToGame(objSelectDragLastRef.current[0], objSelectDragLastRef.current[1], ox5, oy5);
+        const [gdx_cur, , gdz_cur] = canvasToGame(pos[0], pos[1], ox5, oy5);
+        const ddx = gdx_cur - gdx_last;
+        const ddz = gdz_cur - gdz_last;
+        const objs3 = stateRef.current.objects;
+        for (const didx of objSelectDraggingRef.current) {
+          if (didx >= 0 && didx < objs3.length) {
+            dispatch({
+              type: "MOVE_OBJECT",
+              index: didx,
+              x: objs3[didx].x + ddx,
+              z: objs3[didx].z + ddz,
+            });
+          }
+        }
+        objSelectDragLastRef.current = pos;
+        draw();
+        return;
+      }
+      if (activeTool === "objectSelect" && objSelectRectStartRef.current) {
+        dispatch({
+          type: "SET_OBJECT_SELECTION_RECT",
+          rect: {
+            x1: objSelectRectStartRef.current[0],
+            y1: objSelectRectStartRef.current[1],
+            x2: pos[0],
+            y2: pos[1],
+          },
+        });
+        return;
+      }
       if (activeTool === "select" && pointRotateDragRef.current) {
         const { idx, lastAngle } = pointRotateDragRef.current;
         const pt = stateRef.current.points[idx];
@@ -3197,6 +3397,12 @@ export function TrackEditor() {
     const { activeTool } = stateRef.current;
     isDraggingRef.current = false;
 
+    if (objRotateDragRef.current) {
+      objRotateDragRef.current = null;
+      draw();
+      return;
+    }
+
     if (cornerDragRef.current || rotateDragRef.current) {
       cornerDragRef.current = null;
       rotateDragRef.current = null;
@@ -3224,6 +3430,36 @@ export function TrackEditor() {
       hazardMoveRef.current = null;
       hazardEdgeRef.current = null;
       hazardRotateRef.current = null;
+      draw();
+      return;
+    }
+
+    if (activeTool === "objectSelect") {
+      if (objSelectRectStartRef.current) {
+        const rect = stateRef.current.objectSelectionRect;
+        if (rect) {
+          const canvas6 = canvasRef.current!;
+          const ox6 = originRef.current?.x ?? canvas6.width / 2;
+          const oy6 = originRef.current?.y ?? canvas6.height / 2;
+          const rx1 = Math.min(rect.x1, rect.x2);
+          const ry1 = Math.min(rect.y1, rect.y2);
+          const rx2 = Math.max(rect.x1, rect.x2);
+          const ry2 = Math.max(rect.y1, rect.y2);
+          const indices: number[] = [];
+          const objs2 = stateRef.current.objects;
+          for (let i = 0; i < objs2.length; i++) {
+            const [ocx, ocy] = gameToCanvas(objs2[i].x, objs2[i].z, ox6, oy6);
+            if (ocx >= rx1 && ocx <= rx2 && ocy >= ry1 && ocy <= ry2) {
+              indices.push(i);
+            }
+          }
+          dispatch({ type: "SELECT_OBJECTS", indices, append: e.shiftKey });
+        }
+        dispatch({ type: "SET_OBJECT_SELECTION_RECT", rect: null });
+        objSelectRectStartRef.current = null;
+      }
+      objSelectDraggingRef.current = [];
+      objSelectDragLastRef.current = null;
       draw();
       return;
     }
@@ -3436,6 +3672,10 @@ export function TrackEditor() {
     selectDragLastRef.current = null;
     selectDraggingPointsRef.current = false;
     pointRotateDragRef.current = null;
+    objSelectRectStartRef.current = null;
+    objSelectDragLastRef.current = null;
+    objSelectDraggingRef.current = [];
+    objRotateDragRef.current = null;
     draw();
   };
 
@@ -3682,6 +3922,7 @@ export function TrackEditor() {
 
   const decorationTools: { id: Tool; label: string; key: string }[] = [
     { id: "object", label: "Objects", key: "O" },
+    { id: "objectSelect", label: "Obj Select", key: "" },
     { id: "tunnel", label: "Tunnel", key: "T" },
     { id: "hazard", label: "Hazards", key: "X" },
     { id: "light", label: "Lights", key: "V" },
@@ -3772,6 +4013,42 @@ export function TrackEditor() {
             ))}
           </div>
         </div>
+
+        {state.activeTool === "objectSelect" && (
+          <div className="editor-section">
+            <label className="editor-label">Object Selection</label>
+            <span style={{ opacity: 0.6, fontSize: 9, display: "block", marginBottom: 4 }}>
+              {state.selectedObjectIndices.length === 0
+                ? "Click or drag to select objects"
+                : `${state.selectedObjectIndices.length} object${state.selectedObjectIndices.length !== 1 ? "s" : ""} selected`}
+            </span>
+            {state.selectedObjectIndices.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                <span style={{ fontSize: 9, opacity: 0.7 }}>
+                  {state.selectedObjectIndices.length === 1
+                    ? `${OBJECT_LABELS[state.objects[state.selectedObjectIndices[0]]?.type]} · rot: ${state.objects[state.selectedObjectIndices[0]]?.rotation.toFixed(2)}`
+                    : "drag=move all · pink dot=rotate"}
+                </span>
+                <button
+                  className="tool-btn tool-btn-danger"
+                  style={{ fontSize: 9, padding: "1px 6px" }}
+                  onClick={() => {
+                    const indices = [...state.selectedObjectIndices].sort((a, b) => b - a);
+                    for (const idx of indices) {
+                      dispatch({ type: "DELETE_OBJECT", index: idx });
+                    }
+                    dispatch({ type: "CLEAR_OBJECT_SELECTION" });
+                  }}
+                >
+                  Delete selected
+                </button>
+              </div>
+            )}
+            <span style={{ opacity: 0.4, fontSize: 9, display: "block", marginTop: 4 }}>
+              shift+click=toggle · drag empty=box select
+            </span>
+          </div>
+        )}
 
         {state.activeTool === "object" && (
           <div className="editor-section">
