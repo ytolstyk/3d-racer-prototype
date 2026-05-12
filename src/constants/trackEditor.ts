@@ -42,8 +42,8 @@ export const EDITOR_DRAW = {
   pointRadius: 6,          // control-point dot radius
   pointLabelFontMin: 9,    // minimum font size for point-index labels
   pointLabelFontBase: 11,  // base font size (× invZoom) for point-index labels
-  rotArrowLen: 16,         // rotation-hint arrow length
-  rotArrowDotR: 3,         // dot radius at the tip of the rotation-hint arrow
+  rotArrowLen: 30,         // rotation-hint arrow length
+  rotArrowDotR: 7,         // dot radius at the tip of the rotation-hint arrow
   selectRingFactor: 2.2,   // highlight ring = pointRadius × factor
   crosshairArm: 8,         // origin crosshair arm half-length
   startMarkerRadius: 8,   // pending-start circle radius for tunnel / boost / rain

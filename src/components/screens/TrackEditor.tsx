@@ -1093,6 +1093,7 @@ export function TrackEditor() {
     startScale: number;
   } | null>(null);
   const rotateDragRef = useRef<{ idx: number; lastAngle: number } | null>(null);
+  const pointRotateDragRef = useRef<{ idx: number; lastAngle: number } | null>(null);
   const lineStartRef = useRef<[number, number] | null>(null);
   const hoverPointRef = useRef<[number, number] | null>(null);
   const isDraggingRef = useRef(false);
@@ -1208,6 +1209,7 @@ export function TrackEditor() {
       boostTrackStartT,
       rainZoneStartT,
       pointRotations,
+      selectedPoints,
     } = stateRef.current;
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -1876,8 +1878,9 @@ export function TrackEditor() {
       ctx.fillText(String(i), x, y);
 
       // Point rotation indicator
-      const rot = pointRotations[i];
-      if (rot && rot !== 0) {
+      const rot = pointRotations[i] ?? 0;
+      const isSelPt = selectedPoints.includes(i);
+      if (rot !== 0 || isSelPt) {
         const arrowLen = EDITOR_DRAW.rotArrowLen * invZoom;
         const ax = x + Math.cos(rot) * arrowLen;
         const ay = y + Math.sin(rot) * arrowLen;
@@ -1885,12 +1888,15 @@ export function TrackEditor() {
         ctx.moveTo(x, y);
         ctx.lineTo(ax, ay);
         ctx.strokeStyle = "#ff66ff";
-        ctx.lineWidth = 2 * invZoom;
+        ctx.lineWidth = 3 * invZoom;
         ctx.stroke();
         ctx.beginPath();
         ctx.arc(ax, ay, EDITOR_DRAW.rotArrowDotR * invZoom, 0, Math.PI * 2);
         ctx.fillStyle = "#ff66ff";
         ctx.fill();
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 1.5 * invZoom;
+        ctx.stroke();
       }
     }
 
@@ -2889,6 +2895,26 @@ export function TrackEditor() {
         }
       }
     } else if (activeTool === "select") {
+      // Check rotation arrow tip hit first (single selected point)
+      {
+        const { selectedPoints: selPts2, pointRotations: ptRots, points: pts } = stateRef.current;
+        if (selPts2.length === 1) {
+          const si = selPts2[0];
+          const rot2 = ptRots[si] ?? 0;
+          const pt = pts[si];
+          const tipX = pt[0] + Math.cos(rot2) * EDITOR_DRAW.rotArrowLen / zoomRef.current;
+          const tipY = pt[1] + Math.sin(rot2) * EDITOR_DRAW.rotArrowLen / zoomRef.current;
+          const hitR = EDITOR_DRAW.rotArrowDotR * 2 / zoomRef.current;
+          if (Math.hypot(pos[0] - tipX, pos[1] - tipY) <= hitR) {
+            dispatch({ type: "PUSH_HISTORY" });
+            pointRotateDragRef.current = {
+              idx: si,
+              lastAngle: Math.atan2(pos[1] - pt[1], pos[0] - pt[0]),
+            };
+            return;
+          }
+        }
+      }
       const nearIdx = findNearestPoint(pos, 10);
       const { selectedPoints: selPts } = stateRef.current;
 
@@ -3116,6 +3142,17 @@ export function TrackEditor() {
         dispatch({ type: "SET_LIGHT_DISTANCE", index: idx, distance: newDist });
         return;
       }
+      if (activeTool === "select" && pointRotateDragRef.current) {
+        const { idx, lastAngle } = pointRotateDragRef.current;
+        const pt = stateRef.current.points[idx];
+        const currentAngle = Math.atan2(pos[1] - pt[1], pos[0] - pt[0]);
+        const delta = currentAngle - lastAngle;
+        const curRot = stateRef.current.pointRotations[idx] ?? 0;
+        dispatch({ type: "SET_POINT_ROTATION", index: idx, rotation: curRot + delta });
+        pointRotateDragRef.current = { idx, lastAngle: currentAngle };
+        draw();
+        return;
+      }
       if (
         activeTool === "select" &&
         selectDraggingPointsRef.current &&
@@ -3219,6 +3256,7 @@ export function TrackEditor() {
       }
       selectDraggingPointsRef.current = false;
       selectDragLastRef.current = null;
+      pointRotateDragRef.current = null;
       draw();
       return;
     }
@@ -3397,6 +3435,7 @@ export function TrackEditor() {
     selectRectStartRef.current = null;
     selectDragLastRef.current = null;
     selectDraggingPointsRef.current = false;
+    pointRotateDragRef.current = null;
     draw();
   };
 
