@@ -1105,6 +1105,45 @@ export function TrackEditor() {
   useEffect(() => {
     stateRef.current = state;
   });
+  useEffect(() => {
+    const {
+      points,
+      trackName,
+      trackWidth,
+      hazards,
+      loopClosed,
+      objects,
+      tunnels,
+      lights,
+      speedStrips,
+      boostTracks,
+      rainZones,
+      pointRotations,
+    } = state;
+    try {
+      sessionStorage.setItem(
+        "editor_draft",
+        JSON.stringify({
+          points,
+          trackName,
+          trackWidth,
+          hazards,
+          loopClosed,
+          objects,
+          tunnels,
+          lights,
+          speedStrips,
+          boostTracks,
+          rainZones,
+          pointRotations,
+          originX: originRef.current?.x,
+          originY: originRef.current?.y,
+        }),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [state]);
   const drawRef = useRef<() => void>(() => {});
   const viewInitializedRef = useRef(false);
   const splineSamplesRef = useRef<[number, number][]>([]);
