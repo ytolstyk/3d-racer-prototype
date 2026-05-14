@@ -37,6 +37,7 @@ export class AudioManager {
   private lastCamera: THREE.PerspectiveCamera | null = null;
   private boostTrackActive = false;
   private inTunnel = false;
+  private readonly _ndcScratch = new THREE.Vector3();
 
   constructor(_camera: THREE.PerspectiveCamera) {
     const S = AUDIO_SYNTH;
@@ -304,9 +305,9 @@ export class AudioManager {
   }
 
   private isInFrustum(position: THREE.Vector3, camera: THREE.PerspectiveCamera): boolean {
-    const ndc = position.clone().project(camera);
+    this._ndcScratch.copy(position).project(camera);
     const m = AUDIO_SYNTH.frustumCullMargin;
-    return Math.abs(ndc.x) <= 1 + m && Math.abs(ndc.y) <= 1 + m && ndc.z <= 1;
+    return Math.abs(this._ndcScratch.x) <= 1 + m && Math.abs(this._ndcScratch.y) <= 1 + m && this._ndcScratch.z <= 1;
   }
 
   muteAllCars(): void {

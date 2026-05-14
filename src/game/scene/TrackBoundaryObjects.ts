@@ -4,6 +4,19 @@ import type { TrackDefinition } from '../track/TrackDefinition.js';
 const BOLLARD_INTERVAL = 12; // place bollard every N boundary samples
 const SPECTATOR_INTERVAL = 10;
 
+// Shared materials — created once, reused across all boundary object instances
+const BOLLARD_ORANGE_MAT = new THREE.MeshStandardMaterial({ color: 0xff5500, roughness: 0.65, metalness: 0.1 });
+const BOLLARD_WHITE_MAT = new THREE.MeshStandardMaterial({
+  color: 0xffffff,
+  roughness: 0.3,
+  metalness: 0.4,
+  emissive: 0xffffff,
+  emissiveIntensity: 0.08,
+});
+const SPECTATOR_BODY_MAT = new THREE.MeshStandardMaterial({ color: 0x5588cc, roughness: 0.8 });
+const SPECTATOR_SKIN_MAT = new THREE.MeshStandardMaterial({ color: 0xf5cba0, roughness: 0.9 });
+const SPECTATOR_HELMET_MAT = new THREE.MeshStandardMaterial({ color: 0x2244aa, roughness: 0.4, metalness: 0.3 });
+
 export class TrackBoundaryObjects {
   private track: TrackDefinition;
 
@@ -61,27 +74,18 @@ export class TrackBoundaryObjects {
   private makeBollard(): THREE.Group {
     const g = new THREE.Group();
 
-    const orangeMat = new THREE.MeshStandardMaterial({ color: 0xff5500, roughness: 0.65, metalness: 0.1 });
-    const whiteMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      roughness: 0.3,
-      metalness: 0.4,
-      emissive: 0xffffff,
-      emissiveIntensity: 0.08,
-    });
-
     // Main body
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.5, 4.2, 8), orangeMat);
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.5, 4.2, 8), BOLLARD_ORANGE_MAT);
     body.position.y = 2.1;
     g.add(body);
 
     // Reflective white band
-    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.41, 0.41, 0.65, 8), whiteMat);
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.41, 0.41, 0.65, 8), BOLLARD_WHITE_MAT);
     band.position.y = 2.6;
     g.add(band);
 
     // Cone top
-    const top = new THREE.Mesh(new THREE.CylinderGeometry(0.0, 0.38, 0.9, 8), orangeMat);
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(0.0, 0.38, 0.9, 8), BOLLARD_ORANGE_MAT);
     top.position.y = 4.65;
     g.add(top);
 
@@ -91,27 +95,23 @@ export class TrackBoundaryObjects {
   private makeSpectator(): THREE.Group {
     const g = new THREE.Group();
 
-    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x5588cc, roughness: 0.8 });
-    const skinMat = new THREE.MeshStandardMaterial({ color: 0xf5cba0, roughness: 0.9 });
-    const helmetMat = new THREE.MeshStandardMaterial({ color: 0x2244aa, roughness: 0.4, metalness: 0.3 });
-
     // Legs
-    const legs = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.9, 0.3), bodyMat);
+    const legs = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.9, 0.3), SPECTATOR_BODY_MAT);
     legs.position.y = 0.45;
     g.add(legs);
 
     // Torso
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.75, 0.35), bodyMat);
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.75, 0.35), SPECTATOR_BODY_MAT);
     torso.position.y = 1.27;
     g.add(torso);
 
     // Head
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 7, 6), skinMat);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 7, 6), SPECTATOR_SKIN_MAT);
     head.position.y = 1.92;
     g.add(head);
 
     // Helmet/hat
-    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.3, 7, 6), helmetMat);
+    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.3, 7, 6), SPECTATOR_HELMET_MAT);
     helmet.position.y = 2.05;
     helmet.scale.set(1, 0.65, 1);
     g.add(helmet);

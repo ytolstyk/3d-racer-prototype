@@ -14,7 +14,7 @@ export const SUN_LIGHT = {
   posX: -60,
   posY: 80,
   posZ: 40,
-  shadowMapSize: 4096,
+  shadowMapSize: 2048,
   shadowNear: 1,
   shadowFar: 400,
   shadowLeft: -180,
@@ -85,5 +85,5 @@ export const CORNER_LIGHT_DEFAULTS = {
   penumbra: 0.3,
   targetX: 0,
   targetZ: 0,
-  castShadow: true,
+  castShadow: false,
 } as const;

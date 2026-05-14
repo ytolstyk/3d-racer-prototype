@@ -50,7 +50,6 @@ function createGlbGroup(url: string, targetHeight: number): THREE.Group {
 
     scene.traverse((child) => {
       if (child instanceof THREE.Mesh) {
-        child.castShadow = true;
         child.receiveShadow = true;
       }
     });

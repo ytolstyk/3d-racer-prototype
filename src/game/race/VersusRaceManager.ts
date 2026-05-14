@@ -13,6 +13,7 @@ export class VersusRaceManager {
   private track: TrackDefinition;
   readonly pointsToWin = 3;
   private wrongWayTimers = new Map<string, number>();
+  private readonly _carForward = new THREE.Vector3();
 
   constructor(track: TrackDefinition) {
     this.track = track;
@@ -44,8 +45,8 @@ export class VersusRaceManager {
 
     // Wrong-way detection — car heading vs track tangent
     const trackTangent = this.track.getTangentAt(car.currentT).normalize();
-    const carForward = new THREE.Vector3(Math.sin(car.rotation), 0, Math.cos(car.rotation));
-    const alignment = carForward.dot(trackTangent);
+    this._carForward.set(Math.sin(car.rotation), 0, Math.cos(car.rotation));
+    const alignment = this._carForward.dot(trackTangent);
     const isWrongWay = alignment < 0;
     const prev = this.wrongWayTimers.get(car.id) ?? 0;
     this.wrongWayTimers.set(car.id, isWrongWay ? prev + dt : Math.max(0, prev - dt * 2));

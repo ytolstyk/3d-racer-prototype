@@ -12,8 +12,12 @@ export class InputManager {
   private keys: Set<string> = new Set();
   private boundKeyDown: (e: KeyboardEvent) => void;
   private boundKeyUp: (e: KeyboardEvent) => void;
+  private spConfig: ReturnType<typeof loadSPControlsConfig>;
+  private vsConfig: ReturnType<typeof loadControlsConfig>;
 
   constructor() {
+    this.spConfig = loadSPControlsConfig();
+    this.vsConfig = loadControlsConfig();
     this.boundKeyDown = (e: KeyboardEvent) => {
       this.keys.add(e.code);
     };
@@ -24,8 +28,13 @@ export class InputManager {
     window.addEventListener('keyup', this.boundKeyUp);
   }
 
+  reloadConfig(): void {
+    this.spConfig = loadSPControlsConfig();
+    this.vsConfig = loadControlsConfig();
+  }
+
   getState(): InputState {
-    const { p1 } = loadSPControlsConfig();
+    const { p1 } = this.spConfig;
     return {
       forward: this.keys.has(p1.forward),
       backward: this.keys.has(p1.backward),
@@ -36,7 +45,7 @@ export class InputManager {
   }
 
   getStateP1(): InputState {
-    const { p1 } = loadControlsConfig();
+    const { p1 } = this.vsConfig;
     return {
       forward: this.keys.has(p1.forward),
       backward: this.keys.has(p1.backward),
@@ -47,7 +56,7 @@ export class InputManager {
   }
 
   getStateP2(): InputState {
-    const { p2 } = loadControlsConfig();
+    const { p2 } = this.vsConfig;
     return {
       forward: this.keys.has(p2.forward),
       backward: this.keys.has(p2.backward),

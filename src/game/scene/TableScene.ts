@@ -71,7 +71,6 @@ export class TableScene {
     // Keep top surface at y≈0; center box so top face aligns with original position
     table.position.set(0, -TABLE_THICKNESS / 2 - 0.02, 0);
     table.receiveShadow = true;
-    table.castShadow = true;
     group.add(table);
 
     // Floor below table — tiled blue/white polished surface

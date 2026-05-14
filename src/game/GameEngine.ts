@@ -84,6 +84,9 @@ export class GameEngine {
   private readonly difficulty: Difficulty;
   private readonly randomizers: RandomizerValues | undefined;
   private readonly nightMode: boolean;
+  private readonly _hazardLeftPos = new THREE.Vector3();
+  private readonly _hazardRightPos = new THREE.Vector3();
+  private readonly _desiredSlots = new Set<number>();
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -274,21 +277,21 @@ export class GameEngine {
     const total = this.streetLightSlotCount;
     const playerSlot = Math.floor(this.playerCar.currentT * total);
 
-    const desired = new Set<number>();
+    this._desiredSlots.clear();
     for (let offset = -5; offset <= 15; offset++) {
       if (offset === 0) continue;
-      desired.add(((playerSlot + offset) % total + total) % total);
+      this._desiredSlots.add(((playerSlot + offset) % total + total) % total);
     }
 
     for (const [slot, light] of this.streetLightMap) {
-      if (!desired.has(slot)) {
+      if (!this._desiredSlots.has(slot)) {
         this.scene.remove(light);
         light.dispose();
         this.streetLightMap.delete(slot);
       }
     }
 
-    for (const slot of desired) {
+    for (const slot of this._desiredSlots) {
       if (!this.streetLightMap.has(slot)) {
         const pos = this.track.getPointAt(slot / total);
         const pl = new THREE.PointLight(
@@ -652,9 +655,9 @@ export class GameEngine {
       const cosR = Math.cos(car.rotation);
       const frontX = car.position.x + sinR * 2.5;
       const frontZ = car.position.z + cosR * 2.5;
-      const leftPos = new THREE.Vector3(frontX + cosR * 1.2, car.position.y, frontZ - sinR * 1.2);
-      const rightPos = new THREE.Vector3(frontX - cosR * 1.2, car.position.y, frontZ + sinR * 1.2);
-      emitHazardSplash(car, hs, wasInHazard, color, leftPos, rightPos, dt, this.hazardSplash, this.audioManager, this.tireMarks);
+      this._hazardLeftPos.set(frontX + cosR * 1.2, car.position.y, frontZ - sinR * 1.2);
+      this._hazardRightPos.set(frontX - cosR * 1.2, car.position.y, frontZ + sinR * 1.2);
+      emitHazardSplash(car, hs, wasInHazard, color, this._hazardLeftPos, this._hazardRightPos, dt, this.hazardSplash, this.audioManager, this.tireMarks);
     } else {
       if (hs.inHazard) {
         hs.inHazard = false;

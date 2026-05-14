@@ -52,7 +52,6 @@ export class ObstacleFactory {
       for (let col = 0; col < 4; col++) {
         const t = new THREE.Mesh(tireGeo, tireMat);
         t.position.set(col * 2.25 - 3.375, row * 0.86 + 0.43, 0);
-        t.castShadow = true;
         t.receiveShadow = true;
         group.add(t);
         const inner = new THREE.Mesh(innerGeo, innerMat);
@@ -70,7 +69,6 @@ export class ObstacleFactory {
 
     const bale = new THREE.Mesh(new THREE.BoxGeometry(3.5, 2.0, 2.0), hayMat);
     bale.position.y = 1.0;
-    bale.castShadow = true;
     bale.receiveShadow = true;
     group.add(bale);
 
@@ -91,7 +89,6 @@ export class ObstacleFactory {
 
     const body = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.0, 2.5, 14), bodyMat);
     body.position.y = 1.25;
-    body.castShadow = true;
     group.add(body);
 
     // Two reflective stripes
@@ -116,13 +113,11 @@ export class ObstacleFactory {
     // Base
     const base = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.4, 0.4, 10), baseMat);
     base.position.y = 0.2;
-    base.castShadow = true;
     group.add(base);
 
     // Pole
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 5.0, 8), poleMat);
     pole.position.y = 2.7;
-    pole.castShadow = true;
     group.add(pole);
 
     // Flag
