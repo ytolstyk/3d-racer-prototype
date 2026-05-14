@@ -3774,27 +3774,57 @@ export function TrackEditor() {
         ) as [number, number, number],
     );
     const r2 = (v: number) => Math.round(v * 100) / 100;
+    const r2opt = (v: number | undefined) => v !== undefined ? r2(v) : undefined;
     const roundedObjects = objects.map((o) => ({
       ...o,
       x: r2(o.x),
       z: r2(o.z),
       ...(o.y !== undefined ? { y: r2(o.y) } : {}),
+      rotation: r2(o.rotation),
       scale: r2(o.scale),
     }));
+    const roundedHazards = hazards.map((h) => ({
+      ...h,
+      tStart: r2opt(h.tStart),
+      tEnd: r2opt(h.tEnd),
+      lateralOffset: r2opt(h.lateralOffset),
+      width: r2opt(h.width),
+      centerX: r2opt(h.centerX),
+      centerZ: r2opt(h.centerZ),
+      radius: r2opt(h.radius),
+      rotation: r2opt(h.rotation),
+    }));
+    const roundedLights = lights.map((l) => ({
+      ...l,
+      x: r2(l.x),
+      z: r2(l.z),
+      y: r2(l.y),
+      intensity: r2(l.intensity),
+      distance: r2(l.distance),
+      angle: r2opt(l.angle),
+      penumbra: r2opt(l.penumbra),
+      targetX: r2opt(l.targetX),
+      targetZ: r2opt(l.targetZ),
+    }));
+    const roundedSpeedStrips = speedStrips.map((s) => ({ ...s, t: r2(s.t) }));
+    const roundedBoostTracks = boostTracks.map((b) => ({ ...b, tStart: r2(b.tStart), tEnd: r2(b.tEnd) }));
+    const roundedRainZones = rainZones.map((rz) => ({ ...rz, tStart: r2(rz.tStart), tEnd: r2(rz.tEnd) }));
+    const roundedTunnels = tunnels.map((t) => ({ ...t, tStart: r2(t.tStart), tEnd: r2(t.tEnd) }));
+    const roundedPointRotations = pointRotations.map(r2);
     const id = trackName.replace(/\s+/g, "-").toLowerCase();
     const data = {
       id,
       name: trackName,
       controlPoints,
-      width: trackWidth,
-      hazards,
+      width: r2(trackWidth),
+      hazards: roundedHazards,
       objects: roundedObjects,
-      tunnels,
-      lights,
-      speedStrips,
-      boostTracks,
-      rainZones,
-      pointRotations,
+      tunnels: roundedTunnels,
+      lights: roundedLights,
+      speedStrips: roundedSpeedStrips,
+      boostTracks: roundedBoostTracks,
+      rainZones: roundedRainZones,
+      pointRotations: roundedPointRotations,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], {
       type: "application/json",
